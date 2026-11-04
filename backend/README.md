@@ -27,9 +27,12 @@ uv pip install -r requirements.txt -r requirements-dev.txt
 ## Commandes
 
 ```bash
-.venv/bin/python -m pytest                     # 329 tests du moteur, du schéma, des sondes et du backtest
+.venv/bin/python -m pytest                     # 354 tests du moteur, du schéma, des sondes et du backtest
 .venv/bin/python -m app.main --once            # un cycle papier complet (données réelles)
+.venv/bin/python -m app.main --serve           # une évaluation par bougie H4 clôturée
 .venv/bin/python -m app.main --status          # état + 3 dernières lignes par table
+.venv/bin/python scripts/reconcile.py          # audit base ↔ exchange, lecture seule
+.venv/bin/python scripts/verify_drawdowns.py   # drawdowns sur jeu figé, transaction annulée
 .venv/bin/python scripts/kill_switch.py --dry-run  # ce que ferait un arrêt d'urgence
 .venv/bin/python scripts/kill_switch.py            # liquide et halte (papier)
 .venv/bin/python scripts/hash_password.py          # hash du mot de passe admin

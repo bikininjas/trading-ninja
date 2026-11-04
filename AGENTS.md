@@ -15,13 +15,16 @@ n'a **aucun** pouvoir d'exécution : il ne peut que produire un refus.
 
 ## 2. État réel au dernier journal (voir `docs/JOURNAL.md`)
 
-- **Phase 0 terminée**, **phase 1 en cours** : 5 étapes terminées sur 11, 6 en cours.
+- **Phase 0 terminée**, **phase 1 en cours** : 6 étapes terminées sur 11, 5 en cours.
+  La **phase 2** a commencé : 2 étapes sur 4 (une évaluation par bougie, journalisation
+  complète des décisions).
 - Le moteur **papier** tourne : boucle d'orchestration, flux de marché sur bougies
   clôturées, LLM local, pare-feu, exécution simulée, Profit Sweeper, kill-switch papier,
-  API d'administration et dashboard Node.js. Point d'entrée : `python -m app.main --once`.
+  API d'administration et dashboard Node.js. Point d'entrée : `python -m app.main --once`
+  (un cycle) ou `--serve` (cycles alignés sur les clôtures H4).
 - **Rien n'est envoyé à l'exchange.** Aucun chemin d'exécution réelle n'est câblé ;
   `scripts/kill_switch.py` refuse le mode `live`. Aucun argent engagé, aucun ordre réel.
-- La base PostgreSQL existe et est à jour (2 migrations appliquées sur Supabase).
+- La base PostgreSQL existe et est à jour (3 migrations appliquées sur Supabase).
 
 ## 3. Ordre d'autorité — en cas de contradiction
 
@@ -83,7 +86,7 @@ AGENTS.md                  ce fichier
 PROMPT_*.md                specs d'origine — PÉRIMÉES, voir §3
 docs/ROADMAP.md            étapes, statuts, critères de passage
 docs/JOURNAL.md            historique daté + commande de vérification
-docs/DECISIONS.md          D-001 … D-039, le pourquoi
+docs/DECISIONS.md          D-001 … D-042, le pourquoi
 docs/ARCHITECTURE.md       couches, modules, modèle de données
 scripts/check.sh           vérification globale
 scripts/manage.sh          start/stop/restart api|dashboard|all
@@ -98,14 +101,16 @@ backend/
   app/market/feed.py       bougies clôturées, EMA/ATR/RSI/MACD
   app/llm/client.py        Ollama natif, sortie contrainte, repli HOLD
   app/execution/paper.py   fills simulés (slippage, frais, stop prioritaire)
-  app/runtime/             orchestrateur + liquidation d'urgence
+  app/runtime/             orchestrateur, réconciliation, cadence, liquidation
   app/api/                 API d'administration (login, status, pause, panic)
   app/backtest/            rejeu historique + golden de régression
   scripts/backtest.py      record / replay / watch
   db/migrations/           schéma SQL (autorité)
   scripts/db_migrate.py    status / apply / verify
   scripts/demo_guardrails.py  démonstration lisible du pare-feu
-  tests/                   329 tests Python (+ golden de backtest)
+  scripts/reconcile.py     audit base ↔ exchange, lecture seule
+  scripts/verify_drawdowns.py  drawdowns sur jeu figé, transaction annulée
+  tests/                   354 tests Python (+ golden de backtest)
 ```
 
 ## 7. Pièges connus de cet environnement
@@ -129,12 +134,17 @@ backend/
   jamais ouvrir le port 8081 sur Internet.
 - **Ollama** : l'endpoint OpenAI-compatible ignore `think` et `format`. Le client
   utilise `/api/chat` natif avec `think=false`, timeout 8 s (D-028).
+- **Kraken spot n'a pas de testnet** dans CCXT 4.5.91 (`urls['test']` absent). La
+  phase 3 « testnet » devra être redéfinie (ordres minuscules en réel ou exchange de
+  simulation) ; ne jamais supposer qu'un bac à sable existe.
 
 ## 8. Prochaine action
 
-`docs/ROADMAP.md`, phase 1 : **1.7 — réconciliation au démarrage**, puis l'exécuteur
-live. Le panic-sell et le kill-switch réels attendent un feu vert explicite de Seb
-(deux gestes : `TRADING_MODE=live` + `I_UNDERSTAND_REAL_MONEY=true`).
+`docs/ROADMAP.md`, phase 2 : **2.3 — suivre le résultat des trades refusés** (table
+`shadow_trades`, migration 0004), puis 2.4 (rapport de phase). La partie lecture de
+1.7 est faite (`scripts/reconcile.py`) ; l'application de son plan attend l'exécuteur
+live. Le panic-sell, le kill-switch réels et tout envoi d'ordre attendent un feu vert
+explicite de Seb (deux gestes : `TRADING_MODE=live` + `I_UNDERSTAND_REAL_MONEY=true`).
 
 **Décision en attente** : le modèle plafonne à 0,72 de confiance sur les BUY alors que
 le profil `micro` exige 0,85 — en production, aucun achat LLM ne passe. Le backtest ne

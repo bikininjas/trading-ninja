@@ -6,6 +6,41 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-04 · 12:50 — Réconciliation exchange, drawdowns prouvés, une décision par bougie
+
+**Construit**
+- `app/runtime/reconciliation.py` : planificateur pur (positions en base, ordres
+  ouverts, soldes) qui distingue stop armé, stop absent, stop trop petit ou trop bas,
+  et solde insuffisant. `scripts/reconcile.py` exécute l'audit en lecture seule.
+- `scripts/verify_drawdowns.py` : jeu de données figé écrit puis annulé, comparaison
+  exacte avec un calcul manuel.
+- `app/runtime/scheduler.py` et `python -m app.main --serve` : cycles alignés sur les
+  clôtures H4. Garde `last_signal_at()` dans l'orchestrateur : une bougie déjà traitée
+  est sautée, même après redémarrage.
+
+**Vérifié** (commandes réelles)
+```
+reconcile.py                        → mode PAPER · positions 0 · ordres distants 0 · 9.37 EUR, exit 0
+verify_drawdowns.py                 → 20,00 % / 40,00 % / 60,00 % exacts, transaction annulée
+app.main --once --no-warmup         → 7/7 « bougie clôturée à 08:00 UTC déjà évaluée », 0 signal, 0 LLM
+app.main --serve --serve-cycles 1   → même résultat, sans erreur
+pytest                              → 354 passed
+```
+
+**Constat** : `--cycles --interval 60` redemandait la même bougie H4 toutes les
+minutes. Corrigé sans migration : le dernier signal en base suffit à savoir qu'une
+bougie a été traitée. Le sens de l'erreur reste prudent — manquer une bougie est
+acceptable, la trader deux fois ne l'est pas.
+
+**Décidé** : D-040 (la réconciliation constate, l'exécuteur live applique), D-041
+(une bougie = une évaluation), D-042 (drawdowns sur transaction annulée).
+
+**Reste** : l'application du plan de réconciliation (liquidation/annulation) exige
+l'exécuteur live, qui n'est pas écrit et attend une revue ; puis 2.3 (résultat des
+trades refusés) et 2.4 (rapport de phase).
+
+---
+
 ## 2026-11-04 · 12:05 — Backtest historique et régression récurrente
 
 **Construit** : `app/backtest/` (rejeu sans lookahead, réutilise `build_snapshot`,

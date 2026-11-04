@@ -169,8 +169,9 @@ d'affichage, pas une source de décision.
 - `verify_key_permissions()` : `GetApiKeyInfo`, retrait interdit, cinq droits exigés,
   réponse vide ou illisible = refus.
 
-Ce qui n'existe pas encore, volontairement : l'envoi réel, l'annulation du TP frère, la
-réconciliation au démarrage, le sweep.
+Ce qui n'existe pas encore, volontairement : l'envoi réel, l'annulation du TP frère,
+l'application du plan de réconciliation (le constat et l'audit, eux, existent dans
+`app/runtime/reconciliation.py` et `scripts/reconcile.py`), et le sweep réel.
 
 À côté, `app/engine/affordability.py` (pur, testé) répond à la question qui manquait :
 avec cette équité et cette volatilité, le plus petit ordre autorisé tient-il dans le
@@ -249,5 +250,7 @@ cd backend
 .venv/bin/python scripts/check_kraken.py --permissions   # verdict fail-closed
 .venv/bin/python scripts/check_kraken.py --affordable    # équité requise, équité réelle
 .venv/bin/python scripts/check_kraken.py --affordable --profile micro --equity 9.37
+.venv/bin/python scripts/reconcile.py               # audit base ↔ exchange, lecture seule
+.venv/bin/python scripts/verify_drawdowns.py        # jeu figé, transaction annulée
 .venv/bin/python -m pytest tests/test_kraken_adapter.py tests/test_affordability.py
 ```

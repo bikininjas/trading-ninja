@@ -72,6 +72,22 @@ else
   alerte "base injoignable (réseau / IPv6 ?) — voir backend/README.md § Base de données"
 fi
 
+# Les drawdowns sont calculés en SQL, pas seulement par `_drawdown()` : le jeu
+# figé ci-dessous écrit puis annule une transaction, et compare les trois valeurs
+# à un calcul manuel. Une base injoignable est une alerte, pas un échec.
+if [ -x backend/.venv/bin/python ]; then
+  OUT=$(timeout 45 bash -c 'cd backend && .venv/bin/python scripts/verify_drawdowns.py' 2>&1)
+  RC=$?
+  if [ "$RC" -eq 0 ]; then
+    ok "drawdowns vérifiés sur un jeu figé (transaction annulée)"
+  elif [ "$RC" -eq 3 ]; then
+    alerte "drawdowns non vérifiés : base injoignable"
+  else
+    ko "vérification des drawdowns en échec :"
+    printf '%s\n' "$OUT" | tail -10 | sed 's/^/         /'
+  fi
+fi
+
 # --- 5. Cohérence documentaire ---------------------------------------------
 titre "5. Documentation"
 for f in README.md AGENTS.md docs/ROADMAP.md docs/JOURNAL.md docs/DECISIONS.md docs/ARCHITECTURE.md docs/CODE_INDEX.md docs/KRAKEN.md; do

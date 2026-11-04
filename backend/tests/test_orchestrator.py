@@ -63,6 +63,7 @@ class FakeRepo:
         self.cooldown: datetime | None = None
         self.transitions: list[tuple[str, str]] = []
         self.signals: list[dict] = []
+        self.last_signals: dict[str, datetime] = {}
         self.evaluations: list[dict] = []
         self.orders: list[dict] = []
         self.snapshots: list[dict] = []
@@ -95,7 +96,11 @@ class FakeRepo:
 
     async def insert_signal(self, mode, symbol, model_name, **kwargs):
         self.signals.append({"symbol": symbol, "model": model_name, **kwargs})
+        self.last_signals[symbol] = NOW
         return uuid.uuid4(), NOW
+
+    async def last_signal_at(self, mode, symbol):
+        return self.last_signals.get(symbol)
 
     async def insert_evaluation(self, mode, symbol, **kwargs):
         self.evaluations.append({"symbol": symbol, **kwargs})
@@ -252,6 +257,25 @@ async def test_expired_cooldown_returns_to_idle(tmp_path):
 
     assert (COOLDOWN, IDLE) in repo.transitions
     assert repo.current_state == IDLE
+
+
+@pytest.mark.asyncio
+async def test_a_closed_candle_is_evaluated_only_once(tmp_path):
+    # Phase 2.1 : une bougie clôturée = une évaluation, y compris après un
+    # redémarrage. Le second passage ne doit ni rappeler le modèle ni écrire un
+    # nouveau signal.
+    repo = FakeRepo()
+    llm = FakeLLM(llm_signal("HOLD", "0.1"))
+    orch = orchestrator(tmp_path, repo, llm)
+
+    first = await orch.run_once()
+    second = await orch.run_once()
+
+    assert first.skipped == 0
+    assert len(repo.signals) == 1
+    assert llm.calls == 1
+    assert second.skipped == 1
+    assert any("déjà évaluée" in action for action in second.actions)
 
 
 @pytest.mark.asyncio

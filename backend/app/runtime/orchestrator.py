@@ -55,6 +55,7 @@ class CycleReport:
     signals: int = 0
     evaluations: int = 0
     approved: int = 0
+    skipped: int = 0
     degraded_calls: int = 0
     position_opened: str | None = None
     position_closed: str | None = None
@@ -65,7 +66,8 @@ class CycleReport:
         out = [
             f"mode {self.mode} · état {self.state_before} → {self.state_after}",
             f"signaux {self.signals} · évaluations {self.evaluations} · "
-            f"approuvés {self.approved} · replis LLM {self.degraded_calls}",
+            f"approuvés {self.approved} · replis LLM {self.degraded_calls}"
+            + (f" · bougies déjà évaluées {self.skipped}" if self.skipped else ""),
         ]
         out.extend(f"  {action}" for action in self.actions)
         if self.position_opened:
@@ -284,6 +286,20 @@ class Orchestrator:
                 )
             except FeedError as exc:
                 report.errors.append(f"{symbol} : {exc}")
+                continue
+
+            # Une bougie clôturée = une évaluation. Sans ce garde, une boucle qui
+            # tourne toutes les minutes redemande au modèle la même bougie, pollue
+            # les statistiques et peut rouvrir une position sitôt la précédente
+            # fermée. La comparaison traverse les redémarrages : le dernier signal
+            # est relu en base.
+            last_signal = await self._repo.last_signal_at(self._mode, symbol)
+            if last_signal is not None and last_signal >= state.last_close_at:
+                report.skipped += 1
+                report.actions.append(
+                    f"{symbol} : bougie clôturée à "
+                    f"{state.last_close_at:%Y-%m-%d %H:%M} UTC déjà évaluée"
+                )
                 continue
 
             signal = await self._llm.propose(

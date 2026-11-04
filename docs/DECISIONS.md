@@ -665,3 +665,62 @@ golden montre l'impact chiffré.
 
 **Limite** : le golden fige un comportement observé, pas une vérité. Il détecte les
 changements, il ne prouve pas la rentabilité.
+
+---
+
+## D-040 — La réconciliation constate ; elle ne liquide pas elle-même
+
+**Contexte** : l'étape 1.7 exige de relire la position et son stop chez l'exchange.
+Aucun exécuteur live n'existe, et une position ouverte sans stop doit être liquidée
+« immédiatement ».
+
+**Décision** : `app/runtime/reconciliation.py` est un planificateur pur. Il lit les
+positions en base, les ordres ouverts et les soldes, puis produit un constat
+(`STOP_ARMED`, `STOP_MISSING`, `STOP_INSUFFICIENT`, `BALANCE_TOO_SMALL`, `ORPHAN_STOP`) et un plan
+(`liquidate`, `halt`). Un stop vendeur sans position connue est critique : il peut
+solder des avoirs manuels, donc le bot refuse de trader tant qu'il vit — même si le
+plan ne l'annule pas lui-même. `scripts/reconcile.py` n'exécute que la lecture.
+L'application du plan — vendre, annuler — appartient à l'exécuteur live, quand il
+existera et aura été revu.
+
+**Pourquoi** : un outil de diagnostic capable d'envoyer un ordre avant que le chemin
+d'envoi soit audité est plus dangereux que pas d'outil du tout. La lecture prouve dès
+maintenant la moitié vérifiable de 1.7 (le compte répond, aucun ordre fantôme) sans
+créer un second chemin d'exécution qui contournerait la revue.
+
+---
+
+## D-041 — Une bougie clôturée = une évaluation, sans nouvelle migration
+
+**Contexte** : `--cycles 5 --interval 60` redemandait au modèle la même bougie H4
+pendant quatre heures, écrivait des signaux en double et pouvait rouvrir une position
+juste après une sortie.
+
+**Décision** : `app/runtime/scheduler.py` calcule la prochaine clôture (alignée sur
+l'époque Unix) ; `python -m app.main --serve` y aligne ses cycles. Avant de construire
+un instantané, le runtime compare `last_signal_at(mode, symbole)` à l'heure de clôture
+de la dernière bougie : un signal postérieur prouve que la bougie a déjà été traitée,
+y compris par un processus précédent. Aucune colonne ni migration ajoutée.
+
+**Pourquoi** : le journal `llm_signals` contient déjà l'information et survit aux
+redémarrages. Le sens de l'erreur est choisi : manquer une bougie après une panne est
+acceptable, la trader deux fois ne l'est pas.
+
+---
+
+## D-042 — Les drawdowns se vérifient sur une transaction annulée
+
+**Contexte** : le critère 1.8 exige que les trois drawdowns calculés en SQL
+correspondent à un calcul manuel, sur un jeu de données figé. Aucun test unitaire ne
+prouve les fenêtres `date_trunc('day')`, `now() - interval '7 days'` ni les casts
+`NUMERIC`.
+
+**Décision** : `backend/scripts/verify_drawdowns.py` écrit cinq instantanés dans
+`equity_snapshots` — HWM à 10 jours, pic 7 jours à 16, pic du jour à 12, équité
+courante à 9,60 — calcule, compare à 20 % / 40 % / 60 %, puis annule la transaction.
+Le script est appelé par `scripts/check.sh` ; une base injoignable est une alerte, une
+valeur fausse est un échec.
+
+**Pourquoi** : la base réelle est le seul endroit où le SQL est réellement exécuté.
+Le rollback permet de l'utiliser sans polluer le ledger ; des valeurs qui tombent juste
+(0,2 / 0,4 / 0,6) rendent la comparaison exacte, sans tolérance flottante.

@@ -241,6 +241,19 @@ class PostgresRepository:
         )
         return row["id"], row["created_at"]
 
+    async def last_signal_at(self, mode: str, symbol: str) -> datetime | None:
+        """Heure du dernier signal pour une paire — sert à ne pas réévaluer une bougie.
+
+        La comparaison se fait avec la clôture de la bougie de décision : un signal
+        plus récent que cette clôture prouve que la bougie a déjà été traitée, y
+        compris par un processus précédent.
+        """
+        return await self._conn.fetchval(
+            "SELECT MAX(created_at) FROM llm_signals "
+            "WHERE mode = $1::execution_mode AND symbol = $2",
+            mode, symbol,
+        )
+
     async def insert_evaluation(self, mode: str, symbol: str, *, signal_id: uuid.UUID,
                                 signal_created_at: datetime, decision: Any, snapshot: Any,
                                 account: AccountSnapshot, evaluation_time_ms: int,
@@ -275,22 +288,27 @@ class PostgresRepository:
 
     # -- positions et ordres ---------------------------------------------
 
-    async def open_position(self, mode: str) -> PositionRow | None:
-        row = await self._conn.fetchrow(
+    async def open_positions(self, mode: str) -> list[PositionRow]:
+        rows = await self._conn.fetch(
             "SELECT id, symbol, entry_price, initial_amount, stop_loss_price, "
             "take_profit_price, opened_at, risk_amount_quote FROM positions "
             "WHERE mode = $1::execution_mode AND status = 'OPEN' "
-            "ORDER BY opened_at DESC LIMIT 1",
+            "ORDER BY opened_at DESC",
             mode,
         )
-        if row is None:
-            return None
-        return PositionRow(
-            id=row["id"], symbol=row["symbol"], entry_price=row["entry_price"],
-            amount=row["initial_amount"], stop_loss_price=row["stop_loss_price"],
-            take_profit_price=row["take_profit_price"], opened_at=row["opened_at"],
-            risk_amount_quote=row["risk_amount_quote"],
-        )
+        return [
+            PositionRow(
+                id=row["id"], symbol=row["symbol"], entry_price=row["entry_price"],
+                amount=row["initial_amount"], stop_loss_price=row["stop_loss_price"],
+                take_profit_price=row["take_profit_price"], opened_at=row["opened_at"],
+                risk_amount_quote=row["risk_amount_quote"],
+            )
+            for row in rows
+        ]
+
+    async def open_position(self, mode: str) -> PositionRow | None:
+        positions = await self.open_positions(mode)
+        return positions[0] if positions else None
 
     async def insert_order(self, mode: str, *, client_order_id: str, symbol: str,
                            side: str, order_type: str, purpose: str, status: str,

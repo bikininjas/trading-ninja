@@ -29,7 +29,7 @@ système découle de là.
 
 ## 2. Ce qui existe, ce qui n'existe pas
 
-**329 tests** Python et **18 tests** Node (347 au total), répartis ci-dessous.
+**354 tests** Python et **18 tests** Node (372 au total), répartis ci-dessous.
 
 | Composant | Fichier | État |
 |---|---|---|
@@ -61,18 +61,16 @@ système découle de là.
 | Coureur de migrations | `scripts/db_migrate.py` | ✅ status / apply / verify |
 | Démonstration du pare-feu | `scripts/demo_guardrails.py` | ✅ exécutable |
 | Sonde de clé exchange (lecture seule) | `scripts/check_exchange.py` | ✅ écrit — mainnet vérifié, testnet sans clé |
-| Client exchange (CCXT) | — | ⬜ phase 1.6 |
-| Flux de marché et indicateurs | — | ⬜ phase 1.4 |
-| Client LLM | — | ⬜ phase 1.5 |
-| Machine à états | — | ⬜ phase 1.2 |
-| Broker papier | — | ⬜ phase 1.3 |
-| Accès base (repositories) | — | ⬜ non planifié explicitement, nécessaire en 1.3 |
-| API HTTP / WebSocket | — | ⬜ phase 1.10 |
-| Boucle principale / planificateur | — | ⬜ phase 2.1 |
+| Réconciliation base ↔ exchange | `app/runtime/reconciliation.py` | ✅ lecture + verdict (15 assertions) ; exécution du plan à écrire |
+| Audit de réconciliation | `scripts/reconcile.py` | ✅ lecture seule, vérifié sur le compte réel |
+| Cadence d'évaluation | `app/runtime/scheduler.py` | ✅ écrit (8 assertions) |
+| Vérification des drawdowns | `scripts/verify_drawdowns.py` | ✅ jeu figé, transaction annulée |
 
 Autrement dit : **le corps est assemblé en mode papier.** `python -m app.main --once`
-exécute un cycle complet (données réelles, LLM local, pare-feu, fill simulé persisté).
-Il manque l'exécution réelle, la réconciliation exchange, le sweep et l'administration.
+exécute un cycle complet (données réelles, LLM local, pare-feu, fill simulé persisté),
+et `--serve` aligne les cycles sur les clôtures H4. Il manque l'exécution réelle
+(envoi, annulation, application du plan de réconciliation), le suivi du résultat des
+trades refusés et le rapport de phase 2.
 
 La carte ligne par ligne (modules, classes, méthodes, migrations, tests) est dans
 [`CODE_INDEX.md`](CODE_INDEX.md). Elle est **générée** par `scripts/index_codebase.py` et

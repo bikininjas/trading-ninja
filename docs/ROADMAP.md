@@ -14,8 +14,8 @@ Statuts : ⬜ à faire · 🟨 en cours · ✅ fait et vérifié · ⛔ bloqué 
 | Phase | Objectif | Statut | Avancement |
 |---|---|---|---|
 | **0. Fondations** | Le socle sur lequel rien ne peut perdre d'argent par accident | ✅ | 9 / 9 |
-| **1. Moteur** | Le bot existe et tourne, mais sans argent | 🟨 | 5 / 11 |
-| **2. Simulation** | Prouver la mécanique sur des centaines de trades fictifs | ⬜ | 0 / 4 |
+| **1. Moteur** | Le bot existe et tourne, mais sans argent | 🟨 | 6 / 11 |
+| **2. Simulation** | Prouver la mécanique sur des centaines de trades fictifs | 🟨 | 2 / 4 |
 | **3. Testnet** | Prouver l'exécution réelle avec du capital fictif | ⬜ | 0 / 3 |
 | **4. Argent réel** | Engager le minimum, profil prudent, sous surveillance | ⬜ | 0 / 3 |
 
@@ -170,20 +170,29 @@ persistée) ; l'envoi réel et l'API d'administration restent à faire.
   Relire solde + ordres ouverts, retrouver la position, vérifier que le stop est
   toujours armé. Stop absent → liquidation immédiate.
   *Fait* : une position `OPEN` en base est retrouvée et surveillée ; `EVALUATING` et
-  `EXECUTING` résiduels sont normalisés sans double entrée.
-  *Reste* : la partie exchange — relire les ordres ouverts et vérifier le stop distant.
-  Sans objet en papier, obligatoire avant le réel.
+  `EXECUTING` résiduels sont normalisés sans double entrée. Côté exchange,
+  `app/runtime/reconciliation.py` lit les ordres ouverts et les soldes, puis produit
+  un plan : stop armé (OK), stop absent / trop petit / trop bas (liquidation), solde
+  insuffisant (arrêt sans vente, on ne vend pas ce qu'on n'a pas). `scripts/reconcile.py`
+  exécute cet audit en lecture seule, sans écrire ni envoyer.
+  *Validé par* : audit réel `scripts/reconcile.py` → `mode PAPER · positions 0 ·
+  ordres distants 0 · solde 9.37 EUR`, exit 0 ; 15 tests hors réseau.
+  *Reste* : appliquer le plan (liquidation, annulation) via l'exécuteur live, qui
+  n'existe pas encore ; vérifier un stop réellement armé exige un ordre, donc la
+  phase 3. Sans objet en papier, obligatoire avant le réel.
   *Critère* : tuer le process en position ouverte, le relancer, il retrouve la position
   et son stop sans rien dupliquer.
 
-- 🟨 **1.8 — Instantanés d'équité et drawdowns** *(2026-11-04)*
+- ✅ **1.8 — Instantanés d'équité et drawdowns** *(2026-11-04)*
   Écriture périodique dans `equity_snapshots`, calcul des drawdowns 24 h / 7 j / plus
   haut historique utilisés par le pare-feu.
   *Fait* : snapshot à chaque cycle et à chaque entrée/sortie, drawdowns calculés en SQL
   et injectés dans le pare-feu, arithmétique du drawdown testée.
-  *Reste* : le test de référence sur un jeu de données figé en base.
-  *Critère* : les trois valeurs calculées à la main sur un jeu de données de test
-  correspondent exactement à celles produites par le code. (Partiellement vérifié.)
+  *Validé par* : `scripts/verify_drawdowns.py` écrit un jeu figé dans une transaction
+  annulée et compare les trois valeurs au calcul manuel : pic jour 12,00 → 20,00 %,
+  pic 7 jours 16,00 → 40,00 %, HWM 24,00 → 60,00 %. Intégré à `scripts/check.sh`.
+  *Critère vérifié* : les trois valeurs calculées à la main correspondent exactement
+  à celles produites par le SQL, sur une base réelle.
 
 - ✅ **1.9 — Profit sweeper** *(2026-11-04)*
   À la clôture gagnante : 30 % vers le compte réserve, avec seuil minimum de transfert
@@ -224,12 +233,28 @@ persistée) ; l'envoi réel et l'API d'administration restent à faire.
 
 ---
 
-## Phase 2 — Simulation papier ⬜
+## Phase 2 — Simulation papier 🟨
 
 Objectif : mesurer, pas espérer.
 
-- ⬜ **2.1 — Boucle de décision automatique** (une évaluation par bougie H4 clôturée)
-- ⬜ **2.2 — Journalisation de toutes les décisions**, y compris les refus et leur code
+- ✅ **2.1 — Boucle de décision automatique** *(2026-11-04)*
+  Une évaluation par bougie H4 clôturée, pas une par minute. `app/runtime/scheduler.py`
+  calcule la prochaine clôture (alignée sur l'époque Unix) et `python -m app.main
+  --serve` y aligne ses cycles. Le garde `last_signal_at()` compare le dernier signal
+  en base à l'heure de clôture : une bougie déjà traitée est sautée, y compris après
+  un redémarrage.
+  *Validé par* : `python -m app.main --once --no-warmup` → 7 paires « bougie clôturée à
+  08:00 UTC déjà évaluée », 0 signal, 0 appel LLM ; `--serve --serve-cycles 1` → même
+  résultat sans erreur ; 8 tests de cadence.
+
+- ✅ **2.2 — Journalisation de toutes les décisions**, y compris les refus et leur code
+  *Fait* : tout HOLD est écrit dans `llm_signals` (et n'entre pas dans le pare-feu,
+  D-030) ; tout BUY est écrit dans `risk_evaluations` avec `rejection_code`,
+  `rejection_details` et les valeurs normalisées ; un repli LLM est marqué `(repli)`.
+  *Validé par* : `test_hold_never_reaches_the_risk_gate`,
+  `test_counter_trend_buy_is_refused_by_the_gate` et le cycle réel du 2026-11-04
+  (7 signaux persistés, 0 évaluation car tous HOLD).
+
 - ⬜ **2.3 — Suivre le résultat qu'aurait eu chaque trade accepté comme chaque trade refusé**
 - ⬜ **2.4 — Rapport de fin de phase** (nombre de trades, taux de réussite, espérance,
       drawdown maximal, répartition des codes de rejet)
@@ -268,7 +293,8 @@ Seb. Le risque par trade (0,5 %) reste inchangé quel que soit le capital.
 
 | # | Question | Impact |
 |---|---|---|
-| 1 | ✅ **Répondu le 2026-11-04** : les clés fournies sont **mainnet**, lecture + trading spot, retraits désactivés, IP restreinte. Reste à créer une paire de clés **testnet** dédiée | Sans clé testnet, la phase 3 ne peut pas être prouvée sur un vrai exchange |
+| 1 | ✅ **Répondu le 2026-11-04** : clés **mainnet**, lecture + trading spot, retraits désactivés, IP restreinte. **Kraken spot n'a pas de testnet** dans CCXT 4.5.91 : la phase 3 devra être redéfinie (ordres minuscules en réel, ou exchange de simulation) | Sans cette redéfinition, la phase 3 telle qu'écrite est infaisable |
 | 2 | Quel montant acceptes-tu de perdre **entièrement** ? | Détermine la taille de tout le reste (phase 4) |
 | 3 | Ollama est-il installé sur la machine, et avec quel modèle ? | Détermine la phase 1.5 (le LLM local) |
-| 4 | ⛔ **Remplacer la clé Kraken** : celle de `.env.local` autorise les retraits (`withdraw-funds`) et n'a **aucune** restriction d'IP. Le garde-fou la refuse | Sans clé saine, aucune connexion Kraken ne peut être utilisée par le bot |
+| 4 | ✅ **Résolu le 2026-11-04** : clé Kraken remplacée puis vérifiée — 7 permissions, aucun droit de retrait, IP restreinte. Le garde-fou passe | — |
+| 5 | Créer une **seconde paire de clés Kraken** pour le kill-switch, ou accepter que le kill-switch ne puisse pas signer en parallèle du bot (nonces strictement croissants par clé) | Sans elle, le kill-switch réel ne peut pas tourner pendant que le bot tourne |
