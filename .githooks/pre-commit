@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# Crochet pre-commit : refuse tout commit contenant des secrets.
+#
+# Deuxième ligne de défense derrière .gitignore. .gitignore protège des fichiers
+# qu'on pense à ignorer ; ce crochet protège aussi de `git add -f`, d'un fichier
+# mal nommé, et d'un secret collé dans un fichier anodin.
+#
+# Activer une fois :  git config core.hooksPath .githooks
+# Contourner (à ses risques) : git commit --no-verify
+
+set -uo pipefail
+
+BLOCKED_NAMES=(
+  ".env"
+  ".env.local"
+  ".env.production"
+  ".env.development"
+  "credentials.json"
+  "secrets.json"
+)
+
+fail=0
+
+report() {
+  echo "commit REFUSÉ : $1" >&2
+  echo "  fichier : $2" >&2
+  fail=1
+}
+
+while IFS= read -r -d '' file; do
+  [ -z "$file" ] && continue
+  base="$(basename "$file")"
+
+  # --- 1. Noms de fichiers interdits -------------------------------------
+  for blocked in "${BLOCKED_NAMES[@]}"; do
+    if [ "$base" = "$blocked" ]; then report "fichier de secrets" "$file"; fi
+  done
+  case "$file" in
+    *.pem|*.key|*.p12|*.pfx) report "clé privée probable" "$file" ;;
+    secrets/*|*/secrets/*)   report "répertoire de secrets" "$file" ;;
+  esac
+
+  # --- 2. Contenu ----------------------------------------------------------
+  # Les gabarits *.example sont faits pour contenir des valeurs factices.
+  case "$file" in
+    *.example|*.lock) continue ;;
+  esac
+  [ -f "$file" ] || continue
+
+  # Motifs à haute spécificité : jamais légitimes, y compris dans un README.
+  if grep -qE -- '-----BEGIN [A-Z ]*PRIVATE KEY-----' "$file" 2>/dev/null; then
+    report "clé privée en clair dans le contenu" "$file"
+  fi
+  if grep -qE 'sb_secret_[A-Za-z0-9_-]{10,}' "$file" 2>/dev/null; then
+    report "clé Supabase secrète (sb_secret_...)" "$file"
+  fi
+
+  # Motifs plus larges : ignorés dans la documentation, où un exemple de chaîne
+  # de connexion est normal. Un secret collé dans un .md reste détecté ci-dessus.
+  case "$file" in
+    *.md|*.markdown|*.rst|*.txt) continue ;;
+  esac
+  if grep -qE 'SUPABASE_[A-Z0-9_]*PWD[[:space:]]*=[[:space:]]*[^[:space:]#]+' "$file" 2>/dev/null; then
+    report "mot de passe Supabase en clair" "$file"
+  fi
+  # Une vraie clé service_role est un JWT (eyJ…), pas le mot seul : sinon le
+  # crochet se détecterait lui-même.
+  if grep -qiE 'service_role.{0,40}eyJ[A-Za-z0-9_-]{20,}' "$file" 2>/dev/null; then
+    report "clé service_role exposée" "$file"
+  fi
+done < <(git diff --cached --name-only --diff-filter=ACM -z)
+
+if [ "$fail" -ne 0 ]; then
+  echo "" >&2
+  echo "Ces fichiers ne doivent jamais entrer dans l'historique Git." >&2
+  echo "Retire-les de l'index :  git restore --staged <fichier>" >&2
+  echo "Puis vérifie .gitignore. Si le secret a déjà été poussé, considère-le" >&2
+  echo "comme compromis et régénère-le — l'historique est public." >&2
+  exit 1
+fi
+
+# --- 3. Régression de backtest ---------------------------------------------
+# Le golden rejoue des décisions enregistrées : rapide (< 1 s), déterministe, hors
+# ligne. Il attrape les changements de code, de risque et de prompt avant le commit.
+if git diff --cached --name-only | grep -qE '^backend/(app/|scripts/backtest\.py|tests/test_backtest|tests/fixtures/backtest)'; then
+  if [ -x backend/.venv/bin/python ]; then
+    if ! OUT=$(cd backend && .venv/bin/python -m pytest tests/test_backtest_golden.py -q 2>&1); then
+      echo "commit REFUSÉ : le backtest de régression ne passe plus." >&2
+      printf '%s\n' "$OUT" | tail -30 >&2
+      echo "" >&2
+      echo "Si le changement est voulu :" >&2
+      echo "  cd backend && .venv/bin/python scripts/backtest.py replay --bless" >&2
+      echo "puis relire le diff du golden avant de le committer." >&2
+      exit 1
+    fi
+  else
+    echo "attention : venv absent, backtest de régression non exécuté" >&2
+  fi
+fi
+
+exit 0

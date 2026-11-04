@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trading Ninja — supervision</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <div class="brand">TRADING NINJA <span class="muted">supervision</span></div>
+    <div class="head-right">
+      <span id="conn" class="conn">connexion…</span>
+      <span id="state" class="badge" data-state="">—</span>
+      <form method="post" action="/logout">
+        <button class="ghost" type="submit">Déconnexion</button>
+      </form>
+    </div>
+  </header>
+
+  <main>
+    <section class="cards">
+      <article class="card">
+        <h2>Équité</h2>
+        <p id="equity" class="value">—</p>
+        <p class="sub">EUR</p>
+      </article>
+      <article class="card">
+        <h2>Disponible</h2>
+        <p id="free" class="value">—</p>
+        <p class="sub">EUR</p>
+      </article>
+      <article class="card">
+        <h2>Réserve</h2>
+        <p id="reserve" class="value">—</p>
+        <p class="sub">EUR</p>
+      </article>
+      <article class="card">
+        <h2>Drawdown / HWM</h2>
+        <p id="drawdown" class="value">—</p>
+        <p class="sub">%</p>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Position</h2>
+        <span id="position-symbol" class="muted"></span>
+      </div>
+      <div id="position" class="position empty">Aucune position ouverte.</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Commandes</h2>
+        <span class="muted">chaque action est journalisée en base</span>
+      </div>
+      <div class="controls">
+        <button id="pause" class="warn" type="button">Pause</button>
+        <button id="resume" class="ok" type="button">Reprendre</button>
+        <button id="panic" class="danger" type="button">Panic-sell</button>
+      </div>
+      <p id="feedback" class="feedback" role="status"></p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Derniers signaux</h2>
+        <span id="updated" class="muted"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Heure</th><th>Paire</th><th>Action</th><th>Conf.</th>
+              <th>Régime</th><th>Thèse</th>
+            </tr>
+          </thead>
+          <tbody id="signals">
+            <tr><td colspan="6" class="muted">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <p class="footer">
+      Mode papier · aucun ordre réel ·
+      <span id="mode">—</span> · flux <span id="updated-footer">—</span>
+    </p>
+  </main>
+
+  <dialog id="panic-dialog">
+    <form id="panic-form">
+      <h2>Liquider la position</h2>
+      <p class="muted">
+        Cette action solde la position au prix du marché et met le bot à l'arrêt.
+        Saisir le code Authy courant.
+      </p>
+      <input id="panic-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+             placeholder="123456" autocomplete="one-time-code" required>
+      <div class="dialog-actions">
+        <button type="button" id="panic-cancel" class="ghost">Annuler</button>
+        <button type="submit" class="danger">Liquider</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

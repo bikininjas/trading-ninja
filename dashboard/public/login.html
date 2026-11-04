@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trading Ninja — accès</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="login-page">
+  <main class="login">
+    <h1>TRADING NINJA</h1>
+    <p class="muted">Supervision — accès restreint</p>
+    <form method="post" action="/login">
+      <label>
+        Mot de passe
+        <input type="password" name="password" required autocomplete="current-password"
+               autofocus>
+      </label>
+      <label>
+        Code Authy
+        <input type="text" name="totp" inputmode="numeric" pattern="[0-9]{6}"
+               maxlength="6" required autocomplete="one-time-code" placeholder="123456">
+      </label>
+      <p id="login-error" class="error" hidden>
+        Identifiants refusés. Vérifier le mot de passe et le code courant.
+      </p>
+      <button type="submit">Entrer</button>
+    </form>
+    <p class="footer">Deux facteurs · session de 15 minutes</p>
+  </main>
+  <script src="/app.js" defer></script>
+</body>
+</html>

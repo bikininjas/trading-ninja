@@ -1,0 +1,5 @@
+# Dépendances de développement uniquement.
+pytest>=9,<10
+pytest-asyncio>=0.24,<2
+# QR code ASCII pour l'enrôlement TOTP (Authy, Aegis...).
+qrcode>=8,<9

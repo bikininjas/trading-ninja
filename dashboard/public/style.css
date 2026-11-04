@@ -1,0 +1,208 @@
+:root {
+  --bg: #0b0e13;
+  --surface: #121722;
+  --surface-2: #171d2a;
+  --border: #232c3d;
+  --text: #e6ebf2;
+  --muted: #8a94a6;
+  --ok: #58d68d;
+  --warn: #f0b429;
+  --danger: #ff6b6b;
+  --accent: #7aa2f7;
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+h1, h2 { margin: 0; font-weight: 600; letter-spacing: 0.02em; }
+h2 { font-size: 0.78rem; text-transform: uppercase; color: var(--muted); }
+
+.muted { color: var(--muted); font-weight: 400; }
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: rgba(11, 14, 19, 0.9);
+  position: sticky;
+  top: 0;
+  backdrop-filter: blur(6px);
+  z-index: 10;
+}
+
+.brand { font-weight: 700; letter-spacing: 0.14em; font-size: 0.95rem; }
+.brand .muted { letter-spacing: 0.04em; text-transform: lowercase; font-size: 0.8rem; }
+
+.head-right { display: flex; align-items: center; gap: 0.75rem; }
+.head-right form { margin: 0; }
+
+.conn { font-size: 0.78rem; color: var(--muted); }
+.conn::before { content: "●"; margin-right: 0.35rem; color: var(--warn); }
+
+.badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.badge[data-state="IDLE"] { color: var(--ok); border-color: rgba(88, 214, 141, 0.35); }
+.badge[data-state="IN_POSITION"] { color: var(--accent); border-color: rgba(122, 162, 247, 0.4); }
+.badge[data-state="COOLDOWN"],
+.badge[data-state="EVALUATING"],
+.badge[data-state="EXECUTING"] { color: var(--warn); border-color: rgba(240, 180, 41, 0.4); }
+.badge[data-state="LOCKED_CIRCUIT_BREAKER"],
+.badge[data-state="EMERGENCY_HALT"] { color: var(--danger); border-color: rgba(255, 107, 107, 0.45); }
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.card, .panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+}
+
+.card h2 { margin-bottom: 0.5rem; }
+.card .value {
+  margin: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 1.7rem;
+  font-variant-numeric: tabular-nums;
+}
+.card .sub { margin: 0.1rem 0 0; font-size: 0.75rem; color: var(--muted); }
+
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.position { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.6rem 1rem; }
+.position.empty { display: block; color: var(--muted); }
+.kv { display: flex; flex-direction: column; gap: 0.1rem; }
+.kv span { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.kv strong { font-family: ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+
+button {
+  font: inherit;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+button:hover { border-color: var(--muted); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.ghost { background: transparent; font-weight: 500; color: var(--muted); }
+button.ok { color: var(--ok); border-color: rgba(88, 214, 141, 0.35); }
+button.warn { color: var(--warn); border-color: rgba(240, 180, 41, 0.35); }
+button.danger { color: var(--danger); border-color: rgba(255, 107, 107, 0.45); background: rgba(255, 107, 107, 0.08); }
+
+.feedback { min-height: 1.2rem; margin: 0.7rem 0 0; font-size: 0.85rem; color: var(--muted); }
+.feedback[data-kind="ok"] { color: var(--ok); }
+.feedback[data-kind="error"] { color: var(--danger); }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
+td:nth-child(3) { font-weight: 700; }
+td[data-action="buy"] { color: var(--ok); }
+td[data-action="sell"] { color: var(--danger); }
+td[data-action="hold"] { color: var(--muted); }
+td:nth-child(1), td:nth-child(4) { font-family: ui-monospace, Menlo, Consolas, monospace; white-space: nowrap; }
+
+.footer { color: var(--muted); font-size: 0.78rem; text-align: center; margin: 0.5rem 0 2rem; }
+
+dialog {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  max-width: 420px;
+  width: calc(100% - 2rem);
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.65); }
+dialog h2 { font-size: 1rem; text-transform: none; color: var(--text); margin-bottom: 0.5rem; }
+dialog input {
+  width: 100%;
+  margin: 0.8rem 0;
+  padding: 0.6rem;
+  font: inherit;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 1.2rem;
+  letter-spacing: 0.3em;
+  text-align: center;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.dialog-actions { display: flex; justify-content: flex-end; gap: 0.6rem; }
+
+.login-page { display: grid; place-items: center; min-height: 100vh; padding: 1rem; }
+.login {
+  width: 100%;
+  max-width: 360px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.75rem;
+}
+.login h1 { font-size: 1.1rem; letter-spacing: 0.14em; margin-bottom: 0.2rem; }
+.login p.muted { margin: 0 0 1.2rem; font-size: 0.85rem; }
+.login form { display: grid; gap: 0.9rem; }
+.login label { display: grid; gap: 0.35rem; font-size: 0.8rem; color: var(--muted); }
+.login input {
+  padding: 0.6rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.login input[name="totp"] { font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.2em; }
+.login button { margin-top: 0.3rem; }
+.error { color: var(--danger); font-size: 0.85rem; margin: 0; }
+
+@media (max-width: 620px) {
+  header { flex-direction: column; align-items: flex-start; }
+  .cards { grid-template-columns: 1fr 1fr; }
+  .card .value { font-size: 1.35rem; }
+}

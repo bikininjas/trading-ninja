@@ -1,0 +1,12 @@
+[project]
+name = "trading-ninja-backend"
+version = "0.1.0"
+description = "Moteur d'exécution déterministe avec Risk Gateway fail-closed"
+requires-python = ">=3.15"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
