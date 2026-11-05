@@ -7,7 +7,8 @@ Principes :
 
 - l'API ne décide jamais d'acheter ; elle lit, arrête et liquide ;
 - `/api/control/panic` exige un code TOTP **frais** en plus de la session ;
-- la session expire en 15 minutes ;
+- la session dure 7 jours ; le dashboard ne pose qu'un cookie HttpOnly,
+  SameSite=Strict, et ne transmet jamais le jeton au navigateur ;
 - la documentation interactive (Swagger) est désactivée : une surface
   d'administration n'a pas à publier son propre mode d'emploi ;
 - sans `JWT_SECRET_KEY`, `TOTP_SECRET` et `ADMIN_PASSWORD_HASH`, l'application
@@ -33,6 +34,10 @@ from app.api.security import (
     decode_token, require_secrets, verify_password,
 )
 from app.api.service import ControlRefused, build_status, jsonable, pause, resume
+from app.api.settings_store import (
+    SettingsRefused, build_payload, friendly_settings, validate_payload,
+)
+from app.api.stats import build_stats
 from app.core.settings import Settings, load_settings
 from app.db.repository import PostgresRepository, StateTransitionError
 
@@ -48,21 +53,29 @@ class TotpRequest(BaseModel):
     totp: str = Field(min_length=6, max_length=6)
 
 
+class SettingsUpdate(BaseModel):
+    """Réglages du dashboard. Les pourcentages sont des fractions (0,50 = 50 %)."""
+
+    profile: str | None = None
+    max_per_trade_pct: float | None = Field(default=None, ge=0.05, le=0.50)
+    max_daily_loss_pct: float | None = Field(default=None, ge=0.01, le=0.20)
+    max_orders_per_hour: int | None = Field(default=None, ge=1, le=20)
+    confidence_floor: float | None = Field(default=None, ge=0.40, le=0.95)
+    entry_rule_enabled: bool | None = None
+    halt_auto_resume_hours: int | None = Field(default=None, ge=0, le=168)
+
+
 async def _default_liquidate(repo: PostgresRepository, config: Settings) -> list:
-    """Liquidation réelle de la position papier, au prix public courant."""
-    from app.exchange.kraken import build_exchange, market_info
-    from app.execution.paper import PaperBroker
+    """Liquidation d'urgence : papier en mode papier, réelle en mode live."""
+    from app.exchange.kraken import build_exchange
+    from app.execution.factory import make_broker
     from app.runtime.recovery import liquidate_open_positions
 
     exchange = build_exchange(
         api_key=config.exchange.api_key, secret=config.exchange.secret
     )
     await asyncio.to_thread(exchange.load_markets)
-    fees = [market_info(exchange, symbol).taker_fee
-            for symbol in config.exchange.allowed_symbols]
-    broker = PaperBroker(
-        max(fees) if fees else Decimal("0.0026"), config.paper_slippage_bps
-    )
+    broker = make_broker(config, exchange, config.exchange.allowed_symbols)
     return await liquidate_open_positions(
         repo, exchange, broker, config.execution_mode,
         quote_currency=config.exchange.quote_currency,
@@ -75,8 +88,10 @@ def create_app(
     *,
     repo: Any | None = None,
     liquidate: Any | None = None,
+    settings_loader: Any | None = None,
 ) -> FastAPI:
     config = settings or load_settings()
+    load = settings_loader or load_settings
     require_secrets(
         config.jwt_secret, config.totp_secret, config.admin_password_hash
     )
@@ -146,6 +161,47 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"table": table, "rows": [jsonable(row) for row in rows]}
+
+    @app.get("/api/stats")
+    async def stats(repo=Depends(get_repo), _: dict = Depends(session)) -> dict:
+        return await build_stats(repo, config)
+
+    # -- réglages --------------------------------------------------------
+
+    @app.get("/api/settings")
+    async def settings_view(repo=Depends(get_repo),
+                            _: dict = Depends(session)) -> dict:
+        try:
+            payload, updated_at = await repo.runtime_settings(config.execution_mode)
+            candidate = validate_payload(payload, loader=load)
+            return friendly_settings(
+                candidate,
+                updated_at=updated_at.isoformat() if updated_at else None,
+            )
+        except SettingsRefused as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.post("/api/settings")
+    async def settings_update(payload: SettingsUpdate,
+                              repo=Depends(get_repo),
+                              _: dict = Depends(session)) -> dict:
+        try:
+            current, _ = await repo.runtime_settings(config.execution_mode)
+            new_payload = build_payload(current, payload.model_dump(exclude_none=True))
+            candidate = validate_payload(new_payload, loader=load)
+            updated_at = await repo.update_runtime_settings(
+                config.execution_mode, new_payload, updated_by="dashboard"
+            )
+            return friendly_settings(
+                candidate,
+                updated_at=updated_at.isoformat() if updated_at else None,
+            )
+        except SettingsRefused as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     # -- contrôle --------------------------------------------------------
 

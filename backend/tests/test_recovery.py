@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -11,6 +12,7 @@ import pytest
 from app.db.repository import AccountSnapshot, PositionRow
 from app.execution.paper import PaperBroker
 from app.runtime import recovery
+from app.runtime.reconciliation import ReconciliationPlan, apply_reconciliation
 from app.runtime.recovery import liquidate_open_positions
 
 NOW = datetime(2026, 11, 4, 12, 0, tzinfo=timezone.utc)
@@ -50,6 +52,10 @@ class FakeRepo:
     async def open_position(self, mode):
         pos, self.pos = self.pos, None
         return pos
+
+    async def open_positions(self, mode):
+        pos, self.pos = self.pos, None
+        return [pos] if pos is not None else []
 
     async def open_orders(self, mode): return list(self.orders)
 
@@ -121,3 +127,52 @@ async def test_emergency_exit_pays_fees_and_slippage():
     )
     # 90 * (1 - 5 bps) = 89,955 : la liquidation n'est pas gratuite.
     assert repo.closed["exit_price"] == Decimal("89.95500")
+
+
+@pytest.mark.asyncio
+async def test_apply_reconciliation_liquidates_the_planned_symbol():
+    plan = ReconciliationPlan(
+        mode="LIVE", quote_currency="EUR", positions=1, remote_orders=0,
+        quote_balance=Decimal("9.37"), findings=(), liquidate=("BTC/EUR",),
+    )
+    repo = FakeRepo(position())
+
+    actions = await apply_reconciliation(
+        plan, repo, exchange=object(), broker=PaperBroker(Decimal("0.0026"), 5),
+        starting_equity=Decimal("9.37"), now=NOW,
+    )
+
+    assert actions and "liquidé BTC/EUR" in actions[0]
+    assert repo.closed["exit_reason"] == "RECONCILIATION"
+    assert repo.halted is not None
+
+
+@pytest.mark.asyncio
+async def test_apply_reconciliation_halts_without_liquidating_on_a_simple_alert():
+    plan = ReconciliationPlan(
+        mode="LIVE", quote_currency="EUR", positions=0, remote_orders=1,
+        quote_balance=Decimal("9.37"), findings=(), halt=True,
+    )
+    repo = FakeRepo(None)
+
+    actions = await apply_reconciliation(
+        plan, repo, exchange=object(), broker=PaperBroker(Decimal("0.0026"), 5),
+        starting_equity=Decimal("9.37"), now=NOW,
+    )
+
+    assert actions == ["halte forcée : écart base/exchange"]
+    assert repo.halted is not None
+    assert repo.closed is None
+
+
+def test_apply_reconciliation_refuses_paper_mode():
+    plan = ReconciliationPlan(
+        mode="PAPER", quote_currency="EUR", positions=0, remote_orders=0,
+        quote_balance=None, findings=(),
+    )
+    with pytest.raises(ValueError, match="LIVE"):
+        asyncio.run(apply_reconciliation(
+            plan, FakeRepo(None), exchange=object(),
+            broker=PaperBroker(Decimal("0.0026"), 5),
+            starting_equity=Decimal("9.37"), now=NOW,
+        ))

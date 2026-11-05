@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from app.core.settings import RISK_PRESETS, load_settings
+from app.engine.risk_gate import EntryMode, SwingExitMode
 
 
 def test_defaults_are_paper_and_do_not_touch_real_money(tmp_path: Path):
@@ -33,6 +34,27 @@ def test_individual_override_beats_preset(tmp_path: Path):
     )
     assert s.risk.risk_per_trade_pct == Decimal("0.003")
     assert s.risk.max_notional_pct == Decimal("0.50")
+
+
+def test_swing_preset_enables_d1_and_small_account_allocation(tmp_path: Path):
+    s = load_settings(
+        env_file=tmp_path / "absent.env", overrides={"RISK_PROFILE": "swing"}
+    )
+    assert s.risk.entry_mode is EntryMode.SWING_MACRO_D1
+    assert s.exchange.daily_timeframe_decision == "1d"
+    assert s.risk.max_notional_pct == Decimal("1.0")
+    assert s.risk.small_account_full_allocation is True
+
+
+def test_swing_mode_refuses_a_non_daily_decision_timeframe(tmp_path: Path):
+    with pytest.raises(RuntimeError, match="DECISION_TIMEFRAME=1d"):
+        load_settings(
+            env_file=tmp_path / "absent.env",
+            overrides={
+                "ENTRY_MODE": "SWING_MACRO_D1",
+                "DECISION_TIMEFRAME": "4h",
+            },
+        )
 
 
 def test_live_mode_requires_two_deliberate_gestures(tmp_path: Path):
@@ -201,12 +223,33 @@ def test_fee_buffer_default_matches_the_exchange_taker_fee(tmp_path: Path):
     binance = load_settings(env_file=tmp_path / "absent.env", overrides={"EXCHANGE_ID": "binance"})
     kraken = load_settings(env_file=tmp_path / "absent.env", overrides={"EXCHANGE_ID": "kraken"})
     assert binance.risk.fee_buffer_pct == Decimal("0.002")   # 2 × 0,10 %
-    assert kraken.risk.fee_buffer_pct == Decimal("0.0052")   # 2 × 0,26 %
+    assert kraken.risk.fee_buffer_pct == Decimal("0.016")    # 2 × 0,80 %
     explicit = load_settings(
         env_file=tmp_path / "absent.env",
         overrides={"EXCHANGE_ID": "kraken", "FEE_BUFFER_PCT": "0.01"},
     )
     assert explicit.risk.fee_buffer_pct == Decimal("0.01")
+
+
+def test_taker_fee_defaults_to_the_current_kraken_tier(tmp_path: Path):
+    binance = load_settings(env_file=tmp_path / "absent.env", overrides={"EXCHANGE_ID": "binance"})
+    kraken = load_settings(env_file=tmp_path / "absent.env", overrides={"EXCHANGE_ID": "kraken"})
+    assert binance.exchange.taker_fee == Decimal("0.001")
+    assert kraken.exchange.taker_fee == Decimal("0.008")
+    assert kraken.exchange.maker_fee == Decimal("0.004")
+    explicit = load_settings(
+        env_file=tmp_path / "absent.env",
+        overrides={"EXCHANGE_ID": "kraken", "TAKER_FEE_PCT": "0.006"},
+    )
+    assert explicit.exchange.taker_fee == Decimal("0.006")
+
+
+def test_an_absurd_taker_fee_is_refused(tmp_path: Path):
+    with pytest.raises(RuntimeError, match="TAKER_FEE_PCT"):
+        load_settings(
+            env_file=tmp_path / "absent.env",
+            overrides={"EXCHANGE_ID": "kraken", "TAKER_FEE_PCT": "0.10"},
+        )
 
 
 def test_quote_currency_is_derived_from_the_symbol(tmp_path: Path):
@@ -244,7 +287,7 @@ def test_micro_profile_loads_for_small_accounts(tmp_path: Path):
     assert s.risk_profile == "micro"
     assert s.risk.risk_per_trade_pct == Decimal("0.0175")
     assert s.risk.max_notional_pct == Decimal("0.50")
-    assert s.risk.min_confidence == Decimal("0.85")
+    assert s.risk.min_confidence == Decimal("0.60")
 
 
 @pytest.mark.parametrize("profile", sorted(RISK_PRESETS))
@@ -271,3 +314,61 @@ def test_negative_sweep_minimum_is_refused(tmp_path: Path):
 def test_negative_paper_slippage_is_refused(tmp_path: Path):
     with pytest.raises(RuntimeError, match="PAPER_SLIPPAGE_BPS"):
         load_settings(env_file=tmp_path / "absent.env", overrides={"PAPER_SLIPPAGE_BPS": "-5"})
+
+
+def test_entry_mode_defaults_to_the_historical_setup(tmp_path: Path):
+    s = load_settings(env_file=tmp_path / "absent.env", overrides={})
+    assert s.risk.entry_mode == EntryMode.EMA50_H4
+
+
+def test_entry_mode_can_be_switched_by_environment(tmp_path: Path):
+    s = load_settings(
+        env_file=tmp_path / "absent.env", overrides={"ENTRY_MODE": "PULLBACK_H1"}
+    )
+    assert s.risk.entry_mode is EntryMode.PULLBACK_H1
+
+
+def test_unknown_entry_mode_is_refused_at_startup(tmp_path: Path):
+    with pytest.raises(RuntimeError, match="ENTRY_MODE"):
+        load_settings(env_file=tmp_path / "absent.env", overrides={"ENTRY_MODE": "MOMENTUM"})
+
+
+# ---------------------------------------------------------------------------
+# Sortie swing : EMA20 par défaut, Chandelier en option (D-061)
+# ---------------------------------------------------------------------------
+
+
+def test_swing_exit_defaults_to_ema20(tmp_path: Path):
+    s = load_settings(env_file=tmp_path / "absent.env", overrides={"RISK_PROFILE": "swing"})
+    assert s.risk.swing_exit_mode is SwingExitMode.EMA20
+    assert s.risk.swing_chandelier_period == 20
+    assert s.risk.swing_chandelier_atr_multiple == Decimal("3.0")
+
+
+def test_swing_exit_mode_accepts_chandelier_case_insensitively(tmp_path: Path):
+    s = load_settings(
+        env_file=tmp_path / "absent.env",
+        overrides={"RISK_PROFILE": "swing", "SWING_EXIT_MODE": "chandelier"},
+    )
+    assert s.risk.swing_exit_mode is SwingExitMode.CHANDELIER
+
+
+def test_swing_chandelier_parameters_are_configurable(tmp_path: Path):
+    s = load_settings(
+        env_file=tmp_path / "absent.env",
+        overrides={
+            "RISK_PROFILE": "swing",
+            "SWING_CHANDELIER_PERIOD": "30",
+            "SWING_CHANDELIER_ATR_MULTIPLE": "2.5",
+        },
+    )
+    assert s.risk.swing_chandelier_period == 30
+    assert s.risk.swing_chandelier_atr_multiple == Decimal("2.5")
+
+
+def test_unknown_swing_exit_mode_is_refused_at_startup(tmp_path: Path):
+    with pytest.raises(RuntimeError, match="SWING_EXIT_MODE"):
+        load_settings(
+            env_file=tmp_path / "absent.env",
+            overrides={"RISK_PROFILE": "swing", "SWING_EXIT_MODE": "supertrend"},
+        )

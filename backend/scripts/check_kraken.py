@@ -35,6 +35,7 @@ from app.exchange.kraken import (  # noqa: E402
     KrakenAdapterError,
     build_exchange,
     market_info,
+    resolve_taker_fee,
     verify_key_permissions,
 )
 
@@ -220,7 +221,8 @@ def main() -> int:
                 print(f"  ÉCHEC  {symbol} inconnu sur Kraken")
                 failures += 1
                 continue
-            info = market_info(exchange, symbol)
+            taker = resolve_taker_fee(exchange, symbol, Decimal("0.008"))
+            info = market_info(exchange, symbol, taker_fee=taker)
             c = info.constraints
             print(
                 f"  OK     {symbol:9} id={info.exchange_symbol:10} {info.base}/{info.quote} "

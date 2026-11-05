@@ -28,12 +28,15 @@ from enum import StrEnum
 __all__ = [
     "Action",
     "AccountState",
+    "EntryMode",
     "ExchangeConstraints",
     "MarketRegime",
     "MarketSnapshot",
     "RejectionCode",
     "RiskConfig",
     "RiskDecision",
+    "StopMode",
+    "SwingExitMode",
     "TradeIntent",
     "DEFAULT_CONFIG",
     "evaluate",
@@ -49,6 +52,7 @@ class Action(StrEnum):
     BUY = "BUY"
     SELL = "SELL"
     HOLD = "HOLD"
+    HALT = "HALT"
 
 
 class MarketRegime(StrEnum):
@@ -56,6 +60,45 @@ class MarketRegime(StrEnum):
     TRENDING_DOWN = "TRENDING_DOWN"
     RANGING = "RANGING"
     VOLATILE = "VOLATILE"
+
+
+class EntryMode(StrEnum):
+    """Où la règle d'entrée cherche le repli.
+
+    Ce n'est pas un réglage de risque : les modes passent le même pare-feu et
+    le même sizing. Seul l'instant où le modèle est consulté change, donc la
+    fréquence des setups — et c'est elle que le balayage mesure (D-058).
+    """
+
+    EMA50_H4 = "EMA50_H4"  # setup historique : repli sur l'EMA50 H4
+    PULLBACK_H1 = "PULLBACK_H1"  # repli fin : l'EMA50 H1 est touchée puis refermée
+    SWING_MACRO_D1 = "SWING_MACRO_D1"  # cassure/repli de valeur en Daily (D-060)
+
+
+class StopMode(StrEnum):
+    """Comment le stop initial est calculé.
+
+    ``ATR`` est le comportement historique (bruit du timeframe de décision).
+    ``STRUCTURAL_D1`` pose le stop sous le creux D1, avec un plancher de distance :
+    un swing a besoin d'air, pas d'un stop dans le bruit d'une bougie H1.
+    """
+
+    ATR = "ATR"
+    STRUCTURAL_D1 = "STRUCTURAL_D1"
+
+
+class SwingExitMode(StrEnum):
+    """Comment une position swing D1 est soldée hors stop protecteur.
+
+    ``EMA20`` est la sortie historique de D-060 : clôture sous l'EMA20 D1 ou
+    divergence baissière sur Bollinger. ``CHANDELIER`` suit le plus haut des
+    ``N`` dernières bougies avec un retrait en ATR, et ne redescend jamais.
+    Le stop structurel intrabar reste la première ligne de défense dans les
+    deux modes.
+    """
+
+    EMA20 = "EMA20"
+    CHANDELIER = "CHANDELIER"
 
 
 class RejectionCode(StrEnum):
@@ -124,6 +167,13 @@ class MarketSnapshot:
     last_closed_h1_return_atr: Decimal  # rendement de la dernière H1 clôturée, en multiples d'ATR14(H1)
     tick_at: datetime  # horodatage du dernier tick reçu (UTC)
     now: datetime  # horloge système (UTC) — injectée, jamais lue implicitement
+    # Pente de l'EMA200 H4 sur les 60 dernières bougies (10 jours), en ATR H4.
+    # Sert de filtre de régime : une EMA200 plate ou qui descend n'est pas une
+    # tendance haussière, même si le prix est encore au-dessus.
+    ema_200_slope_atr: Decimal = Decimal("0")
+    # Creux des 10 dernières D1, utilisé par StopMode.STRUCTURAL_D1. 0 = absent :
+    # le mode structurel refuse alors le trade au lieu de retomber sur l'ATR.
+    swing_low_10d: Decimal = Decimal("0")
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,6 +227,21 @@ class RiskConfig:
     take_profit_r_multiple: Decimal = Decimal("2.0")  # 0 == pas de TP (sortie SL only)
     trend_buffer_pct: Decimal = Decimal("0.005")  # il faut être 0.5 % AU-DESSUS de l'EMA200
     falling_knife_atr_multiple: Decimal = Decimal("2.5")
+    # Stop structurel D1 : sous le creux des 10 dernières bougies, mais jamais à
+    # plus de ``max_stop_distance_pct`` sous l'entrée. Le plancher évite qu'un
+    # creux lointain ne réduise la taille sous le minimum de l'exchange.
+    stop_mode: StopMode = StopMode.ATR
+    max_stop_distance_pct: Decimal = Decimal("0.05")
+
+    # --- Petit portefeuille -------------------------------------------------
+    # Autorise 100 % de l'équité en exposition quand elle est sous le seuil, pour
+    # que le minimum notionnel de Kraken (~10 EUR) reste atteignable. Désactivé
+    # par défaut : sans ce drapeau, le plafond de 50 % continue de s'appliquer.
+    small_account_full_allocation: bool = False
+    small_account_threshold_quote: Decimal = Decimal("50")
+    # Plafond de risque quand le plancher de viabilité du petit compte s'applique.
+    # 5 % est le maximum absolu déjà imposé par risk_per_trade_pct.
+    small_account_max_risk_pct: Decimal = Decimal("0.05")
 
     # --- Filtres de régime --------------------------------------------------
     min_atr_pct_of_price: Decimal = Decimal("0.0015")  # marché mort => pas d'edge, on passe
@@ -197,16 +262,67 @@ class RiskConfig:
     stale_data_seconds: int = 5
     max_open_positions: int = 1
 
+    # --- Règle d'entrée et sorties proposées par le LLM ---------------------
+    # La règle réduit les instants où le modèle est consulté ; elle ne remplace pas
+    # le pare-feu. Les seuils de sortie sont plus bas que celui d'entrée : solder
+    # une position est une action qui réduit le risque, pas qui en crée.
+    entry_rule_enabled: bool = True
+    entry_require_positive_h1: bool = False
+    entry_rsi_min: Decimal = Decimal("40")
+    entry_rsi_max: Decimal = Decimal("65")
+    entry_pullback_atr: Decimal = Decimal("0.75")
+    entry_require_ema50_above_ema200: bool = True
+    # Pente minimale de l'EMA200 H4 sur 10 jours, en ATR. 0 = pas de filtre.
+    entry_ema200_slope_min: Decimal = Decimal("0")
+    # Mode de recherche du repli (D-058). EMA50_H4 est le comportement historique ;
+    # PULLBACK_H1 élargit le setup sans toucher au pare-feu.
+    entry_mode: EntryMode = EntryMode.EMA50_H4
+    entry_pullback_h1_atr: Decimal = Decimal("1.0")
+    entry_h1_rsi_min: Decimal = Decimal("38")
+    entry_h1_rsi_max: Decimal = Decimal("55")
+    # --- SWING_MACRO_D1 (D-060) ---------------------------------------------
+    # Le Daily ne cherche plus un micro-repli : il suit la tendance de fond par
+    # cassure de compression (Donchian 20) ou rebond de valeur sur l'EMA20.
+    swing_donchian_days: int = 20
+    swing_rsi_min: Decimal = Decimal("50")
+    swing_rsi_max: Decimal = Decimal("65")
+    swing_require_donchian: bool = True
+    swing_require_value_rebound: bool = True
+    swing_breakeven_r: Decimal = Decimal("1")  # stop remonté à l'entrée à +1 R
+    swing_exit_mode: SwingExitMode = SwingExitMode.EMA20
+    swing_exit_below_ema20: bool = True
+    swing_bollinger_period: int = 20
+    swing_bollinger_std: Decimal = Decimal("2.5")
+    # Chandelier : plus haut des N bougies moins N × ATR. Le stop ne descend
+    # jamais ; une clôture sous ce niveau solde la position (D-061).
+    swing_chandelier_period: int = 20
+    swing_chandelier_atr_multiple: Decimal = Decimal("3.0")
+    min_exit_confidence: Decimal = Decimal("0.55")
+    min_halt_confidence: Decimal = Decimal("0.80")
+
     def __post_init__(self) -> None:
         if not (Decimal("0") < self.risk_per_trade_pct <= Decimal("0.05")):
             raise ValueError(
                 "risk_per_trade_pct doit être dans ]0, 5%] : au-delà, ce n'est plus du trading "
                 "mais du casino, et le paramètre est refusé au démarrage."
             )
-        if not (Decimal("0") < self.max_notional_pct <= Decimal("1")):
-            raise ValueError("max_notional_pct doit être dans ]0, 1]")
+        notional_ceiling = Decimal("1") if self.small_account_full_allocation else Decimal("0.50")
+        if not (Decimal("0") < self.max_notional_pct <= notional_ceiling):
+            raise ValueError(
+                "max_notional_pct doit être dans ]0, 50 %] (ou ]0, 100 %] avec "
+                "small_account_full_allocation) : un seul achat ne peut pas engager "
+                "plus de la moitié du capital sans drapeau explicite (pas de all-in)."
+            )
+        if self.small_account_threshold_quote <= 0:
+            raise ValueError("small_account_threshold_quote doit être > 0")
+        if not (Decimal("0") < self.small_account_max_risk_pct <= Decimal("0.05")):
+            raise ValueError("small_account_max_risk_pct doit être dans ]0, 5 %]")
         if self.stop_atr_multiple <= 0:
             raise ValueError("stop_atr_multiple doit être > 0")
+        if self.stop_mode not in tuple(StopMode):
+            raise ValueError(f"stop_mode inconnu : {self.stop_mode!r}")
+        if not (Decimal("0") < self.max_stop_distance_pct <= Decimal("0.25")):
+            raise ValueError("max_stop_distance_pct doit être dans ]0, 25 %]")
         if self.take_profit_r_multiple < 0:
             raise ValueError("take_profit_r_multiple doit être >= 0")
         if self.max_daily_drawdown_pct > Decimal("0.20"):
@@ -215,6 +331,47 @@ class RiskConfig:
             raise ValueError("risk_throttle_factor doit être dans ]0, 1[")
         if self.min_atr_pct_of_price >= self.max_atr_pct_of_price:
             raise ValueError("bornes de volatilité incohérentes")
+        if not (Decimal(0) <= self.entry_rsi_min < self.entry_rsi_max <= Decimal(100)):
+            raise ValueError("bornes RSI de la règle d'entrée incohérentes")
+        if self.entry_pullback_atr <= 0:
+            raise ValueError("entry_pullback_atr doit être > 0")
+        if self.entry_ema200_slope_min < 0:
+            raise ValueError("entry_ema200_slope_min ne peut pas être négatif")
+        if self.entry_mode not in tuple(EntryMode):
+            raise ValueError(
+                f"entry_mode inconnu : {self.entry_mode!r} "
+                f"(connus : {', '.join(m.value for m in EntryMode)})"
+            )
+        if self.entry_pullback_h1_atr <= 0:
+            raise ValueError("entry_pullback_h1_atr doit être > 0")
+        if not (Decimal(0) <= self.entry_h1_rsi_min < self.entry_h1_rsi_max <= Decimal(100)):
+            raise ValueError("bornes RSI H1 de la règle d'entrée incohérentes")
+        if not (Decimal(0) <= self.swing_rsi_min < self.swing_rsi_max <= Decimal(100)):
+            raise ValueError("bornes RSI D1 de la règle swing incohérentes")
+        if self.swing_donchian_days < 2:
+            raise ValueError("swing_donchian_days doit être >= 2")
+        if self.swing_breakeven_r < 0:
+            raise ValueError("swing_breakeven_r doit être >= 0")
+        if self.swing_exit_mode not in tuple(SwingExitMode):
+            raise ValueError(
+                f"swing_exit_mode inconnu : {self.swing_exit_mode!r} "
+                f"(connus : {', '.join(m.value for m in SwingExitMode)})"
+            )
+        if not (2 <= self.swing_bollinger_period <= 200):
+            raise ValueError("swing_bollinger_period doit être dans [2, 200]")
+        if self.swing_bollinger_std <= 0:
+            raise ValueError("swing_bollinger_std doit être > 0")
+        if not (2 <= self.swing_chandelier_period <= 200):
+            raise ValueError("swing_chandelier_period doit être dans [2, 200]")
+        if (
+            not self.swing_chandelier_atr_multiple.is_finite()
+            or self.swing_chandelier_atr_multiple <= 0
+        ):
+            raise ValueError("swing_chandelier_atr_multiple doit être fini et > 0")
+        if not (Decimal(0) <= self.min_exit_confidence <= Decimal(1)):
+            raise ValueError("min_exit_confidence doit être dans [0, 1]")
+        if not (Decimal(0) <= self.min_halt_confidence <= Decimal(1)):
+            raise ValueError("min_halt_confidence doit être dans [0, 1]")
 
     # -- dérivés -------------------------------------------------------------
 
@@ -485,8 +642,21 @@ def _evaluate(
     passed.append("no_falling_knife")
 
     # -- 9. Dimensionnement --------------------------------------------------
-    stop_distance = config.stop_atr_multiple * market.atr_14_h4
-    raw_stop = market.price - stop_distance
+    if config.stop_mode is StopMode.STRUCTURAL_D1:
+        swing_low = market.swing_low_10d
+        if not _is_finite(swing_low) or swing_low <= 0:
+            return _reject(
+                RejectionCode.INVALID_STOP_LOSS_CALCULATION,
+                f"creux D1 indisponible ({swing_low}) pour un stop structurel",
+                passed,
+            )
+        # Stop sous le creux, mais jamais à plus de max_stop_distance_pct :
+        # on prend le plus haut des deux (le plus proche de l'entrée).
+        floor_price = market.price * (Decimal(1) - config.max_stop_distance_pct)
+        raw_stop = max(swing_low, floor_price)
+    else:
+        stop_distance = config.stop_atr_multiple * market.atr_14_h4
+        raw_stop = market.price - stop_distance
     stop_price = _floor_to(raw_stop, constraints.price_tick)
     if stop_price <= 0:
         return _reject(
@@ -498,15 +668,54 @@ def _evaluate(
     if actual_distance <= 0:
         return _reject(RejectionCode.INVALID_STOP_LOSS_CALCULATION, "distance de stop nulle", passed)
 
+    if account.free_quote <= 0:
+        return _reject(
+            RejectionCode.INSUFFICIENT_FREE_BALANCE,
+            f"solde libre disponible {account.free_quote} (après buffer de frais)",
+            passed,
+        )
+    if account.free_quote < constraints.min_notional:
+        return _reject(
+            RejectionCode.EXCHANGE_MIN_NOTIONAL_FAILED,
+            f"solde libre {account.free_quote} < minimum notionnel exchange "
+            f"{constraints.min_notional} : aucune nouvelle entrée possible",
+            passed,
+        )
+
     risk_pct = config.effective_risk_pct(account.consecutive_losses)
+    if (config.small_account_full_allocation
+            and account.equity_quote < config.small_account_threshold_quote
+            and account.consecutive_losses < config.risk_throttle_after_losses):
+        # Plancher de viabilité : le plus petit risque qui permet d'atteindre le
+        # minimum notionnel de l'exchange. Sans lui, 1,75 % de 20 EUR avec un stop
+        # à 5 % ne finance que 7 EUR et aucun ordre ne passe.
+        minimum_amount = constraints.min_notional / market.price
+        required_risk = minimum_amount * actual_distance
+        required_pct = required_risk / account.equity_quote
+        if required_pct > config.small_account_max_risk_pct:
+            return _reject(
+                RejectionCode.EXCHANGE_MIN_NOTIONAL_FAILED,
+                f"minimum notionnel {constraints.min_notional} exigerait "
+                f"{required_pct:.2%} de risque, au-delà du plafond petit compte "
+                f"{config.small_account_max_risk_pct:.2%}",
+                passed,
+            )
+        risk_pct = max(risk_pct, required_pct)
     intended_risk = account.equity_quote * risk_pct
 
     # Trois plafonds concurrents : le risque nominal, l'exposition, le cash réel.
     max_by_risk = intended_risk / actual_distance
-    max_by_notional = min(
-        account.equity_quote * config.max_notional_pct,
-        config.max_position_notional_quote,
-    ) / market.price
+    if (config.small_account_full_allocation
+            and account.equity_quote < config.small_account_threshold_quote):
+        # Petit compte : le minimum notionnel de l'exchange est le vrai plancher.
+        # Le stop borne la perte, pas la taille ; 100 % est explicitement demandé.
+        exposure_cap = account.equity_quote
+    else:
+        exposure_cap = min(
+            account.equity_quote * min(config.max_notional_pct, Decimal("0.50")),
+            config.max_position_notional_quote,
+        )
+    max_by_notional = exposure_cap / market.price
     spendable = account.free_quote * (Decimal(1) - config.fee_buffer_pct)
     max_by_cash = spendable / market.price
 

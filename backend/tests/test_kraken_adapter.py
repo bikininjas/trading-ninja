@@ -20,6 +20,7 @@ from app.exchange.kraken import (
     build_bracket_entry,
     build_exchange,
     market_info,
+    resolve_taker_fee,
     to_exchange_amount,
     to_exchange_stop_price,
     verify_key_permissions,
@@ -116,6 +117,32 @@ def test_market_info_maps_limits_to_decimal_constraints():
     assert info.constraints.min_amount == Decimal("0.00006")
     assert info.constraints.min_notional == Decimal("0.45")
     assert info.taker_fee == Decimal("0.0026")
+
+
+class FeeExchange:
+    def __init__(self, taker: str | None = None, *, fail: bool = False):
+        self._taker = taker
+        self._fail = fail
+
+    def fetch_trading_fee(self, symbol):
+        if self._fail:
+            raise RuntimeError("clé absente")
+        return {"taker": self._taker}
+
+
+def test_resolve_taker_fee_reads_the_account_tier():
+    fee = resolve_taker_fee(FeeExchange("0.008"), "BTC/EUR", Decimal("0.0026"))
+    assert fee == Decimal("0.008")
+
+
+def test_resolve_taker_fee_falls_back_when_the_private_call_fails():
+    fee = resolve_taker_fee(FeeExchange(fail=True), "BTC/EUR", Decimal("0.008"))
+    assert fee == Decimal("0.008")
+
+
+def test_market_info_accepts_the_real_fee_as_an_override():
+    info = market_info(FakeKraken(), "BTC/EUR", taker_fee=Decimal("0.008"))
+    assert info.taker_fee == Decimal("0.008")
 
 
 def test_eur_pair_is_spot_and_active():

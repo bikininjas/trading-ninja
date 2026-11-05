@@ -29,7 +29,7 @@ système découle de là.
 
 ## 2. Ce qui existe, ce qui n'existe pas
 
-**354 tests** Python et **18 tests** Node (372 au total), répartis ci-dessous.
+**570 tests** Python et **26 tests** Node (596 au total), répartis ci-dessous.
 
 | Composant | Fichier | État |
 |---|---|---|
@@ -38,7 +38,9 @@ système découle de là.
 | Configuration et presets de risque | `app/core/settings.py` | ✅ écrit (25 assertions) |
 | Résolution de connexion Postgres | `app/core/db.py` | ✅ écrit (10 assertions) |
 | Verdict de la sonde exchange | `tests/test_check_exchange.py` | ✅ écrit (9 assertions) |
-| Passerelle Kraken spot | `app/exchange/kraken.py` | ✅ écrit (22 assertions), aucun envoi |
+| Passerelle Kraken spot | `app/exchange/kraken.py` | ✅ préparation d'ordre, aucun envoi |
+| Exécuteur réel | `app/execution/live.py` | ✅ écrit (10 assertions), aucun ordre réel envoyé |
+| Choix du broker | `app/execution/factory.py` | ✅ paper/live, testnet refusé |
 | Flux de marché et indicateurs | `app/market/feed.py` | ✅ écrit (9 assertions) |
 | Client LLM local | `app/llm/client.py` | ✅ écrit (16 assertions) |
 | Machine à états | `app/engine/machine.py` | ✅ écrit (4 assertions) |
@@ -50,27 +52,50 @@ système découle de là.
 | API — authentification | `app/api/security.py` | ✅ écrit (22 assertions) |
 | API — routes | `app/api/main.py` | ✅ écrit (12 assertions) |
 | API — lecture et contrôle | `app/api/service.py` | ✅ écrit |
-| Dashboard Node.js | `dashboard/server.js` | ✅ écrit (18 tests Node, zéro dépendance) |
+| Dashboard Node.js | `dashboard/server.js` | ✅ écrit (26 tests Node, zéro dépendance) |
 | Gestion des processus | `scripts/manage.sh` | ✅ écrit (start/stop/restart/status/logs) |
 | Backtest historique | `app/backtest/engine.py` | ✅ écrit (7 assertions) |
-| Golden de régression | `tests/fixtures/backtest_golden.json` | ✅ 45 décisions figées |
+| Golden de régression | `tests/fixtures/backtest_golden.json` | ✅ 44 décisions figées |
 | Faisabilité avec petit capital | `app/engine/affordability.py` | ✅ écrit (6 assertions) |
+| Règle d'entrée déterministe | `app/engine/entry_rule.py` | ✅ écrit (28 assertions), deux modes |
+| Garde-fou de sortie LLM | `app/engine/exit_guard.py` | ✅ écrit (9 assertions) |
 | Sonde de clé Kraken | `scripts/check_kraken.py` | ✅ lecture seule |
 | Lecture `.env` / `.env.local` | `app/core/env.py` | ✅ écrit |
-| Schéma SQL + migrations | `db/migrations/` | ✅ 3 migrations appliquées sur Supabase |
+| Schéma SQL + migrations | `db/migrations/` | ✅ 9 migrations appliquées sur Supabase |
 | Coureur de migrations | `scripts/db_migrate.py` | ✅ status / apply / verify |
 | Démonstration du pare-feu | `scripts/demo_guardrails.py` | ✅ exécutable |
 | Sonde de clé exchange (lecture seule) | `scripts/check_exchange.py` | ✅ écrit — mainnet vérifié, testnet sans clé |
-| Réconciliation base ↔ exchange | `app/runtime/reconciliation.py` | ✅ lecture + verdict (15 assertions) ; exécution du plan à écrire |
-| Audit de réconciliation | `scripts/reconcile.py` | ✅ lecture seule, vérifié sur le compte réel |
+| Réconciliation base ↔ exchange | `app/runtime/reconciliation.py` | ✅ lecture + verdict + application (`--apply`) |
+| Shadow trades (achats non pris) | `app/runtime/shadow.py` | ✅ simulation stop/TP + rapport |
+| Rapport shadow | `scripts/shadow_report.py` | ✅ résumé + `--evaluate` |
+| Mémoire de leçons | `app/llm/lessons.py` | ✅ digest, validation, relecture |
+| Relecture CLI | `scripts/lessons.py` | ✅ review / show / history / clear |
+| Audit de réconciliation | `scripts/reconcile.py` | ✅ audit ; `--apply --confirm` en live |
+| Lecture ZIP distante par plages | `app/market/kraken_archive.py` | ✅ écrit (12 assertions), ZIP64 |
+| Historique OHLCVT persistant | `app/market/history.py` | ✅ écrit (22 assertions) |
+| Ingestion multi-années | `scripts/ingest_history.py` | ✅ 158 600 bougies en base |
+| Balayage statistique | `backtest.py sweep` | ✅ écrit — 48 scénarios, deux modes |
 | Cadence d'évaluation | `app/runtime/scheduler.py` | ✅ écrit (8 assertions) |
 | Vérification des drawdowns | `scripts/verify_drawdowns.py` | ✅ jeu figé, transaction annulée |
 
-Autrement dit : **le corps est assemblé en mode papier.** `python -m app.main --once`
-exécute un cycle complet (données réelles, LLM local, pare-feu, fill simulé persisté),
-et `--serve` aligne les cycles sur les clôtures H4. Il manque l'exécution réelle
-(envoi, annulation, application du plan de réconciliation), le suivi du résultat des
-trades refusés et le rapport de phase 2.
+Autrement dit : **le corps est assemblé en mode papier, et le chemin réel est écrit mais
+non activé.** `python -m app.main --once` exécute un cycle complet (données réelles, LLM
+local, pare-feu, fill simulé persisté), et `--serve` aligne les cycles sur les clôtures
+H4. Le modèle propose `BUY`, `SELL` ou `HALT` ; la règle d'entrée décide quand le
+consulter — repli sur l'EMA50 H4 (`EMA50_H4`) ou repli fin sur l'EMA50 H1
+(`PULLBACK_H1`), deux modes mesurés séparément et choisis par `ENTRY_MODE` — le
+pare-feu dimensionne et refuse les achats, le garde-fou de sortie interdit
+les ventes à découvert. Le chemin live (`app/execution/live.py`) envoie un ordre marché
+avec stop bracket, vérifie le stop après le fill, lit les frais réels et enregistre une
+vente exchange sans renvoyer d'ordre. Il manque l'activation réelle (sous-compte dédié,
+montant, trois verrous), le take-profit exchange (OCO) et le rapport de phase 2.
+
+Le dashboard Node.js n'est pas une couche de décision : il relaie les routes
+d'administration, garde le JWT côté serveur et pousse l'état en SSE. Il expose en
+lecture seule les drawdowns et les plafonds hebdomadaire / depuis le plus haut / de
+pertes consécutives ; seuls les réglages explicitement autorisés sont modifiables.
+L'historique détaillé passe par une liste blanche de quatre tables et une limite de
+50 lignes. Détails et contrat API dans [`DASHBOARD.md`](DASHBOARD.md).
 
 La carte ligne par ligne (modules, classes, méthodes, migrations, tests) est dans
 [`CODE_INDEX.md`](CODE_INDEX.md). Elle est **générée** par `scripts/index_codebase.py` et
@@ -110,7 +135,8 @@ Le détail des calculs est en tête de `risk_gate.py` et dans `docs/DECISIONS.md
 
 8 tables créées par les migrations, plus `schema_migrations` créée par le coureur de
 migrations lui-même (elle n'est donc pas sous l'autorité du DDL, mais sous celle de
-`db_migrate.py`).
+`db_migrate.py`). Les migrations 0005, 0006 et 0007 ajoutent `runtime_settings`,
+`shadow_trades` et `lessons`, ce qui porte le total à 11 tables métier.
 
 | Table | Rôle | Partitionnée |
 |---|---|---|
@@ -122,6 +148,9 @@ migrations lui-même (elle n'est donc pas sous l'autorité du DDL, mais sous cel
 | `bot_state` | **Une ligne par mode** : état, verrou, cooldown, plus haut d'équité | non |
 | `equity_snapshots` | Valorisation du compte dans le temps (drawdowns) | non |
 | `system_state_logs` | Journal des transitions d'état | non |
+| `runtime_settings` | Réglages du dashboard, un payload JSONB par mode | non |
+| `shadow_trades` | Achats non pris (BUY refusé / HOLD sur setup) et issue simulée | oui (par mois) |
+| `lessons` | Leçons actives, versionnées, générées à partir des résultats | non |
 | `schema_migrations` | Migrations appliquées + empreinte SHA-256 | non |
 
 Toutes les tables de **données** portent une colonne `mode` (`PAPER` / `TESTNET` /

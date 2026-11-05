@@ -39,6 +39,7 @@ __all__ = [
     "build_bracket_entry",
     "build_exchange",
     "market_info",
+    "resolve_taker_fee",
     "to_exchange_amount",
     "to_exchange_price",
     "to_exchange_stop_price",
@@ -210,8 +211,33 @@ def _decimal(value: Any) -> Decimal:
     return value if isinstance(value, Decimal) else Decimal(str(value))
 
 
-def market_info(exchange: Any, symbol: str) -> KrakenMarketInfo:
-    """Traduit un marché CCXT en contraintes utilisables par `evaluate()`."""
+def resolve_taker_fee(exchange: Any, symbol: str, fallback: Decimal) -> Decimal:
+    """Tarif taker **du compte** pour ce marché, ou le repli si l'API privée échoue.
+
+    CCXT expose `market["taker"]` = 0,26 % pour Kraken, un tarif historique. Le
+    palier 1 actuel est 0,80 % (depuis le 2026-07-09). Quand la clé est présente,
+    `fetch_trading_fee` renvoie le tarif réel du compte ; sinon on utilise le repli
+    configuré, jamais le tarif périmé du marché.
+    """
+    try:
+        fee = exchange.fetch_trading_fee(symbol)
+        taker = _decimal(fee.get("taker") or 0)
+        if taker > 0:
+            return taker
+    except Exception:  # noqa: BLE001 — lecture privée, repli explicite
+        pass
+    return fallback
+
+
+def market_info(exchange: Any, symbol: str, *,
+                taker_fee: Decimal | None = None,
+                maker_fee: Decimal | None = None) -> KrakenMarketInfo:
+    """Traduit un marché CCXT en contraintes utilisables par `evaluate()`.
+
+    `taker_fee`/`maker_fee` permettent de passer le tarif réel du compte ; sans
+    override, on garde la valeur du marché CCXT (utile aux tests et aux scans
+    publics).
+    """
     market = exchange.market(symbol)
     if market.get("spot") is not True:
         raise KrakenAdapterError(f"{symbol} n'est pas un marché spot")
@@ -232,8 +258,8 @@ def market_info(exchange: Any, symbol: str) -> KrakenMarketInfo:
         base=market["base"],
         quote=market["quote"],
         active=bool(market.get("active")),
-        taker_fee=_decimal(market.get("taker") or 0),
-        maker_fee=_decimal(market.get("maker") or 0),
+        taker_fee=taker_fee if taker_fee is not None else _decimal(market.get("taker") or 0),
+        maker_fee=maker_fee if maker_fee is not None else _decimal(market.get("maker") or 0),
         constraints=constraints,
     )
 

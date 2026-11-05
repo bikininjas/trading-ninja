@@ -51,6 +51,45 @@ async function startFakeApi() {
         recent: { signals: [] },
       });
     }
+    if (req.url === '/api/stats') {
+      if (req.headers.authorization !== 'Bearer tok') return send(401, { detail: 'session' });
+      return send(200, {
+        pnl: { trades: 3, wins: 2, win_rate: '0.666', net_pnl: '0.12', fees: '0.05' },
+        equity_curve: [],
+        daily: [],
+        rejections: [],
+        llm: { model: 'test-model', counts: {}, total: 0, degraded: 0,
+               avg_inference_ms: 0, last: null },
+      });
+    }
+    const parsed = new URL(req.url, 'http://dashboard.test');
+    if (parsed.pathname.startsWith('/api/history/')) {
+      if (req.headers.authorization !== 'Bearer tok') return send(401, { detail: 'session' });
+      const table = parsed.pathname.split('/').pop();
+      calls.push(['history', parsed.pathname, parsed.searchParams.get('limit')]);
+      return send(200, {
+        table,
+        rows: [{ created_at: '2026-11-04T12:00:00Z', symbol: 'BTC/EUR' }],
+      });
+    }
+    if (req.url === '/api/settings' && req.method === 'GET') {
+      if (req.headers.authorization !== 'Bearer tok') return send(401, { detail: 'session' });
+      return send(200, {
+        profile: 'micro', profile_label: 'Micro', max_per_trade_pct: '0.50',
+        max_daily_loss_pct: '0.08', max_orders_per_hour: 3,
+        confidence_floor: '0.60', entry_rule_enabled: true,
+        halt_auto_resume_hours: 24, updated_at: null, profiles: [],
+      });
+    }
+    if (req.url === '/api/settings' && req.method === 'POST') {
+      calls.push(['settings', JSON.parse(body || '{}')]);
+      return send(200, {
+        profile: 'micro', profile_label: 'Micro', max_per_trade_pct: '0.35',
+        max_daily_loss_pct: '0.08', max_orders_per_hour: 3,
+        confidence_floor: '0.60', entry_rule_enabled: true,
+        halt_auto_resume_hours: 24, updated_at: null, profiles: [],
+      });
+    }
     if (req.url === '/api/control/pause' && req.method === 'POST') {
       calls.push(['pause']);
       return send(200, { mode: 'PAPER', state: 'LOCKED_CIRCUIT_BREAKER' });
@@ -151,6 +190,10 @@ test('les fichiers statiques sont servis avec le bon type', async () => {
   const response = await fetch(`${dashUrl}/style.css`);
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type'), /text\/css/);
+
+  const icon = await fetch(`${dashUrl}/favicon.svg`);
+  assert.equal(icon.status, 200);
+  assert.match(icon.headers.get('content-type'), /image\/svg\+xml/);
 });
 
 test('une URL inconnue renvoie 404', async () => {
@@ -184,6 +227,93 @@ test('la pause est relayée', async () => {
   });
   assert.equal(response.status, 200);
   assert.equal((await response.json()).state, 'LOCKED_CIRCUIT_BREAKER');
+});
+
+test('les statistiques sont relayées', async () => {
+  const cookie = await login();
+  const response = await fetch(`${dashUrl}/api/stats`, { headers: { cookie } });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.pnl.trades, 3);
+  assert.equal(body.llm.model, 'test-model');
+});
+
+test('l’historique est relayé avec une limite bornée', async () => {
+  const cookie = await login();
+  const before = api.calls.length;
+  const response = await fetch(`${dashUrl}/api/history/llm_signals?limit=999`, {
+    headers: { cookie },
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.table, 'llm_signals');
+  const recorded = api.calls.slice(before).find(([name]) => name === 'history');
+  assert.deepEqual(recorded, ['history', '/api/history/llm_signals', '50']);
+});
+
+test('l’historique applique une limite par défaut', async () => {
+  const cookie = await login();
+  const before = api.calls.length;
+  const response = await fetch(`${dashUrl}/api/history/orders`, { headers: { cookie } });
+  assert.equal(response.status, 200);
+  const recorded = api.calls.slice(before).find(([name]) => name === 'history');
+  assert.deepEqual(recorded, ['history', '/api/history/orders', '20']);
+});
+
+test('l’historique refuse une table inconnue sans appeler l’API', async () => {
+  const cookie = await login();
+  const before = api.calls.length;
+  const response = await fetch(`${dashUrl}/api/history/passwords`, { headers: { cookie } });
+  assert.equal(response.status, 400);
+  assert.equal(api.calls.length, before);
+});
+
+test('l’historique exige une session', async () => {
+  const response = await fetch(`${dashUrl}/api/history/llm_signals`);
+  assert.equal(response.status, 401);
+});
+
+test('les réglages sont lisibles et modifiables', async () => {
+  const cookie = await login();
+  const read = await fetch(`${dashUrl}/api/settings`, { headers: { cookie } });
+  assert.equal(read.status, 200);
+  assert.equal((await read.json()).profile_label, 'Micro');
+
+  const before = api.calls.length;
+  const write = await fetch(`${dashUrl}/api/settings`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ max_per_trade_pct: 0.35 }),
+  });
+  assert.equal(write.status, 200);
+  assert.equal((await write.json()).max_per_trade_pct, '0.35');
+  const recorded = api.calls.slice(before).find(([name]) => name === 'settings');
+  assert.deepEqual(recorded[1], { max_per_trade_pct: 0.35 });
+});
+
+test('une origine étrangère est refusée sur les réglages', async () => {
+  const cookie = await login();
+  const response = await fetch(`${dashUrl}/api/settings`, {
+    method: 'POST',
+    headers: { cookie, origin: 'http://evil.example', 'content-type': 'application/json' },
+    body: JSON.stringify({ max_per_trade_pct: 0.35 }),
+  });
+  assert.equal(response.status, 403);
+});
+
+test('le cookie de session suit la plus courte des deux durées', async () => {
+  const response = await fetch(`${dashUrl}/login`, {
+    method: 'POST',
+    body: new URLSearchParams({ password: 'secret', totp: '123456' }),
+    redirect: 'manual',
+  });
+  const raw = response.headers.getSetCookie?.()[0]
+    ?? response.headers.get('set-cookie')
+    ?? '';
+  assert.match(raw, /HttpOnly/);
+  assert.match(raw, /SameSite=Strict/);
+  // sessionTtlMs = 60 s dans les tests, expires_in = 900 s côté fausse API.
+  assert.match(raw, /Max-Age=60(;|$)/);
 });
 
 test('une origine étrangère est refusée sur les commandes', async () => {

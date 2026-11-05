@@ -98,6 +98,18 @@ def test_order_type_never_used_for_entry_is_declared():
     assert {"MARKET", "LIMIT"} <= enum_labels("order_type")
 
 
+def test_signal_action_supports_halt():
+    # Le LLM peut demander un arrêt complet ; sans ce label, l'écriture du signal
+    # échouerait précisément au moment où le modèle veut couper.
+    assert "HALT" in enum_labels("signal_action")
+
+
+def test_order_purpose_supports_llm_exit():
+    # Une sortie proposée par le LLM n'est ni un stop ni un take-profit : elle a
+    # son propre libellé pour que l'audit ne la confonde pas avec une protection.
+    assert "LLM_EXIT" in enum_labels("order_purpose")
+
+
 # ---------------------------------------------------------------------------
 # Hygiène des migrations
 # ---------------------------------------------------------------------------
@@ -146,3 +158,16 @@ def test_guardrails_are_enforced_in_the_database(guard):
 
 def test_execution_mode_separates_paper_from_live():
     assert enum_labels("execution_mode") == {"PAPER", "TESTNET", "LIVE"}
+
+
+def test_migration_0009_allows_daily_candles():
+    # SWING_MACRO_D1 lit du Daily : la contrainte de 0008 doit être élargie, et
+    # la vue de couverture doit connaître 86 400 secondes, sinon elle compterait
+    # chaque journée comme six bougies manquantes.
+    path = MIGRATIONS / "0009_allow_1d_timeframe.sql"
+    assert path.exists()
+    sql = path.read_text(encoding="utf-8")
+    assert "CHECK (timeframe IN ('1h', '4h', '1d'))" in sql
+    assert "WHEN '1d' THEN 86400" in sql
+    assert "security_invoker = true" in sql
+    assert "REVOKE ALL ON v_history_coverage FROM anon, authenticated" in sql

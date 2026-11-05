@@ -15,6 +15,7 @@ fail-closed.
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Pourquoi c'est construit comme ça (une décision par numéro) |
 | [`backend/README.md`](backend/README.md) | Installation, commandes, outillage |
 | [`dashboard/README.md`](dashboard/README.md) | Dashboard de supervision (Node.js, zéro dépendance) |
+| [`docs/DASHBOARD.md`](docs/DASHBOARD.md) | Architecture, panneaux, contrat API et sécurité du dashboard |
 | [`docs/BACKTEST.md`](docs/BACKTEST.md) | Backtest historique, golden et tests récurrents |
 
 ## Démarrage rapide
@@ -29,8 +30,10 @@ uv pip install -r requirements.txt -r requirements-dev.txt
 
 ## Dashboard
 
-Interface de supervision : état, équité, position, signaux, pause, reprise et
-panic-sell à deux facteurs.
+Interface de supervision : état, équité, position, jauges de risque, courbe du
+capital, refus du pare-feu, activité par onglets, réglages sans jargon, pause,
+reprise et panic-sell à deux facteurs. Détails dans
+[`docs/DASHBOARD.md`](docs/DASHBOARD.md).
 
 ```bash
 scripts/manage.sh start all      # API + dashboard en arrière-plan

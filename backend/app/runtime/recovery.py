@@ -15,15 +15,21 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
+from inspect import isawaitable
 from typing import Any
 
 from app.db.repository import PostgresRepository
-from app.execution.paper import PaperBroker
 from app.market.feed import last_price
 
 __all__ = ["Liquidation", "liquidate_open_positions"]
 
 EMERGENCY_REASON = "EMERGENCY_KILL"
+
+
+async def _maybe_await(value: Any) -> Any:
+    if isawaitable(value):
+        return await value
+    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,30 +45,42 @@ class Liquidation:
 async def liquidate_open_positions(
     repo: PostgresRepository,
     exchange: Any,
-    broker: PaperBroker,
+    broker: Any,
     mode: str,
     *,
     quote_currency: str,
     starting_equity: Decimal,
     reason: str = EMERGENCY_REASON,
     now: datetime | None = None,
+    only_symbols: set[str] | None = None,
 ) -> list[Liquidation]:
     """Solde toutes les positions ouvertes, annule leurs ordres, puis halte le bot."""
+    ensure = getattr(repo, "ensure_mode", None)
+    if ensure is not None:
+        await ensure(mode)
     moment = now or datetime.now(timezone.utc)
     account = await repo.account(mode, starting_equity)
-    cash = account.free_quote
-    reserve = account.reserve_quote
+    live = hasattr(broker, "free_quote")
+    cash = (await _maybe_await(broker.free_quote())) if live else account.free_quote
+    reserve = Decimal(0) if live else account.reserve_quote
     consecutive = account.consecutive_losses
     results: list[Liquidation] = []
 
-    while True:
-        position = await repo.open_position(mode)
-        if position is None:
-            break
-
+    positions = await repo.open_positions(mode)
+    if only_symbols is not None:
+        positions = [p for p in positions if p.symbol in only_symbols]
+    for position in positions:
         price = last_price(exchange, position.symbol)
-        fill = broker.exit(position.amount, price)
-        entry_fee = broker.fee(position.entry_price * position.amount)
+        fill = await _maybe_await(
+            broker.exit(
+                position.amount, price, symbol=position.symbol,
+                stop_price=position.stop_loss_price,
+            )
+        )
+        getter = getattr(repo, "entry_fee", None)
+        entry_fee = await _maybe_await(getter(position.id)) if getter else None
+        if entry_fee is None or entry_fee <= 0:
+            entry_fee = broker.fee(position.entry_price * position.amount)
         gross = (fill.price - position.entry_price) * position.amount
         fees = entry_fee + fill.fee_quote
         net = gross - fees
@@ -92,6 +110,8 @@ async def liquidate_open_positions(
         )
 
         cash = cash + fill.notional_quote - fill.fee_quote
+        if live:
+            cash = await _maybe_await(broker.free_quote())
         consecutive = consecutive + 1 if net < 0 else 0
         await repo.update_after_close(
             mode, consecutive_losses=consecutive, equity=cash + reserve

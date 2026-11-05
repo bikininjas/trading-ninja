@@ -30,9 +30,12 @@ import httpx
 
 from app.core.settings import LLMSettings
 from app.engine.risk_gate import MarketSnapshot
+from app.llm.lessons import lessons_block
 from app.market.feed import MarketContext
 
 __all__ = [
+    "D1_PROMPT_VERSION",
+    "D1_SYSTEM_PROMPT",
     "FORBIDDEN_FIELDS",
     "LLMError",
     "LLMSignal",
@@ -41,8 +44,9 @@ __all__ = [
     "parse_signal",
 ]
 
-PROMPT_VERSION = "v1"
-ACTIONS = frozenset({"BUY", "SELL", "HOLD"})
+PROMPT_VERSION = "v3"
+D1_PROMPT_VERSION = "v3-d1"
+ACTIONS = frozenset({"BUY", "SELL", "HOLD", "HALT"})
 REGIMES = frozenset({"TRENDING_UP", "TRENDING_DOWN", "RANGING", "VOLATILE"})
 BIASES = frozenset({"BULLISH", "BEARISH", "NEUTRAL"})
 RSI_MAX_BUY = Decimal("70")
@@ -56,7 +60,7 @@ THESIS_MAX_CHARS = 200
 SIGNAL_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
-        "action": {"type": "string", "enum": ["BUY", "SELL", "HOLD"]},
+        "action": {"type": "string", "enum": ["BUY", "SELL", "HOLD", "HALT"]},
         "confidence": {"type": "number", "minimum": 0, "maximum": 1},
         "market_regime": {
             "type": "string",
@@ -68,26 +72,88 @@ SIGNAL_SCHEMA: dict[str, Any] = {
     "required": ["action", "confidence", "market_regime", "directional_bias", "thesis"],
 }
 
+LESSONS_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "lessons": {
+            "type": "array",
+            "items": {"type": "string", "maxLength": 240},
+            "minItems": 1,
+            "maxItems": 5,
+        }
+    },
+    "required": ["lessons"],
+}
+
 FORBIDDEN_FIELDS = frozenset(
     {"amount", "quantity", "size", "price", "entry", "stop", "stop_loss", "take_profit",
      "leverage", "risk", "notional", "position_size"}
 )
 
 SYSTEM_PROMPT = (
-    "Tu es un auditeur de confluences techniques, prudent et factuel. "
+    "Tu es un trader autonome prudent, factuel et discipliné. "
     "Tu réponds UNIQUEMENT par un objet JSON valide, sans texte autour, sans balise "
     "de code. Les clés attendues sont exactement : action, confidence, market_regime, "
     "directional_bias, thesis. "
-    "action vaut BUY, SELL ou HOLD. confidence est un nombre entre 0 et 1. "
+    "action vaut BUY, SELL, HOLD ou HALT. confidence est un nombre entre 0 et 1. "
     "market_regime vaut TRENDING_UP, TRENDING_DOWN, RANGING ou VOLATILE. "
     "directional_bias vaut BULLISH, BEARISH ou NEUTRAL. "
     "thesis est une phrase factuelle de 200 caractères maximum. "
     "RÈGLES ABSOLUES : si le prix est sous l'EMA200 H4, tu ne peux pas émettre BUY. "
     "Si le RSI14 est supérieur à 70, tu ne peux pas émettre BUY. Dans ces cas, réponds "
     "HOLD. "
+    "SCÉNARIO D'ACHAT : un pullback dans une tendance haussière est le setup normal. "
+    "Il est réuni quand le prix est au-dessus de l'EMA200 H4 avec la marge, que l'EMA50 "
+    "H4 est au-dessus de l'EMA200 H4, que le RSI14 est entre 40 et 65 (repli, pas "
+    "surchauffe), que l'ATR reste dans la bande normale et que la dernière H1 n'est pas "
+    "une chute verticale. Dans ce cas, BUY est le scénario par défaut ; ne réponds HOLD "
+    "que si tu vois une raison factuelle de refuser (MACD franchement négatif, régime "
+    "baissier, couteau, volatilité anormale). Ne réponds pas HOLD simplement parce que "
+    "le RSI est neutre : dans un pullback, la neutralité du RSI est attendue. "
+    "Un SELL ne sert qu'à clôturer une position déjà ouverte : tu ne vends jamais "
+    "à découvert. Un HALT arrête tout : à utiliser uniquement si la situation est "
+    "réellement dangereuse et que tu ne veux plus aucune exposition. "
     "Tu ne proposes jamais de taille, de prix, de stop, de take-profit ni de levier : "
     "ces valeurs sont calculées par le système et toute valeur que tu donnerais serait "
-    "ignorée. En cas de doute, réponds HOLD avec une confiance basse."
+    "ignorée. En cas de doute réel, réponds HOLD avec une confiance basse."
+)
+
+
+D1_SYSTEM_PROMPT = (
+    "Tu es un trader de tendance Daily prudent, factuel et discipliné. "
+    "Tu réponds UNIQUEMENT par un objet JSON valide, sans texte autour, sans balise "
+    "de code. Les clés attendues sont exactement : action, confidence, market_regime, "
+    "directional_bias, thesis. "
+    "action vaut BUY, SELL, HOLD ou HALT. confidence est un nombre entre 0 et 1. "
+    "market_regime vaut TRENDING_UP, TRENDING_DOWN, RANGING ou VOLATILE. "
+    "directional_bias vaut BULLISH, BEARISH ou NEUTRAL. "
+    "thesis est une phrase factuelle de 200 caractères maximum. "
+    "RÈGLES ABSOLUES : si le prix est sous l'EMA200 D1, tu ne peux pas émettre BUY. "
+    "Si le RSI14 D1 est supérieur à 70, tu ne peux pas émettre BUY. Si le contexte "
+    "Daily manque, réponds HOLD. "
+    "SCÉNARIO D'ACHAT : une tendance de fond saine avec l'EMA50 au-dessus de l'EMA200 "
+    "D1 et une pente d'EMA50 positive. Le déclencheur est soit une cassure du plus "
+    "haut Donchian 20, soit un rebond de valeur sur l'EMA20 D1 après un creux. "
+    "Dans un tel setup, BUY est le scénario par défaut ; ne réponds HOLD que si tu "
+    "vois une raison factuelle de refuser : divergence baissière confirmée, chute "
+    "verticale de la dernière D1, volatilité anormale, régime baissier ou structure "
+    "cassée. Ne réponds pas HOLD simplement parce que le RSI est neutre. "
+    "Un SELL ne sert qu'à clôturer une position déjà ouverte : tu ne vends jamais "
+    "à découvert. Un HALT arrête tout : à utiliser uniquement si la situation est "
+    "réellement dangereuse et que tu ne veux plus aucune exposition. "
+    "Tu ne proposes jamais de taille, de prix, de stop, de take-profit ni de levier : "
+    "ces valeurs sont calculées par le système et toute valeur que tu donnerais serait "
+    "ignorée. En cas de doute réel, réponds HOLD avec une confiance basse."
+)
+
+
+REVIEW_SYSTEM_PROMPT = (
+    "Tu es un analyste de trading. Tu reçois un journal de trades passés et de trades "
+    "refusés. Tu écris 1 à 5 leçons courtes (240 caractères maximum), factuelles, au "
+    "présent, utiles pour éviter les erreurs répétées. Tu ne donnes jamais d'ordre "
+    "d'achat ou de vente, jamais de taille, de prix, de stop, de take-profit ni de "
+    "levier. Tu réponds UNIQUEMENT par un objet JSON valide, sans texte autour, de la "
+    "forme exacte : {\"lessons\": [\"...\"]}."
 )
 
 
@@ -180,35 +246,105 @@ class SignalClient:
     # -- payload ---------------------------------------------------------
 
     def _payload(self, symbol: str, snapshot: MarketSnapshot, context: MarketContext,
-                 has_position: bool, trend_buffer_pct: Decimal) -> tuple[dict, dict]:
-        distance_pct = (snapshot.price - snapshot.ema_200_h4) / snapshot.ema_200_h4
-        atr_pct = snapshot.atr_14_h4 / snapshot.price
-        market = {
-            "symbol": symbol,
-            "decision_timeframe": "4h",
-            "last_close": str(snapshot.price),
-            "ema_50_h4": str(context.ema_50_h4),
-            "ema_200_h4": str(snapshot.ema_200_h4),
-            "distance_to_ema200_pct": str(distance_pct.quantize(Decimal("0.000001"))),
-            "above_ema200_with_buffer": snapshot.price
-            > snapshot.ema_200_h4 * (1 + trend_buffer_pct),
-            "rsi_14": str(context.rsi_14_h4.quantize(Decimal("0.01"))),
-            "macd_histogram": str(context.macd_histogram.quantize(Decimal("0.00000001"))),
-            "atr_14_h4": str(snapshot.atr_14_h4),
-            "atr_pct_of_price": str(atr_pct.quantize(Decimal("0.000001"))),
-            "order_book_imbalance": str(context.order_book_imbalance.quantize(Decimal("0.0001"))),
-            "last_closed_h1_return_atr": str(snapshot.last_closed_h1_return_atr),
-            "position_already_open": has_position,
-            "prompt_version": PROMPT_VERSION,
-        }
+                 has_position: bool, trend_buffer_pct: Decimal,
+                 lessons: list[str] | None = None,
+                 decision_timeframe: str = "4h") -> tuple[dict, dict]:
+        if decision_timeframe == "1d":
+            d1 = context.d1
+            if d1 is None:
+                raise LLMError("contexte D1 absent : le prompt Daily ne peut pas être construit")
+            distance_pct = (snapshot.price - snapshot.ema_200_h4) / snapshot.ema_200_h4
+            atr_pct = d1.atr_14 / snapshot.price if snapshot.price > 0 else Decimal(0)
+            distance_ema50_atr = (
+                (snapshot.price - d1.ema_50) / d1.atr_14
+                if d1.atr_14 > 0 else Decimal(0)
+            )
+            market = {
+                "symbol": symbol,
+                "decision_timeframe": "1d",
+                "last_close": str(snapshot.price),
+                "ema_20": str(d1.ema_20),
+                "ema_50": str(d1.ema_50),
+                "ema_200": str(d1.ema_200),
+                "ema_20_prev": str(d1.ema_20_prev),
+                "ema50_above_ema200": d1.ema_50 > d1.ema_200,
+                "ema_50_slope_5d_pct": str(d1.ema_50_slope_5d_pct.quantize(Decimal("0.000001"))),
+                "distance_to_ema200_pct": str(distance_pct.quantize(Decimal("0.000001"))),
+                "distance_to_ema50_atr": str(distance_ema50_atr.quantize(Decimal("0.01"))),
+                "above_ema200_with_buffer": snapshot.price
+                > snapshot.ema_200_h4 * (1 + trend_buffer_pct),
+                "rsi_14": str(d1.rsi_14.quantize(Decimal("0.01"))),
+                "atr_14": str(d1.atr_14),
+                "atr_pct_of_price": str(atr_pct.quantize(Decimal("0.000001"))),
+                "donchian_high_20": str(d1.donchian_high_20),
+                "breakout_donchian": snapshot.price > d1.donchian_high_20,
+                "bollinger_upper": str(d1.bollinger_upper),
+                "bollinger_mid": str(d1.bollinger_mid),
+                "swing_low_10": str(d1.swing_low_10),
+                "highest_high_chandelier": str(d1.highest_high_chandelier),
+                "last_open": str(d1.last_open),
+                "last_low": str(d1.last_low),
+                "last_high": str(d1.last_high),
+                "prev_close": str(d1.prev_close),
+                "prev_low": str(d1.prev_low),
+                "value_rebound": (
+                    d1.prev_low <= d1.ema_20_prev
+                    and snapshot.price > d1.ema_20
+                    and snapshot.price > d1.prev_close
+                ),
+                "bearish_divergence": d1.bearish_divergence,
+                "last_d1_return_atr": str(
+                    ((d1.last_close - d1.last_open) / d1.atr_14)
+                    if d1.atr_14 > 0 else Decimal(0)
+                ),
+                "position_already_open": has_position,
+                "prompt_version": D1_PROMPT_VERSION,
+            }
+            system_prompt = D1_SYSTEM_PROMPT
+        else:
+            distance_pct = (snapshot.price - snapshot.ema_200_h4) / snapshot.ema_200_h4
+            atr_pct = snapshot.atr_14_h4 / snapshot.price
+            distance_ema50_atr = (snapshot.price - context.ema_50_h4) / snapshot.atr_14_h4
+            market = {
+                "symbol": symbol,
+                "decision_timeframe": "4h",
+                "last_close": str(snapshot.price),
+                "ema_50_h4": str(context.ema_50_h4),
+                "ema_200_h4": str(snapshot.ema_200_h4),
+                "ema50_above_ema200": context.ema_50_h4 > snapshot.ema_200_h4,
+                "distance_to_ema200_pct": str(distance_pct.quantize(Decimal("0.000001"))),
+                "distance_to_ema50_atr": str(distance_ema50_atr.quantize(Decimal("0.01"))),
+                "above_ema200_with_buffer": snapshot.price
+                > snapshot.ema_200_h4 * (1 + trend_buffer_pct),
+                "rsi_14": str(context.rsi_14_h4.quantize(Decimal("0.01"))),
+                "macd_histogram": str(context.macd_histogram.quantize(Decimal("0.00000001"))),
+                "atr_14_h4": str(snapshot.atr_14_h4),
+                "atr_pct_of_price": str(atr_pct.quantize(Decimal("0.000001"))),
+                "order_book_imbalance": str(context.order_book_imbalance.quantize(Decimal("0.0001"))),
+                "last_closed_h1_return_atr": str(snapshot.last_closed_h1_return_atr),
+                "position_already_open": has_position,
+                "prompt_version": PROMPT_VERSION,
+            }
+            system_prompt = SYSTEM_PROMPT
+        if lessons:
+            joined = "\n".join(lessons)
+            market["lessons_count"] = len(lessons)
+            market["lessons_sha256"] = hashlib.sha256(
+                joined.encode("utf-8")
+            ).hexdigest()
+        content = (
+            "Contexte de marché :\n" + json.dumps(market, ensure_ascii=False)
+        )
+        block = lessons_block(lessons)
+        if block:
+            content += "\n\n" + block
+        content += (
+            "\nRéponds en JSON avec action, confidence, market_regime, "
+            "directional_bias, thesis."
+        )
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": "Contexte de marché :\n" + json.dumps(market, ensure_ascii=False)
-                + "\nRéponds en JSON avec action, confidence, market_regime, "
-                  "directional_bias, thesis.",
-            },
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": content},
         ]
         payload = {
             "model": self._settings.model,
@@ -269,8 +405,18 @@ class SignalClient:
 
     async def propose(self, symbol: str, snapshot: MarketSnapshot, context: MarketContext, *,
                       has_position: bool = False,
-                      trend_buffer_pct: Decimal = Decimal("0.005")) -> LLMSignal:
-        payload, market = self._payload(symbol, snapshot, context, has_position, trend_buffer_pct)
+                      trend_buffer_pct: Decimal = Decimal("0.005"),
+                      lessons: list[str] | None = None,
+                      decision_timeframe: str = "4h") -> LLMSignal:
+        decision_timeframe = decision_timeframe.lower()
+        if decision_timeframe not in {"4h", "1d"}:
+            raise ValueError(f"decision_timeframe non géré : {decision_timeframe!r}")
+        if decision_timeframe == "1d" and context.d1 is None:
+            return self._fallback(snapshot, "contexte D1 absent")
+        payload, market = self._payload(
+            symbol, snapshot, context, has_position, trend_buffer_pct,
+            lessons=lessons, decision_timeframe=decision_timeframe,
+        )
         digest = hashlib.sha256(
             json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
         ).hexdigest()
@@ -319,6 +465,38 @@ class SignalClient:
             ignored_fields=parsed.ignored_fields,
         )
         return self._enforce_rules(signal, snapshot, trend_buffer_pct)
+
+    async def review(self, digest: str, *, timeout_seconds: float = 30.0) -> list[str]:
+        """Une seule inférence de relecture : rend des leçons brutes à valider.
+
+        Le prompt de relecture est distinct de celui des décisions ; il ne peut pas
+        produire un BUY/SELL/HALT, et sa sortie ne passe jamais par le pare-feu.
+        """
+        payload = {
+            "model": self._settings.model,
+            "messages": [
+                {"role": "system", "content": REVIEW_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": "Journal des résultats récents :\n" + digest,
+                },
+            ],
+            "stream": False,
+            "think": False,
+            "format": LESSONS_SCHEMA,
+            "options": {"temperature": 0, "num_predict": 500},
+            "keep_alive": "30m",
+        }
+        body = await self._post(payload, timeout_seconds)
+        try:
+            content = body["message"]["content"]
+        except (KeyError, TypeError) as exc:
+            raise LLMError(f"réponse de relecture malformée : {exc}") from exc
+        data = _extract_json(content)
+        lessons = data.get("lessons")
+        if not isinstance(lessons, list):
+            raise LLMError("la relecture n'a pas rendu de liste `lessons`")
+        return lessons
 
     def _enforce_rules(self, signal: LLMSignal, snapshot: MarketSnapshot,
                        trend_buffer_pct: Decimal) -> LLMSignal:

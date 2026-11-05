@@ -1,12 +1,12 @@
-"""Point d'entrée du moteur — mode papier uniquement dans cette version.
+"""Point d'entrée du moteur — papier par défaut, live sous verrous explicites.
 
     python -m app.main --once
     python -m app.main --cycles 5 --interval 60
     python -m app.main --status
 
-L'exécution réelle n'est **pas** câblée ici : le module Kraken sait construire un
-bracket, mais aucun chemin ne l'appelle. Passer en `live` exige deux gestes
-explicites et un exécuteur revu — ce n'est pas une option de ligne de commande.
+Le mode `live` exige `TRADING_MODE=live`, `EXCHANGE_SANDBOX_MODE=false` et
+`I_UNDERSTAND_REAL_MONEY=true`, puis une réconciliation propre au démarrage.
+Aucun de ces verrous n'est posé par ce fichier.
 """
 
 from __future__ import annotations
@@ -14,16 +14,16 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from datetime import datetime, timezone
-from decimal import Decimal
+from datetime import datetime, timedelta, timezone
 
 from app.core.settings import Settings, load_settings
 from app.db.repository import PostgresRepository
-from app.exchange.kraken import build_exchange, market_info
-from app.execution.paper import PaperBroker
+from app.exchange.kraken import build_exchange
+from app.execution.factory import make_broker
 from app.llm.client import SignalClient
 from app.runtime.orchestrator import CycleReport, Orchestrator
-from app.runtime.scheduler import next_candle_close
+from app.runtime.reconciliation import inspect_exchange
+from app.runtime.scheduler import decision_delay_seconds, next_candle_close
 
 __all__ = ["main"]
 
@@ -56,11 +56,6 @@ async def _status(repo: PostgresRepository, mode: str) -> None:
                       f"{row['status']} {row['requested_amount']} @ {row['average_fill_price']}")
 
 
-def _taker_fee(exchange, symbols: tuple[str, ...]) -> Decimal:
-    fees = [market_info(exchange, symbol).taker_fee for symbol in symbols]
-    return max(fees) if fees else Decimal("0.0026")
-
-
 async def _serve(orchestrator: Orchestrator, timeframe: str, *, max_cycles: int = 0) -> None:
     """Boucle alignée sur les clôtures de bougies, pas sur un intervalle fixe."""
     cycle = 0
@@ -75,11 +70,14 @@ async def _serve(orchestrator: Orchestrator, timeframe: str, *, max_cycles: int 
         if max_cycles > 0 and cycle >= max_cycles:
             break
         now = datetime.now(timezone.utc)
-        wait = (next_close - now).total_seconds() + 5.0
+        delay = decision_delay_seconds(timeframe)
+        wait = (next_close - now).total_seconds() + delay
         if wait > 0:
+            evaluation_at = next_close + timedelta(seconds=delay)
             print(
                 f"prochaine bougie {timeframe} clôturée à "
-                f"{next_close:%Y-%m-%d %H:%M} UTC — attente {wait / 60:.1f} min",
+                f"{next_close:%Y-%m-%d %H:%M} UTC ; évaluation à "
+                f"{evaluation_at:%Y-%m-%d %H:%M} UTC — attente {wait / 60:.1f} min",
                 flush=True,
             )
             await asyncio.sleep(wait)
@@ -93,10 +91,10 @@ async def _serve(orchestrator: Orchestrator, timeframe: str, *, max_cycles: int 
 
 async def _run(args: argparse.Namespace) -> int:
     settings: Settings = load_settings()
-    if settings.mode != "paper":
+    if settings.mode == "testnet":
         print(
-            "REFUS : cette version n'exécute qu'en mode papier. Le chemin d'envoi réel "
-            "n'est pas câblé, et le passer en live exige une revue dédiée.",
+            "REFUS : Kraken spot n'a pas de testnet dans CCXT 4.5.91. "
+            "Utiliser paper, ou live avec les deux verrous.",
             file=sys.stderr,
         )
         return 2
@@ -111,16 +109,31 @@ async def _run(args: argparse.Namespace) -> int:
             api_key=settings.exchange.api_key, secret=settings.exchange.secret
         )
         exchange.load_markets()
+        if settings.mode == "live":
+            # On ne démarre jamais en live sur un état douteux : une position
+            # sans stop couvrant doit être liquidée ou réconciliée avant tout.
+            plan = await inspect_exchange(
+                repo, exchange, settings.execution_mode,
+                settings.exchange.allowed_symbols,
+                quote_currency=settings.exchange.quote_currency,
+            )
+            if not plan.clean:
+                for line in plan.lines():
+                    print(line)
+                print(
+                    "REFUS : réconciliation non propre. Lancer "
+                    "`scripts/reconcile.py --mode live --apply --confirm` "
+                    "après vérification, puis redémarrer.",
+                    file=sys.stderr,
+                )
+                return 2
         client = SignalClient(settings.llm)
         if not args.no_warmup:
             print(f"préchauffage du modèle {settings.llm.model}…", flush=True)
             ready = await client.warmup()
             print("  modèle chargé" if ready else "  ATTENTION : préchauffage impossible, "
                   "les appels risquent de basculer en repli")
-        broker = PaperBroker(
-            taker_fee=_taker_fee(exchange, settings.exchange.allowed_symbols),
-            slippage_bps=settings.paper_slippage_bps,
-        )
+        broker = make_broker(settings, exchange, settings.exchange.allowed_symbols)
         orchestrator = Orchestrator(settings, repo, exchange, client, broker)
 
         if args.serve:

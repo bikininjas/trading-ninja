@@ -37,9 +37,11 @@ def jsonable(value: Any) -> Any:
     return value
 
 
-def _position_payload(position) -> dict | None:
+def _position_payload(position, fee_rate: Decimal = Decimal("0")) -> dict | None:
     if position is None:
         return None
+    entry_notional = position.entry_price * position.amount
+    net_risk = position.risk_amount_quote + entry_notional * fee_rate * 2
     return {
         "id": str(position.id),
         "symbol": position.symbol,
@@ -49,6 +51,8 @@ def _position_payload(position) -> dict | None:
         "take_profit_price": str(position.take_profit_price),
         "opened_at": position.opened_at.isoformat(),
         "risk_amount_quote": str(position.risk_amount_quote),
+        "fee_rate": str(fee_rate),
+        "estimated_net_risk_quote": str(net_risk),
     }
 
 
@@ -60,10 +64,16 @@ async def build_status(repo: PostgresRepository, settings: Settings) -> dict:
     signals = await repo.recent("llm_signals", mode, 5)
     evaluations = await repo.recent("risk_evaluations", mode, 5)
     orders = await repo.recent("orders", mode, 5)
+    halt_reason = await repo.halt_details(mode) if state == "EMERGENCY_HALT" else None
     return {
         "mode": mode,
         "state": state,
         "cooldown_until": cooldown.isoformat() if cooldown else None,
+        "halt": {
+            "reason": halt_reason,
+            "auto_resume_at": cooldown.isoformat()
+            if state == "EMERGENCY_HALT" and cooldown else None,
+        },
         "equity": str(account.equity),
         "free_quote": str(account.free_quote),
         "reserve_quote": str(account.reserve_quote),
@@ -74,7 +84,7 @@ async def build_status(repo: PostgresRepository, settings: Settings) -> dict:
         },
         "consecutive_losses": account.consecutive_losses,
         "orders_last_hour": account.orders_last_hour,
-        "position": _position_payload(position),
+        "position": _position_payload(position, settings.exchange.taker_fee),
         "recent": {
             "signals": [jsonable(row) for row in signals],
             "evaluations": [jsonable(row) for row in evaluations],

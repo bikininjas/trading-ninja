@@ -27,24 +27,33 @@ uv pip install -r requirements.txt -r requirements-dev.txt
 ## Commandes
 
 ```bash
-.venv/bin/python -m pytest                     # 354 tests du moteur, du schéma, des sondes et du backtest
+.venv/bin/python -m pytest                     # 570 tests du moteur, du schéma, des sondes et du backtest
 .venv/bin/python -m app.main --once            # un cycle papier complet (données réelles)
 .venv/bin/python -m app.main --serve           # une évaluation par bougie H4 clôturée
 .venv/bin/python -m app.main --status          # état + 3 dernières lignes par table
-.venv/bin/python scripts/reconcile.py          # audit base ↔ exchange, lecture seule
+.venv/bin/python scripts/backtest.py scenario --stop-atr 3.0 --take-profit-r 2.0
+.venv/bin/python scripts/short_lab.py --require-negative-h1  # mandat short, labo sans ordre
+.venv/bin/python scripts/reconcile.py          # audit base ↔ exchange (lecture seule)
+.venv/bin/python scripts/reconcile.py --mode live --apply --confirm  # liquide les positions non protégées
 .venv/bin/python scripts/verify_drawdowns.py   # drawdowns sur jeu figé, transaction annulée
 .venv/bin/python scripts/kill_switch.py --dry-run  # ce que ferait un arrêt d'urgence
 .venv/bin/python scripts/kill_switch.py            # liquide et halte (papier)
+.venv/bin/python scripts/kill_switch.py --confirm-live  # liquide et halte (réel)
 .venv/bin/python scripts/hash_password.py          # hash du mot de passe admin
 .venv/bin/python scripts/totp_setup.py             # secret TOTP + QR (Authy)
 .venv/bin/python scripts/backtest.py record        # golden : décisions LLM (~2 min)
 .venv/bin/python scripts/backtest.py replay        # régression déterministe (< 1 s)
 .venv/bin/python scripts/backtest.py watch         # veille de dérive
+.venv/bin/python scripts/backtest.py measure       # règle + LLM sur les 7 paires (réseau + LLM)
 .venv/bin/python -m uvicorn app.api.main:create_app --factory \
     --host 127.0.0.1 --port 8080                   # API d'administration
 .venv/bin/python scripts/db_migrate.py status  # état des migrations
 .venv/bin/python scripts/db_migrate.py apply   # applique les migrations
 .venv/bin/python scripts/db_migrate.py verify  # schéma + test d'écriture
+.venv/bin/python scripts/shadow_report.py      # achats non pris : résumé
+.venv/bin/python scripts/shadow_report.py --evaluate  # rejoue les bougies et ferme les OPEN
+.venv/bin/python scripts/lessons.py show       # leçons actives
+.venv/bin/python scripts/lessons.py review     # un appel LLM, stocke 1 à 5 leçons
 .venv/bin/python scripts/check_exchange.py     # clé Binance : permissions + filtres (lecture seule)
 .venv/bin/python scripts/check_kraken.py       # marchés, permissions, équité requise (lecture seule)
 PYTHONPATH=. .venv/bin/python scripts/demo_guardrails.py

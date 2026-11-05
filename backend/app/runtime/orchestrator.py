@@ -8,8 +8,12 @@ Invariants tenus ici :
 
 - le pare-feu est le **seul** chemin vers une position : `evaluate()` est appelé
   avant tout `PaperBroker.entry()`, et la quantité vient de la décision ;
+- la règle d'entrée déterministe choisit **quand** le modèle est consulté ; le
+  modèle choisit **quoi faire** (BUY / SELL / HOLD / HALT) ;
 - une intention HOLD n'entre pas dans le pare-feu : elle n'a pas de sens pour lui
   et polluerait les statistiques de rejet ;
+- un SELL ou un HALT du modèle ne peut que **solder une position existante** :
+  jamais de vente à découvert, jamais une taille proposée par le modèle ;
 - le prix est rafraîchi **après** l'appel LLM : une inférence lente ne doit pas
   transformer une décision en donnée périmée ;
 - une panne du modèle produit un HOLD de repli, pas un arrêt de la boucle ;
@@ -23,22 +27,28 @@ import uuid
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from inspect import isawaitable
 from typing import Any
 
-from app.core.settings import Settings
+from app.core.settings import RUNTIME_ALLOWED_KEYS, Settings, load_settings
 from app.db.repository import AccountSnapshot, PositionRow, PostgresRepository
+from app.engine.entry_rule import evaluate_entry
+from app.engine.exit_guard import OpenPosition, evaluate_exit
+from app.engine.exit_rule import should_exit_chandelier, update_chandelier_stop
 from app.engine.machine import (
     COOLDOWN, EVALUATING, EXECUTING, HALT, IDLE, IN_POSITION, LOCKED,
     POST_TRADE_SWEEP, StateMachine,
 )
 from app.engine.sweep import plan_sweep
 from app.engine.risk_gate import (
-    AccountState, Action, MarketRegime, RejectionCode, TradeIntent, evaluate,
+    AccountState, Action, EntryMode, MarketRegime, SwingExitMode, TradeIntent,
+    evaluate,
 )
+from app.execution.live import LiveExecutionError
 from app.execution.paper import PaperBroker
 from app.llm.client import LLMSignal, SignalClient
 from app.market.feed import (
-    TIMEFRAME_MS, FeedError, SymbolState, build_snapshot, closed_candles, last_price,
+    FeedError, SymbolState, build_snapshot, closed_candles, last_price,
 )
 
 __all__ = ["CycleReport", "Orchestrator"]
@@ -80,8 +90,8 @@ class CycleReport:
 
 class Orchestrator:
     def __init__(self, settings: Settings, repo: PostgresRepository, exchange: Any,
-                 signal_client: SignalClient, broker: PaperBroker,
-                 *, now: Any = None):
+                 signal_client: SignalClient, broker: Any,
+                 *, now: Any = None, settings_loader: Any = None):
         self._settings = settings
         self._repo = repo
         self._exchange = exchange
@@ -89,8 +99,36 @@ class Orchestrator:
         self._broker = broker
         self._now = now or (lambda: datetime.now(timezone.utc))
         self._mode = settings.execution_mode
+        self._settings_updated_at: datetime | None = None
+        self._load_settings = settings_loader or load_settings
+        self._lessons: list[str] = []
 
     # -- helpers ---------------------------------------------------------
+
+    @staticmethod
+    async def _maybe_await(value: Any) -> Any:
+        """Le broker papier est synchrone, le broker réel est asynchrone.
+
+        Cette petite indirection permet aux deux d'implémenter le même contrat
+        sans forcer tous les tests papier à devenir async.
+        """
+        if isawaitable(value):
+            return await value
+        return value
+
+    async def _entry_fee(self, position: Any) -> Decimal:
+        """Frais d'entrée réellement enregistrés, sinon estimation du broker.
+
+        En live, le frais vient de la réponse de l'exchange et a été écrit dans
+        l'ordre d'entrée. En papier, il vient du même chemin ; le repli ne sert
+        qu'aux positions anciennes ou importées sans ordre.
+        """
+        getter = getattr(self._repo, "entry_fee", None)
+        if getter is not None:
+            recorded = await self._maybe_await(getter(position.id))
+            if recorded is not None and recorded > 0:
+                return recorded
+        return self._broker.fee(position.entry_price * position.amount)
 
     def _account_state(self, account: AccountSnapshot, open_symbols: tuple[str, ...] = ()) -> AccountState:
         return AccountState(
@@ -121,14 +159,168 @@ class Orchestrator:
             "exchange en lecture"
         )
 
+    async def _refresh_settings(self) -> tuple[bool, str | None]:
+        """Relit les réglages en base et les applique si le payload a changé.
+
+        Le rechargement est limité aux réglages : le mode, la base et les clés ne
+        bougent pas à chaud. Un payload invalide est refusé et l'ancienne
+        configuration reste active.
+        """
+        try:
+            payload, updated_at = await self._repo.runtime_settings(self._mode)
+        except Exception as exc:  # noqa: BLE001 — une base indisponible ne doit pas
+            # empêcher le cycle de continuer avec les réglages déjà chargés.
+            return False, f"réglages en base illisibles : {exc}"
+        if updated_at == self._settings_updated_at:
+            return False, None
+        try:
+            fresh = self._load_settings(overrides={
+                key: str(value)
+                for key, value in payload.items()
+                if key in RUNTIME_ALLOWED_KEYS
+            })
+        except RuntimeError as exc:
+            return False, f"réglages en base refusés : {exc}"
+        if fresh.execution_mode != self._settings.execution_mode:
+            return False, "réglages en base ignorés : le mode ne peut pas changer à chaud"
+        self._settings = fresh
+        self._settings_updated_at = updated_at
+        return True, None
+
+    async def _log_signal(self, symbol: str, signal: LLMSignal,
+                          report: CycleReport) -> tuple[uuid.UUID, datetime]:
+        """Persiste toute décision du modèle, y compris HOLD, SELL et HALT."""
+        report.signals += 1
+        if signal.degraded:
+            report.degraded_calls += 1
+        return await self._repo.insert_signal(
+            self._mode, symbol,
+            f"{self._settings.llm.model}{' (repli)' if signal.degraded else ''}",
+            action=signal.action, confidence=signal.confidence,
+            market_regime=signal.market_regime, thesis=signal.thesis,
+            prompt_payload=dict(signal.prompt_payload),
+            raw_response=dict(signal.raw),
+            inference_time_ms=signal.inference_ms,
+            prompt_sha256=signal.prompt_sha256 or None,
+            temperature=self._settings.llm.temperature,
+        )
+
+    async def _record_shadow(self, *, kind: str, symbol: str, signal: LLMSignal,
+                             signal_id: uuid.UUID,
+                             evaluation_id: uuid.UUID | None,
+                             decision: Any | None, snapshot: Any,
+                             account_state: AccountState,
+                             constraints: Any) -> None:
+        """Enregistre un achat non pris et son plan contrefactuel.
+
+        Le plan est recalculé par le même pare-feu avec une confiance forcée à 1,0
+        et le régime du signal. Si le pare-feu refuse encore (contre-tendance,
+        volatilité, minimum exchange), la ligne reste `NO_PLAN` : on mesure le
+        refus, pas un trade que le bot n'aurait jamais pu prendre.
+        """
+        forced = evaluate(
+            TradeIntent(
+                Action.BUY, 1.0,
+                MarketRegime(signal.market_regime), "shadow trade",
+            ),
+            snapshot, account_state, constraints, self._settings.risk,
+        )
+        has_plan = bool(
+            forced.approved
+            and forced.amount is not None and forced.amount > 0
+            and forced.stop_loss_price is not None
+        )
+        rejection_code = (
+            str(decision.rejection_code) if decision is not None else "NONE"
+        )
+        rejection_details = (
+            decision.rejection_details if decision is not None
+            else "HOLD du modèle sur un setup d'entrée valide"
+        )
+        await self._repo.insert_shadow_trade(
+            self._mode, symbol,
+            kind=kind,
+            action=signal.action,
+            signal_id=signal_id,
+            evaluation_id=evaluation_id,
+            rejection_code=rejection_code,
+            rejection_details=rejection_details,
+            decision_price=snapshot.price,
+            amount=forced.amount if has_plan else None,
+            notional_quote=forced.notional_quote if has_plan else None,
+            stop_loss_price=forced.stop_loss_price if has_plan else None,
+            take_profit_price=forced.take_profit_price if has_plan else None,
+            risk_amount_quote=(
+                forced.effective_risk_quote or forced.intended_risk_quote
+            ) if has_plan else None,
+            plan_status="OPEN" if has_plan else "NO_PLAN",
+        )
+
+    async def _force_halt(self, machine: StateMachine, report: CycleReport,
+                          reason: str) -> None:
+        """Arrêt demandé par le modèle : même chemin que le bouton rouge, sans 2FA.
+
+        Le modèle ne peut pas repartir tout de suite : `EMERGENCY_HALT` reste
+        bloqué pendant le délai configuré (24 h par défaut), puis le cycle suivant
+        reprend automatiquement. Le bouton « Reprendre » du dashboard permet de
+        repartir avant l'échéance ; un panic-sell humain, lui, n'a pas d'échéance.
+        """
+        auto_resume_at = None
+        if self._settings.halt_auto_resume_hours > 0:
+            auto_resume_at = self._now() + timedelta(
+                hours=self._settings.halt_auto_resume_hours
+            )
+        await self._repo.force_halt(
+            self._mode, reason, auto_resume_at=auto_resume_at
+        )
+        machine.current = HALT
+        report.actions.append(f"ARRÊT LLM : {reason}")
+
     # -- cycle -----------------------------------------------------------
 
     async def run_once(self) -> CycleReport:
         started = time.perf_counter()
         await self._repo.ensure_mode(self._mode)
+        reloaded, reload_error = await self._refresh_settings()
+        lessons_error: str | None = None
+        try:
+            self._lessons = await self._repo.active_lessons(self._mode)
+        except Exception as exc:  # noqa: BLE001 — une base indisponible ne doit pas
+            # empêcher le cycle de continuer sans mémoire.
+            self._lessons = []
+            lessons_error = f"leçons illisibles : {exc}"
         state, cooldown_until = await self._repo.state(self._mode)
+        now = self._now()
+
+        # Un arrêt demandé par le modèle porte une échéance. Passée cette échéance,
+        # le bot repart seul ; un arrêt humain (panic-sell, kill-switch) n'a pas
+        # d'échéance et reste bloqué jusqu'à une reprise explicite.
+        auto_resumed = False
+        if state == HALT:
+            details = await self._repo.halt_details(self._mode)
+            if (
+                details and details.startswith("LLM HALT")
+                and cooldown_until is not None
+                and now >= cooldown_until
+            ):
+                await self._repo.force_resume(
+                    self._mode,
+                    "reprise automatique après arrêt du modèle",
+                    who="auto_llm_cooldown",
+                )
+                state, cooldown_until = await self._repo.state(self._mode)
+                auto_resumed = True
+
         machine = StateMachine(self._repo, self._mode, state)
         report = CycleReport(mode=self._mode, state_before=state, state_after=state)
+        if reloaded:
+            report.actions.append("réglages du dashboard rechargés")
+        if reload_error:
+            report.errors.append(reload_error)
+        if lessons_error:
+            report.errors.append(lessons_error)
+        if auto_resumed:
+            report.actions.append("reprise automatique après arrêt du modèle")
 
         if state in (LOCKED, HALT):
             report.actions.append(f"état {state} : aucune action automatique")
@@ -144,7 +336,6 @@ class Orchestrator:
             await machine.go(target, "reprise après interruption")
             state = machine.current
 
-        now = self._now()
         if state == COOLDOWN:
             if cooldown_until is not None and now < cooldown_until:
                 report.actions.append(f"cooldown jusqu'à {cooldown_until:%H:%M} UTC")
@@ -153,6 +344,26 @@ class Orchestrator:
             await machine.go(IDLE, "cooldown expiré")
 
         account = await self._repo.account(self._mode, await self._starting_equity())
+        if hasattr(self._broker, "free_quote"):
+            # En live, le solde qui compte est celui de l'exchange, pas le ledger
+            # papier. Sans cette lecture, le pare-feu dimensionnerait sur 9,37 EUR
+            # même si le sous-compte contient autre chose.
+            live_free = await self._maybe_await(self._broker.free_quote())
+            live_position = await self._repo.open_position(self._mode)
+            live_value = Decimal(0)
+            if live_position is not None:
+                try:
+                    live_value = live_position.amount * last_price(
+                        self._exchange, live_position.symbol
+                    )
+                except Exception:  # noqa: BLE001 — un prix indisponible ne doit pas
+                    # empêcher la lecture du solde ; la position reste protégée par
+                    # son stop exchange.
+                    live_value = Decimal(0)
+            account = replace(
+                account, free_quote=live_free,
+                equity=live_free + live_value, reserve_quote=Decimal(0),
+            )
         position = await self._repo.open_position(self._mode)
 
         if position is not None:
@@ -164,46 +375,305 @@ class Orchestrator:
         report.elapsed_ms = int((time.perf_counter() - started) * 1000)
         return report
 
+    # -- position ouverte ------------------------------------------------
+
     async def _monitor(self, machine: StateMachine, position: PositionRow,
                        account: AccountSnapshot, report: CycleReport) -> None:
         if machine.current != IN_POSITION:
             # Redémarrage pendant une position : la base fait autorité sur l'état.
             await machine.go(IN_POSITION, "position ouverte retrouvée en base")
 
+        # En live, l'exchange fait autorité avant toute décision locale. Sans
+        # cette lecture, un stop déclenché pendant l'arrêt du bot ferait envoyer
+        # une seconde vente sur une position déjà plate.
+        live_state = None
+        if hasattr(self._broker, "position_state"):
+            try:
+                live_state = await self._broker.position_state(
+                    position.symbol, position.amount, position.stop_loss_price
+                )
+            except LiveExecutionError as exc:
+                report.errors.append(f"{position.symbol} : {exc}")
+                return
+            if live_state.base_total < position.amount * Decimal("0.999"):
+                if live_state.base_total > Decimal("0.00000001"):
+                    report.errors.append(
+                        f"{position.symbol} : position partielle "
+                        f"({live_state.base_total} sur {position.amount}) — "
+                        "aucune vente automatique"
+                    )
+                    return
+                try:
+                    fill = await self._broker.last_sell_fill(
+                        position.symbol,
+                        since=int(position.opened_at.timestamp() * 1000),
+                    )
+                except LiveExecutionError as exc:
+                    report.errors.append(f"{position.symbol} : {exc}")
+                    return
+                if fill is None:
+                    report.errors.append(
+                        f"{position.symbol} : base plate mais aucune vente "
+                        "retrouvée dans l'historique — réconciliation requise"
+                    )
+                    return
+                if fill.price <= position.stop_loss_price:
+                    reason, purpose = "STOP_LOSS", "STOP_LOSS"
+                elif (position.take_profit_price is not None
+                      and fill.price >= position.take_profit_price):
+                    reason, purpose = "TAKE_PROFIT", "TAKE_PROFIT"
+                else:
+                    reason, purpose = "EXCHANGE_EXIT", "EMERGENCY_EXIT"
+                await self._close_trade(
+                    machine, position, account, fill.price, reason, report,
+                    purpose=purpose, fill=fill,
+                )
+                return
+            if live_state.base_total > position.amount * Decimal("1.001"):
+                report.errors.append(
+                    f"{position.symbol} : solde de base {live_state.base_total} "
+                    f"supérieur à la position {position.amount} — compte partagé ? "
+                    "aucune vente automatique"
+                )
+                return
+            if not live_state.stop_ok:
+                try:
+                    fill = await self._broker.emergency_exit(
+                        position.amount, symbol=position.symbol,
+                        stop_price=position.stop_loss_price,
+                    )
+                except LiveExecutionError as exc:
+                    report.errors.append(f"{position.symbol} : {exc}")
+                    return
+                await self._close_trade(
+                    machine, position, account, fill.price, "STOP_MISSING", report,
+                    purpose="EMERGENCY_EXIT", fill=fill,
+                )
+                await self._repo.force_halt(
+                    self._mode,
+                    f"stop distant absent sur {position.symbol} : position soldée",
+                )
+                machine.current = HALT
+                report.actions.append(
+                    f"ARRÊT : stop distant absent sur {position.symbol}, position soldée"
+                )
+                return
+
+        try:
+            state = build_snapshot(
+                self._exchange, position.symbol,
+                decision_timeframe=self._settings.exchange.daily_timeframe_decision,
+                entry_timeframe=self._settings.exchange.entry_timeframe,
+                with_d1=self._settings.risk.entry_mode is EntryMode.SWING_MACRO_D1,
+                chandelier_period=self._settings.risk.swing_chandelier_period,
+            )
+        except FeedError as exc:
+            report.errors.append(f"{position.symbol} : {exc}")
+            return
+
         candles = closed_candles(
-            self._exchange, position.symbol, self._settings.exchange.daily_timeframe_decision, 10
+            self._exchange, position.symbol,
+            self._settings.exchange.daily_timeframe_decision, 2,
         )
         if not candles:
             report.errors.append(f"{position.symbol} : aucune bougie clôturée")
             return
         last = candles[-1]
-        close_at = datetime.fromtimestamp(
-            (last[0] + TIMEFRAME_MS[self._settings.exchange.daily_timeframe_decision]) / 1000,
-            tz=timezone.utc,
-        )
-        if close_at <= position.opened_at:
+        if state.last_close_at <= position.opened_at:
             report.actions.append("aucune bougie clôturée depuis l'entrée")
             return
 
-        trigger = self._broker.exit_trigger(position.stop_loss_price,
-                                            position.take_profit_price, last)
-        if trigger is None:
-            price = last_price(self._exchange, position.symbol)
-            value = position.amount * price
-            await self._repo.snapshot_equity(
-                self._mode, equity=account.free_quote + value + account.reserve_quote,
-                free_quote=account.free_quote,
-                position_value_quote=value, symbol=position.symbol, source="MONITOR",
+        # Le stop et le take-profit vivent dans la bougie : ils passent avant toute
+        # décision du modèle, qui ne voit que la clôture. En live, le stop est
+        # chez l'exchange : on ne le rejoue pas localement, sinon une même
+        # position pourrait être vendue deux fois. Le TP, lui, reste local tant
+        # que l'ordre TP distant n'est pas posé.
+        if live_state is not None:
+            trigger = None
+            if (position.take_profit_price is not None
+                    and Decimal(str(last[2])) >= position.take_profit_price):
+                trigger = (position.take_profit_price, "TAKE_PROFIT")
+        else:
+            trigger = self._broker.exit_trigger(
+                position.stop_loss_price, position.take_profit_price, last
             )
-            report.actions.append(
-                f"{position.symbol} : stop {position.stop_loss_price} · "
-                f"prix {price} · aucune sortie"
+        if trigger is not None:
+            exit_price, reason = trigger
+            await self._close_trade(
+                machine, position, account, exit_price, reason, report,
+                purpose="STOP_LOSS" if reason == "STOP_LOSS" else "TAKE_PROFIT",
             )
             return
 
-        exit_price, reason = trigger
-        fill = self._broker.exit(position.amount, exit_price)
-        entry_fee = self._broker.fee(position_initial_notional(position))
+        # -- gestion swing D1 : seuil de rentabilité puis sortie de tendance ----
+        if self._settings.risk.entry_mode is EntryMode.SWING_MACRO_D1:
+            d1 = state.context.d1
+            if d1 is not None:
+                price_now = last_price(self._exchange, position.symbol)
+                current_stop = position.stop_loss_price
+                if (self._settings.risk.swing_breakeven_r > 0
+                        and current_stop < position.entry_price):
+                    r_distance = position.entry_price - current_stop
+                    target = (
+                        position.entry_price
+                        + self._settings.risk.swing_breakeven_r * r_distance
+                    )
+                    if price_now >= target:
+                        breakeven = position.entry_price * (
+                            Decimal(1) + self._settings.exchange.taker_fee * Decimal(2)
+                        )
+                        moved = await self._move_stop(
+                            position, breakeven, report, live_state=live_state,
+                            label="+1 R atteint",
+                        )
+                        if moved > current_stop:
+                            current_stop = moved
+                            position = replace(position, stop_loss_price=moved)
+
+                if self._settings.risk.swing_exit_mode is SwingExitMode.CHANDELIER:
+                    candidate = update_chandelier_stop(
+                        current_stop,
+                        d1.highest_high_chandelier,
+                        d1.atr_14,
+                        self._settings.risk.swing_chandelier_atr_multiple,
+                    )
+                    if should_exit_chandelier(d1.last_close, candidate):
+                        await self._close_trade(
+                            machine, position, account, price_now,
+                            "TREND_EXIT_CHANDELIER", report, purpose="LLM_EXIT",
+                        )
+                        return
+                    if candidate > current_stop:
+                        moved = await self._move_stop(
+                            position, candidate, report, live_state=live_state,
+                            label="trailing Chandelier",
+                        )
+                        if moved > current_stop:
+                            current_stop = moved
+                            position = replace(position, stop_loss_price=moved)
+                else:
+                    if (self._settings.risk.swing_exit_below_ema20
+                            and d1.last_close < d1.ema_20):
+                        await self._close_trade(
+                            machine, position, account, price_now,
+                            "TREND_EXIT_EMA20", report, purpose="LLM_EXIT",
+                        )
+                        return
+                    if d1.bearish_divergence:
+                        await self._close_trade(
+                            machine, position, account, price_now,
+                            "TREND_EXIT_BOLLINGER", report, purpose="LLM_EXIT",
+                        )
+                        return
+
+        # Une bougie clôturée = une décision de sortie au maximum. Sans ce garde,
+        # un cycle toutes les minutes redemanderait au modèle la même bougie.
+        last_signal = await self._repo.last_signal_at(self._mode, position.symbol)
+        if last_signal is None or last_signal < state.last_close_at:
+            signal = await self._llm.propose(
+                position.symbol, state.snapshot, state.context,
+                has_position=True,
+                trend_buffer_pct=self._settings.risk.trend_buffer_pct,
+                lessons=self._lessons,
+                decision_timeframe=self._settings.exchange.daily_timeframe_decision,
+            )
+            await self._log_signal(position.symbol, signal, report)
+            action = Action(signal.action)
+            confidence = Decimal(str(signal.confidence))
+
+            if action is Action.HALT and confidence >= self._settings.risk.min_halt_confidence:
+                price = last_price(self._exchange, position.symbol)
+                await self._close_trade(
+                    machine, position, account, price, "LLM_HALT", report,
+                    purpose="LLM_EXIT", halt=True,
+                )
+                return
+
+            if action is Action.SELL:
+                decision = evaluate_exit(
+                    TradeIntent(action, float(confidence),
+                                MarketRegime(signal.market_regime), signal.thesis),
+                    position.symbol,
+                    OpenPosition(position.symbol, position.amount, position.entry_price),
+                    self._settings.risk,
+                )
+                if decision.approved:
+                    price = last_price(self._exchange, position.symbol)
+                    await self._close_trade(
+                        machine, position, account, price, "LLM_SELL", report,
+                        purpose="LLM_EXIT",
+                    )
+                    return
+                report.actions.append(
+                    f"{position.symbol} : SELL refusé {decision.rejection_code} "
+                    f"({decision.rejection_details})"
+                )
+            elif action is Action.HALT:
+                report.actions.append(
+                    f"{position.symbol} : HALT ignoré (confidence {confidence} < "
+                    f"{self._settings.risk.min_halt_confidence})"
+                )
+
+        price = last_price(self._exchange, position.symbol)
+        value = position.amount * price
+        await self._repo.snapshot_equity(
+            self._mode, equity=account.free_quote + value + account.reserve_quote,
+            free_quote=account.free_quote,
+            position_value_quote=value, symbol=position.symbol, source="MONITOR",
+        )
+        report.actions.append(
+            f"{position.symbol} : stop {position.stop_loss_price} · "
+            f"prix {price} · aucune sortie"
+        )
+
+    async def _move_stop(self, position: PositionRow, new_stop: Decimal,
+                         report: CycleReport, *, live_state: Any,
+                         label: str) -> Decimal:
+        """Déplace le stop local, et le stop distant en live, sans jamais le baisser.
+
+        En papier, la base fait foi. En live, l'ordre distant est remplacé
+        **avant** la mise à jour locale : si l'exchange refuse, la base garde
+        l'ancien niveau et la position reste protégée par lui.
+        """
+        if new_stop <= position.stop_loss_price:
+            return position.stop_loss_price
+        if live_state is not None:
+            stop_id = getattr(live_state, "stop_order_id", None)
+            update = getattr(self._broker, "update_stop_loss_order", None)
+            if not stop_id or not callable(update):
+                report.errors.append(
+                    f"{position.symbol} : stop distant non déplaçable "
+                    f"(id={stop_id!r}, broker={type(self._broker).__name__})"
+                )
+                return position.stop_loss_price
+            try:
+                await self._maybe_await(
+                    update(position.symbol, position.amount, stop_id, new_stop)
+                )
+            except LiveExecutionError as exc:
+                report.errors.append(
+                    f"{position.symbol} : {label} — stop distant inchangé : {exc}"
+                )
+                return position.stop_loss_price
+        await self._repo.update_position_stop(position.id, new_stop)
+        report.actions.append(
+            f"{position.symbol} : {label}, stop remonté à {new_stop:.4f}"
+        )
+        return new_stop
+
+    async def _close_trade(self, machine: StateMachine, position: PositionRow,
+                           account: AccountSnapshot, exit_price: Decimal, reason: str,
+                           report: CycleReport, *, purpose: str,
+                           halt: bool = False, fill: Any = None) -> None:
+        """Séquence unique de clôture : stop, TP, SELL LLM et HALT LLM."""
+        if fill is None:
+            fill = await self._maybe_await(
+                self._broker.exit(
+                    position.amount, exit_price, symbol=position.symbol,
+                    stop_price=position.stop_loss_price,
+                )
+            )
+        entry_fee = await self._entry_fee(position)
         gross = (fill.price - position.entry_price) * position.amount
         fees = entry_fee + fill.fee_quote
         net = gross - fees
@@ -213,8 +683,7 @@ class Orchestrator:
         await self._repo.insert_order(
             self._mode, client_order_id=self._client_id(position.symbol, "EXIT"),
             symbol=position.symbol, side="SELL", order_type="MARKET",
-            purpose="STOP_LOSS" if reason == "STOP_LOSS" else "TAKE_PROFIT",
-            status="FILLED", requested_amount=position.amount,
+            purpose=purpose, status="FILLED", requested_amount=position.amount,
             filled_amount=position.amount, requested_price=None,
             stop_price=position.stop_loss_price if reason == "STOP_LOSS" else None,
             average_fill_price=fill.price, fee_amount=fill.fee_quote,
@@ -227,8 +696,12 @@ class Orchestrator:
             exit_reason=reason,
         )
         consecutive = account.consecutive_losses + 1 if net < 0 else 0
-        cash = account.free_quote + fill.notional_quote - fill.fee_quote
-        reserve = account.reserve_quote
+        if hasattr(self._broker, "free_quote"):
+            cash = await self._maybe_await(self._broker.free_quote())
+            reserve = Decimal(0)
+        else:
+            cash = account.free_quote + fill.notional_quote - fill.fee_quote
+            reserve = account.reserve_quote
         sweep_note = ""
 
         deferred = await self._repo.deferred_sweep_quote(self._mode)
@@ -264,12 +737,31 @@ class Orchestrator:
             self._mode, equity=equity, free_quote=cash, position_value_quote=Decimal(0),
             symbol=position.symbol, source="EXIT",
         )
-        await self._repo.set_cooldown(self._mode, self._now() + timedelta(minutes=COOLDOWN_MINUTES))
-        await machine.go(COOLDOWN, "post-trade, refroidissement")
         report.position_closed = (
             f"{position.symbol} {reason} @ {fill.price} · net {net:.4f} "
             f"{self._settings.exchange.quote_currency}{sweep_note}"
         )
+
+        if halt:
+            auto_resume_at = None
+            if self._settings.halt_auto_resume_hours > 0:
+                auto_resume_at = self._now() + timedelta(
+                    hours=self._settings.halt_auto_resume_hours
+                )
+            await self._repo.force_halt(
+                self._mode, f"LLM HALT : {position.symbol} soldé à {fill.price}",
+                auto_resume_at=auto_resume_at,
+            )
+            machine.current = HALT
+            report.actions.append("ARRÊT LLM : position soldée, bot en EMERGENCY_HALT")
+            return
+
+        await self._repo.set_cooldown(
+            self._mode, self._now() + timedelta(minutes=COOLDOWN_MINUTES)
+        )
+        await machine.go(COOLDOWN, "post-trade, refroidissement")
+
+    # -- pas de position -------------------------------------------------
 
     async def _evaluate_cycle(self, machine: StateMachine, account: AccountSnapshot,
                               report: CycleReport) -> None:
@@ -283,6 +775,8 @@ class Orchestrator:
                     self._exchange, symbol,
                     decision_timeframe=self._settings.exchange.daily_timeframe_decision,
                     entry_timeframe=self._settings.exchange.entry_timeframe,
+                    with_d1=self._settings.risk.entry_mode is EntryMode.SWING_MACRO_D1,
+                    chandelier_period=self._settings.risk.swing_chandelier_period,
                 )
             except FeedError as exc:
                 report.errors.append(f"{symbol} : {exc}")
@@ -302,29 +796,55 @@ class Orchestrator:
                 )
                 continue
 
+            # La règle déterministe décide si la structure mérite un appel au
+            # modèle. Elle est plus stricte que le pare-feu : elle cherche un
+            # pullback dans une tendance, pas n'importe quelle zone légale.
+            if self._settings.risk.entry_rule_enabled:
+                setup = evaluate_entry(state.snapshot, state.context, self._settings.risk)
+                if not setup.triggered:
+                    report.actions.append(f"{symbol} : pas de setup ({setup.reason})")
+                    continue
+
             signal = await self._llm.propose(
                 symbol, state.snapshot, state.context, has_position=False,
                 trend_buffer_pct=self._settings.risk.trend_buffer_pct,
+                lessons=self._lessons,
+                decision_timeframe=self._settings.exchange.daily_timeframe_decision,
             )
-            report.signals += 1
+            signal_id, signal_at = await self._log_signal(symbol, signal, report)
+            action = Action(signal.action)
+            confidence = Decimal(str(signal.confidence))
+
             if signal.degraded:
-                report.degraded_calls += 1
-            signal_id, signal_at = await self._repo.insert_signal(
-                self._mode, symbol,
-                f"{self._settings.llm.model}{' (repli)' if signal.degraded else ''}",
-                action=signal.action, confidence=signal.confidence,
-                market_regime=signal.market_regime, thesis=signal.thesis,
-                prompt_payload=dict(signal.prompt_payload),
-                raw_response=dict(signal.raw),
-                inference_time_ms=signal.inference_ms,
-                prompt_sha256=signal.prompt_sha256 or None,
-                temperature=self._settings.llm.temperature,
-            )
-            if signal.degraded:
-                report.actions.append(f"{symbol} : HOLD de repli ({signal.degradation_reason})")
+                report.actions.append(
+                    f"{symbol} : HOLD de repli ({signal.degradation_reason})"
+                )
                 continue
-            if signal.action == "HOLD":
-                report.actions.append(f"{symbol} : HOLD ({signal.confidence:.2f})")
+            if action is Action.HALT:
+                if confidence >= self._settings.risk.min_halt_confidence:
+                    await self._force_halt(
+                        machine, report,
+                        f"LLM HALT sur {symbol} : {signal.thesis[:120]}",
+                    )
+                    return
+                report.actions.append(
+                    f"{symbol} : HALT ignoré (confidence {confidence} < "
+                    f"{self._settings.risk.min_halt_confidence})"
+                )
+                continue
+            if action is Action.SELL:
+                # Un SELL sans position ne peut pas créer un short : il est loggué
+                # puis ignoré. Le garde-fou de sortie n'a rien à liquider.
+                report.actions.append(f"{symbol} : SELL sans position, ignoré")
+                continue
+            if action is Action.HOLD:
+                await self._record_shadow(
+                    kind="MODEL_HOLD", symbol=symbol, signal=signal,
+                    signal_id=signal_id, evaluation_id=None, decision=None,
+                    snapshot=state.snapshot, account_state=account_state,
+                    constraints=state.info.constraints,
+                )
+                report.actions.append(f"{symbol} : HOLD ({confidence:.2f})")
                 continue
 
             # Prix rafraîchi après l'inférence : la décision porte sur le prix
@@ -333,8 +853,8 @@ class Orchestrator:
             evaluated_at = self._now()
             fresh = replace(state.snapshot, price=price, tick_at=evaluated_at, now=evaluated_at)
             intent = TradeIntent(
-                Action(signal.action), float(signal.confidence),
-                MarketRegime(signal.market_regime),
+                action, float(confidence),
+                MarketRegime(signal.market_regime), signal.thesis,
             )
             eval_started = time.perf_counter()
             decision = evaluate(
@@ -357,6 +877,13 @@ class Orchestrator:
                 if chosen is None:
                     chosen = (state, signal, decision, signal_id, evaluation_id)
             else:
+                await self._record_shadow(
+                    kind="GATE_REJECTED_BUY", symbol=symbol, signal=signal,
+                    signal_id=signal_id, evaluation_id=evaluation_id,
+                    decision=decision, snapshot=fresh,
+                    account_state=account_state,
+                    constraints=state.info.constraints,
+                )
                 report.actions.append(f"{symbol} : refusé {decision.rejection_code}")
 
         if chosen is None:
@@ -371,7 +898,9 @@ class Orchestrator:
                      signal_id: uuid.UUID, evaluation_id: uuid.UUID,
                      account: AccountSnapshot, report: CycleReport) -> None:
         price = last_price(self._exchange, state.symbol)
-        fill = self._broker.entry(decision, price)
+        fill = await self._maybe_await(
+            self._broker.entry(decision, price, symbol=state.symbol)
+        )
         entry_client_id = self._client_id(state.symbol, "ENTRY")
         stop_client_id = self._client_id(state.symbol, "STOP")
 
@@ -382,14 +911,24 @@ class Orchestrator:
         else:
             r_multiple = None
 
-        position_id = await self._repo.create_position(
-            self._mode, symbol=state.symbol, entry_price=fill.price, amount=fill.amount,
-            notional_quote=fill.notional_quote, stop_loss_price=decision.stop_loss_price,
-            take_profit_price=decision.take_profit_price,
-            risk_amount_quote=decision.effective_risk_quote or decision.intended_risk_quote,
-            r_multiple_at_tp=r_multiple, signal_id=signal_id, evaluation_id=evaluation_id,
-            protective_order_id=stop_client_id,
-        )
+        try:
+            position_id = await self._repo.create_position(
+                self._mode, symbol=state.symbol, entry_price=fill.price, amount=fill.amount,
+                notional_quote=fill.notional_quote, stop_loss_price=decision.stop_loss_price,
+                take_profit_price=decision.take_profit_price,
+                risk_amount_quote=decision.effective_risk_quote or decision.intended_risk_quote,
+                r_multiple_at_tp=r_multiple, signal_id=signal_id, evaluation_id=evaluation_id,
+                protective_order_id=fill.stop_order_id or stop_client_id,
+            )
+        except Exception:
+            # L'achat est parti mais la base n'a pas la position : on ne laisse
+            # pas une position réelle non suivie. Le stop est annulé par la vente.
+            if hasattr(self._broker, "emergency_exit"):
+                await self._broker.emergency_exit(
+                    fill.amount, symbol=state.symbol,
+                    stop_price=decision.stop_loss_price,
+                )
+            raise
         await self._repo.insert_order(
             self._mode, client_order_id=entry_client_id, symbol=state.symbol, side="BUY",
             order_type="MARKET", purpose="ENTRY", status="FILLED",

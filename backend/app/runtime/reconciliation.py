@@ -38,6 +38,7 @@ __all__ = [
     "Finding",
     "ReconciliationPlan",
     "RemoteOrder",
+    "apply_reconciliation",
     "inspect_exchange",
     "plan_reconciliation",
     "read_account",
@@ -365,3 +366,51 @@ async def inspect_exchange(
         positions, remote_orders, balances,
         mode=mode, quote_currency=quote_currency, quote_balance=quote_balance,
     )
+
+
+async def apply_reconciliation(
+    plan: ReconciliationPlan,
+    repo: Any,
+    exchange: Any,
+    broker: Any,
+    *,
+    starting_equity: Decimal,
+    now: Any = None,
+) -> list[str]:
+    """Applique le plan minimal : liquider les positions signalées, sinon halter.
+
+    Cette fonction est **le seul chemin d'écriture** de la réconciliation. Elle
+    ne crée jamais de position et ne déplace jamais un stop : elle solde ce que
+    le plan considère comme non protégé, puis laisse le bot arrêté. Le broker
+    réel annule les protections avant la vente ; le broker papier ne fait que
+    mettre le ledger à jour.
+    """
+    if plan.mode != LIVE_MODE:
+        raise ValueError("apply_reconciliation est réservé au mode LIVE")
+    if not plan.liquidate:
+        if plan.halt or plan.critical:
+            await repo.force_halt(
+                plan.mode,
+                "réconciliation base/exchange : " + "; ".join(
+                    finding.code for finding in plan.findings
+                    if finding.severity != OK
+                ),
+            )
+            return ["halte forcée : écart base/exchange"]
+        return []
+
+    from app.runtime.recovery import liquidate_open_positions
+
+    results = await liquidate_open_positions(
+        repo, exchange, broker, plan.mode,
+        quote_currency=plan.quote_currency,
+        starting_equity=starting_equity,
+        reason="RECONCILIATION",
+        now=now,
+        only_symbols=set(plan.liquidate),
+    )
+    return [
+        f"liquidé {item.symbol} {item.amount} @ {item.exit_price} "
+        f"(net {item.net_pnl_quote})"
+        for item in results
+    ]

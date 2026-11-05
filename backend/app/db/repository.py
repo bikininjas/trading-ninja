@@ -286,6 +286,191 @@ class PostgresRepository:
         )
         return row["id"], row["created_at"]
 
+    # -- shadow trades : les achats que le bot n'a pas pris -----------------
+
+    async def insert_shadow_trade(
+        self, mode: str, symbol: str, *,
+        kind: str, action: str, signal_id: uuid.UUID,
+        evaluation_id: uuid.UUID | None,
+        rejection_code: str, rejection_details: str | None,
+        decision_price: Decimal,
+        amount: Decimal | None,
+        notional_quote: Decimal | None,
+        stop_loss_price: Decimal | None,
+        take_profit_price: Decimal | None,
+        risk_amount_quote: Decimal | None,
+        plan_status: str,
+    ) -> uuid.UUID:
+        row = await self._conn.fetchrow(
+            "INSERT INTO shadow_trades (mode, symbol, kind, action, signal_id, "
+            "evaluation_id, rejection_code, rejection_details, decision_price, amount, "
+            "notional_quote, stop_loss_price, take_profit_price, risk_amount_quote, "
+            "plan_status) VALUES ($1::execution_mode, $2, $3, $4::signal_action, $5, "
+            "$6, $7::risk_rejection_code, $8, $9, $10, $11, $12, $13, $14, $15) "
+            "RETURNING id",
+            mode, symbol, kind, action, signal_id, evaluation_id,
+            rejection_code, rejection_details, decision_price, amount,
+            notional_quote, stop_loss_price, take_profit_price, risk_amount_quote,
+            plan_status,
+        )
+        return row["id"]
+
+    async def open_shadow_trades(self, mode: str, limit: int = 200) -> list[dict]:
+        rows = await self._conn.fetch(
+            "SELECT id, created_at, symbol, kind, plan_status, decision_price, amount, "
+            "stop_loss_price, take_profit_price FROM shadow_trades "
+            "WHERE mode = $1::execution_mode AND plan_status = 'OPEN' "
+            "ORDER BY created_at LIMIT $2",
+            mode, limit,
+        )
+        return [dict(row) for row in rows]
+
+    async def close_shadow_trade(
+        self, shadow_id: uuid.UUID, *,
+        status: str, exit_price: Decimal, pnl_quote: Decimal,
+        outcome_reason: str, evaluated_at: datetime,
+    ) -> None:
+        await self._conn.execute(
+            "UPDATE shadow_trades SET plan_status = $2, exit_price = $3, "
+            "pnl_quote = $4, outcome_reason = $5, evaluated_at = $6 "
+            "WHERE id = $1",
+            shadow_id, status, exit_price, pnl_quote, outcome_reason, evaluated_at,
+        )
+
+    async def shadow_summary(self, mode: str) -> dict:
+        rows = await self._conn.fetch(
+            "SELECT kind, plan_status, COUNT(*) AS count "
+            "FROM shadow_trades WHERE mode = $1::execution_mode "
+            "GROUP BY kind, plan_status",
+            mode,
+        )
+        total = planned = no_plan = open_count = closed = 0
+        by_kind: dict[str, int] = {}
+        for row in rows:
+            count = int(row["count"])
+            total += count
+            by_kind[row["kind"]] = by_kind.get(row["kind"], 0) + count
+            if row["plan_status"] == "NO_PLAN":
+                no_plan += count
+            else:
+                planned += count
+            if row["plan_status"] == "OPEN":
+                open_count += count
+            elif row["plan_status"] in ("STOP_LOSS", "TAKE_PROFIT", "END_OF_DATA"):
+                closed += count
+
+        outcome = await self._conn.fetchrow(
+            "SELECT COUNT(*) FILTER (WHERE pnl_quote > 0) AS wins, "
+            "COUNT(*) FILTER (WHERE pnl_quote <= 0) AS losses, "
+            "COALESCE(SUM(pnl_quote), 0) AS net_pnl "
+            "FROM shadow_trades WHERE mode = $1::execution_mode "
+            "AND plan_status IN ('STOP_LOSS', 'TAKE_PROFIT', 'END_OF_DATA')",
+            mode,
+        )
+        rejections = await self._conn.fetch(
+            "SELECT rejection_code, COUNT(*) AS count "
+            "FROM shadow_trades WHERE mode = $1::execution_mode "
+            "AND kind = 'GATE_REJECTED_BUY' "
+            "GROUP BY rejection_code ORDER BY count DESC",
+            mode,
+        )
+        return {
+            "total": total,
+            "planned": planned,
+            "no_plan": no_plan,
+            "open": open_count,
+            "closed": closed,
+            "wins": int(outcome["wins"] or 0),
+            "losses": int(outcome["losses"] or 0),
+            "net_pnl": outcome["net_pnl"] or Decimal(0),
+            "by_kind": by_kind,
+            "by_rejection": [
+                {"code": row["rejection_code"], "count": int(row["count"])}
+                for row in rejections
+            ],
+        }
+
+    # -- mémoire de leçons ------------------------------------------------
+
+    async def active_lessons(self, mode: str) -> list[str]:
+        row = await self._conn.fetchrow(
+            "SELECT lessons FROM lessons WHERE mode = $1::execution_mode AND active "
+            "AND (valid_until IS NULL OR valid_until > CLOCK_TIMESTAMP()) "
+            "ORDER BY version DESC LIMIT 1",
+            mode,
+        )
+        return list(row["lessons"]) if row else []
+
+    async def insert_lessons(
+        self, mode: str, *,
+        lessons: list[str],
+        source_trade_ids: list[uuid.UUID],
+        source_count: int,
+        model_name: str,
+        prompt_version: str,
+        valid_until: datetime | None,
+        review_sha256: str,
+    ) -> tuple[uuid.UUID, int]:
+        async with self._conn.transaction():
+            await self._conn.execute(
+                "UPDATE lessons SET active = FALSE "
+                "WHERE mode = $1::execution_mode AND active",
+                mode,
+            )
+            version = await self._conn.fetchval(
+                "SELECT COALESCE(MAX(version), 0) + 1 FROM lessons "
+                "WHERE mode = $1::execution_mode",
+                mode,
+            )
+            row = await self._conn.fetchrow(
+                "INSERT INTO lessons (mode, version, lessons, source_trade_ids, "
+                "source_count, model_name, prompt_version, valid_until, review_sha256) "
+                "VALUES ($1::execution_mode, $2, $3::text[], $4::uuid[], $5, $6, $7, "
+                "$8, $9) RETURNING id",
+                mode, version, lessons, source_trade_ids, source_count,
+                model_name, prompt_version, valid_until, review_sha256,
+            )
+        return row["id"], int(version)
+
+    async def recent_lessons(self, mode: str, limit: int = 10) -> list[dict]:
+        rows = await self._conn.fetch(
+            "SELECT id, created_at, version, lessons, source_count, model_name, "
+            "prompt_version, valid_until, active FROM lessons "
+            "WHERE mode = $1::execution_mode ORDER BY version DESC LIMIT $2",
+            mode, limit,
+        )
+        return [dict(row) for row in rows]
+
+    async def deactivate_lessons(self, mode: str) -> None:
+        await self._conn.execute(
+            "UPDATE lessons SET active = FALSE "
+            "WHERE mode = $1::execution_mode AND active",
+            mode,
+        )
+
+    async def closed_positions_for_lessons(self, mode: str, limit: int = 30) -> list[dict]:
+        rows = await self._conn.fetch(
+            "SELECT p.id, p.symbol, p.closed_at, p.net_pnl_quote, p.exit_reason, "
+            "p.entry_price, p.exit_price, p.risk_amount_quote, "
+            "s.confidence, s.market_regime, s.thesis "
+            "FROM positions p LEFT JOIN llm_signals s ON s.id = p.entry_signal_id "
+            "WHERE p.mode = $1::execution_mode AND p.status = 'CLOSED' "
+            "ORDER BY p.closed_at DESC NULLS LAST LIMIT $2",
+            mode, limit,
+        )
+        return [dict(row) for row in rows]
+
+    async def shadow_outcomes_for_lessons(self, mode: str, limit: int = 30) -> list[dict]:
+        rows = await self._conn.fetch(
+            "SELECT id, symbol, kind, action, rejection_code, plan_status, "
+            "decision_price, pnl_quote, outcome_reason, created_at "
+            "FROM shadow_trades WHERE mode = $1::execution_mode "
+            "AND plan_status IN ('STOP_LOSS', 'TAKE_PROFIT', 'END_OF_DATA') "
+            "ORDER BY created_at DESC LIMIT $2",
+            mode, limit,
+        )
+        return [dict(row) for row in rows]
+
     # -- positions et ordres ---------------------------------------------
 
     async def open_positions(self, mode: str) -> list[PositionRow]:
@@ -351,6 +536,15 @@ class PostgresRepository:
             protective_order_id,
         )
 
+    async def update_position_stop(self, position_id: uuid.UUID,
+                                   stop_loss_price: Decimal) -> None:
+        """Déplace le stop local (seuil de rentabilité). Jamais au-dessus du prix."""
+        await self._conn.execute(
+            "UPDATE positions SET stop_loss_price = $2 "
+            "WHERE id = $1 AND status = 'OPEN'",
+            position_id, stop_loss_price,
+        )
+
     async def close_position(self, position_id: uuid.UUID, *, exit_price: Decimal,
                              closed_amount: Decimal, gross_pnl_quote: Decimal,
                              total_fees_quote: Decimal, net_pnl_quote: Decimal,
@@ -360,9 +554,23 @@ class PostgresRepository:
             "closed_at = CLOCK_TIMESTAMP(), exit_price = $2, closed_amount = $3, "
             "gross_pnl_quote = $4, total_fees_quote = $5, net_pnl_quote = $6, "
             "exit_reason = $7 WHERE id = $1",
-            position_id, exit_price, closed_amount, gross_pnl_quote, total_fees_quote,
-            net_pnl_quote, exit_reason, status,
+            position_id, exit_price, closed_amount, gross_pnl_quote,
+            total_fees_quote, net_pnl_quote, exit_reason, status,
         )
+
+    async def entry_fee(self, position_id: uuid.UUID) -> Decimal:
+        """Frais taker réellement enregistrés sur l'ordre d'entrée d'une position.
+
+        En live, le coût vient de `order['fee']` ; en papier, du fill simulé.
+        Cette lecture évite de reconstruire un frais avec le prix courant, qui
+        serait faux après un slippage ou un changement de tarif.
+        """
+        value = await self._conn.fetchval(
+            "SELECT COALESCE(SUM(fee_amount), 0) FROM orders "
+            "WHERE position_id = $1 AND side = 'BUY' AND purpose = 'ENTRY'",
+            position_id,
+        )
+        return value or Decimal(0)
 
     async def insert_sweep(self, mode: str, *, position_id: uuid.UUID,
                            quote_currency: str, realized_net_pnl: Decimal,
@@ -470,12 +678,17 @@ class PostgresRepository:
                 mode, previous, reason[:150], who,
             )
 
-    async def force_halt(self, mode: str, reason: str, code: str | None = None) -> None:
+    async def force_halt(self, mode: str, reason: str, code: str | None = None,
+                         auto_resume_at: datetime | None = None) -> None:
         """Arrêt d'urgence déclenché par un humain, depuis n'importe quel état.
 
         Contourne volontairement le graphe : un kill-switch qui refuserait de
         fonctionner parce que l'état courant ne prévoit pas la transition serait
         inutile le jour où on en a besoin.
+
+        `auto_resume_at` est renseigné uniquement pour un arrêt demandé par le
+        modèle : le bot repart alors tout seul à cette heure-là. Un panic-sell
+        humain laisse la valeur à NULL et exige une reprise explicite.
         """
         async with self._conn.transaction():
             previous = await self._conn.fetchval(
@@ -485,8 +698,9 @@ class PostgresRepository:
                 "UPDATE bot_state SET state = 'EMERGENCY_HALT'::system_state, "
                 "since = CLOCK_TIMESTAMP(), locked_at = CLOCK_TIMESTAMP(), "
                 "lock_reason = $2::risk_rejection_code, lock_details = $3, "
-                "updated_at = CLOCK_TIMESTAMP() WHERE mode = $1::execution_mode",
-                mode, code, reason,
+                "cooldown_until = $4, updated_at = CLOCK_TIMESTAMP() "
+                "WHERE mode = $1::execution_mode",
+                mode, code, reason, auto_resume_at,
             )
             await self._conn.execute(
                 "INSERT INTO system_state_logs (mode, previous_state, current_state, "
@@ -495,6 +709,41 @@ class PostgresRepository:
                 "'EMERGENCY_HALT'::system_state, $3, $4::risk_rejection_code)",
                 mode, previous, reason[:150], code,
             )
+
+    async def halt_details(self, mode: str) -> str | None:
+        """Raison textuelle du dernier arrêt, pour distinguer LLM et humain."""
+        return await self._conn.fetchval(
+            "SELECT lock_details FROM bot_state WHERE mode = $1::execution_mode", mode
+        )
+
+    # -- réglages runtime (dashboard) -------------------------------------
+
+    async def runtime_settings(self, mode: str) -> tuple[dict, datetime | None]:
+        """Payload de réglages et date de dernière modification, depuis la base."""
+        row = await self._conn.fetchrow(
+            "SELECT payload, updated_at FROM runtime_settings "
+            "WHERE mode = $1::execution_mode",
+            mode,
+        )
+        if row is None:
+            return {}, None
+        payload = row["payload"]
+        if isinstance(payload, str):
+            payload = json.loads(payload)
+        return dict(payload or {}), row["updated_at"]
+
+    async def update_runtime_settings(self, mode: str, payload: dict,
+                                      *, updated_by: str = "dashboard") -> datetime:
+        """Écrit les réglages du dashboard. Une ligne par mode, jamais partagée."""
+        row = await self._conn.fetchrow(
+            "INSERT INTO runtime_settings (mode, payload, updated_by) "
+            "VALUES ($1::execution_mode, $2::jsonb, $3) "
+            "ON CONFLICT (mode) DO UPDATE SET payload = EXCLUDED.payload, "
+            "updated_by = EXCLUDED.updated_by, updated_at = CLOCK_TIMESTAMP() "
+            "RETURNING updated_at",
+            mode, json.dumps(payload, ensure_ascii=False), updated_by,
+        )
+        return row["updated_at"]
 
     async def update_after_close(self, mode: str, *, consecutive_losses: int,
                                  equity: Decimal) -> None:
@@ -505,6 +754,93 @@ class PostgresRepository:
             "WHERE mode = $1::execution_mode",
             mode, consecutive_losses, equity,
         )
+
+    # -- statistiques du dashboard ---------------------------------------
+
+    async def equity_curve(self, mode: str, limit: int = 200) -> list[dict]:
+        rows = await self._conn.fetch(
+            "SELECT taken_at, equity_quote, free_quote, position_value_quote "
+            "FROM equity_snapshots WHERE mode = $1::execution_mode "
+            "ORDER BY taken_at DESC LIMIT $2",
+            mode, limit,
+        )
+        return [dict(row) for row in reversed(rows)]
+
+    async def dashboard_metrics(self, mode: str) -> dict:
+        row = await self._conn.fetchrow(
+            "SELECT COUNT(*) AS total_trades, "
+            "COUNT(*) FILTER (WHERE net_pnl_quote > 0) AS wins, "
+            "COUNT(*) FILTER (WHERE net_pnl_quote <= 0) AS losses, "
+            "COALESCE(SUM(net_pnl_quote), 0) AS net_pnl, "
+            "COALESCE(SUM(total_fees_quote), 0) AS fees, "
+            "COALESCE(SUM(net_pnl_quote) / NULLIF(SUM(risk_amount_quote), 0), 0) AS r_multiple "
+            "FROM positions WHERE mode = $1::execution_mode "
+            "AND status IN ('CLOSED', 'EMERGENCY_LIQUIDATED')",
+            mode,
+        )
+        return dict(row) if row else {}
+
+    async def daily_pnl(self, mode: str, days: int = 14) -> list[dict]:
+        rows = await self._conn.fetch(
+            "SELECT date_trunc('day', closed_at)::date AS day, "
+            "COUNT(*) AS trades, COUNT(*) FILTER (WHERE net_pnl_quote > 0) AS wins, "
+            "COALESCE(SUM(net_pnl_quote), 0) AS net_pnl "
+            "FROM positions WHERE mode = $1::execution_mode "
+            "AND status IN ('CLOSED', 'EMERGENCY_LIQUIDATED') "
+            "AND closed_at >= now() - ($2::int * interval '1 day') "
+            "GROUP BY 1 ORDER BY 1",
+            mode, days,
+        )
+        return [dict(row) for row in rows]
+
+    async def rejection_stats(self, mode: str) -> list[dict]:
+        rows = await self._conn.fetch(
+            "SELECT rejection_code::text AS code, COUNT(*) AS count "
+            "FROM risk_evaluations WHERE mode = $1::execution_mode AND approved = FALSE "
+            "GROUP BY rejection_code ORDER BY count DESC",
+            mode,
+        )
+        return [dict(row) for row in rows]
+
+    async def llm_stats(self, mode: str, hours: int = 24) -> dict:
+        counts = await self._conn.fetch(
+            "SELECT action::text AS action, COUNT(*) AS count FROM llm_signals "
+            "WHERE mode = $1::execution_mode "
+            "AND created_at >= now() - ($2::int * interval '1 hour') "
+            "GROUP BY action",
+            mode, hours,
+        )
+        last = await self._conn.fetchrow(
+            "SELECT created_at, symbol, action::text AS action, confidence, "
+            "market_regime::text AS market_regime, model_name, inference_time_ms, thesis "
+            "FROM llm_signals WHERE mode = $1::execution_mode "
+            "ORDER BY created_at DESC LIMIT 1",
+            mode,
+        )
+        total = await self._conn.fetchval(
+            "SELECT COUNT(*) FROM llm_signals WHERE mode = $1::execution_mode "
+            "AND created_at >= now() - ($2::int * interval '1 hour')",
+            mode, hours,
+        )
+        degraded = await self._conn.fetchval(
+            "SELECT COUNT(*) FROM llm_signals WHERE mode = $1::execution_mode "
+            "AND created_at >= now() - ($2::int * interval '1 hour') "
+            "AND model_name LIKE '%repli%'",
+            mode, hours,
+        )
+        avg_ms = await self._conn.fetchval(
+            "SELECT COALESCE(AVG(inference_time_ms), 0) FROM llm_signals "
+            "WHERE mode = $1::execution_mode "
+            "AND created_at >= now() - ($2::int * interval '1 hour')",
+            mode, hours,
+        )
+        return {
+            "counts": {row["action"]: int(row["count"]) for row in counts},
+            "last": dict(last) if last else None,
+            "total": int(total or 0),
+            "degraded": int(degraded or 0),
+            "avg_inference_ms": int(avg_ms or 0),
+        }
 
     # -- lecture pour le CLI ---------------------------------------------
 

@@ -21,6 +21,8 @@ from app.engine.risk_gate import (
     MarketSnapshot,
     RejectionCode,
     RiskConfig,
+    StopMode,
+    SwingExitMode,
     TradeIntent,
     evaluate,
 )
@@ -316,6 +318,11 @@ def test_stop_is_truncated_down_never_up():
 # ---------------------------------------------------------------------------
 
 
+def test_a_single_buy_cannot_engage_more_than_half_the_capital():
+    with pytest.raises(ValueError, match="pas de all-in"):
+        RiskConfig(max_notional_pct=Decimal("0.51"))
+
+
 @pytest.mark.parametrize("atr", ["0.2", "0.5", "1", "2", "4", "6"])
 @pytest.mark.parametrize("equity", ["500", "5000", "10000", "250000"])
 @pytest.mark.parametrize("cash_ratio", ["0.05", "0.5", "1.0"])
@@ -418,3 +425,158 @@ def test_evaluate_never_raises_on_hostile_input():
         d = evaluate(intent(), m, a, CONSTRAINTS, RiskConfig())
         assert isinstance(d.approved, bool)
         assert d.rejection_code is not RejectionCode.NONE
+
+
+# ---------------------------------------------------------------------------
+# Stop structurel D1 et petit portefeuille (D-060)
+# ---------------------------------------------------------------------------
+
+
+def swing_market(price="100", swing_low="96", **kw) -> MarketSnapshot:
+    return MarketSnapshot(
+        symbol="BTC/USDT",
+        price=Decimal(price),
+        ema_200_h4=Decimal("90"),
+        atr_14_h4=Decimal("2"),
+        last_closed_h1_return_atr=Decimal("-0.2"),
+        tick_at=NOW,
+        now=NOW,
+        swing_low_10d=Decimal(swing_low),
+        **kw,
+    )
+
+
+SWING_CONFIG = RiskConfig(stop_mode=StopMode.STRUCTURAL_D1, take_profit_r_multiple=Decimal("0"))
+
+
+def test_structural_stop_uses_the_d1_swing_low():
+    d = run(m=swing_market(), cfg=SWING_CONFIG)
+    assert d.approved, d.rejection_details
+    assert d.stop_loss_price == Decimal("96.00")
+    assert d.stop_distance_quote == Decimal("4.00")
+
+
+def test_structural_stop_is_capped_at_five_percent():
+    d = run(m=swing_market(swing_low="80"), cfg=SWING_CONFIG)
+    assert d.approved, d.rejection_details
+    assert d.stop_loss_price == Decimal("95.00")
+    assert d.stop_distance_quote == Decimal("5.00")
+
+
+def test_structural_stop_without_swing_low_is_refused():
+    d = run(m=swing_market(swing_low="0"), cfg=SWING_CONFIG)
+    assert not d.approved
+    assert d.rejection_code is RejectionCode.INVALID_STOP_LOSS_CALCULATION
+
+
+def test_small_account_full_allocation_requires_the_flag():
+    with pytest.raises(ValueError, match="max_notional_pct"):
+        RiskConfig(max_notional_pct=Decimal("1.0"))
+
+    small = account(equity_quote=Decimal("20"), free_quote=Decimal("20"))
+    tight = ExchangeConstraints(
+        amount_step=Decimal("0.001"), min_amount=Decimal("0.001"),
+        min_notional=Decimal("15"), price_tick=Decimal("0.01"),
+    )
+    blocked = run(m=swing_market(), a=small, c=tight, cfg=SWING_CONFIG)
+    assert not blocked.approved
+    assert blocked.rejection_code is RejectionCode.EXCHANGE_MIN_NOTIONAL_FAILED
+
+    full = run(
+        m=swing_market(), a=small, c=tight,
+        cfg=RiskConfig(
+            risk_per_trade_pct=Decimal("0.05"),
+            stop_mode=StopMode.STRUCTURAL_D1,
+            take_profit_r_multiple=Decimal("0"),
+            max_notional_pct=Decimal("1.0"),
+            small_account_full_allocation=True,
+        ),
+    )
+    assert full.approved, full.rejection_details
+    assert full.notional_quote >= Decimal("19.8")
+    assert full.notional_quote <= Decimal("20.0")
+    assert full.effective_risk_quote <= Decimal("1.00")
+
+
+def test_small_account_floor_reaches_the_exchange_minimum():
+    small = account(equity_quote=Decimal("20"), free_quote=Decimal("20"))
+    tight = ExchangeConstraints(
+        amount_step=Decimal("0.001"), min_amount=Decimal("0.001"),
+        min_notional=Decimal("15"), price_tick=Decimal("0.01"),
+    )
+    cfg = RiskConfig(
+        risk_per_trade_pct=Decimal("0.0175"),
+        stop_mode=StopMode.STRUCTURAL_D1,
+        take_profit_r_multiple=Decimal("0"),
+        max_notional_pct=Decimal("1.0"),
+        small_account_full_allocation=True,
+    )
+    d = run(m=swing_market(), a=small, c=tight, cfg=cfg)
+    assert d.approved, d.rejection_details
+    # 15 EUR de notionnel, stop à 4 % → 0,60 EUR risqués, soit 3 % de 20 EUR.
+    assert d.notional_quote >= Decimal("14.9")
+    assert d.effective_risk_pct == Decimal("0.03")
+
+
+def test_small_account_floor_refuses_when_above_the_cap():
+    tiny = account(equity_quote=Decimal("12"), free_quote=Decimal("12"))
+    cfg = RiskConfig(
+        risk_per_trade_pct=Decimal("0.0175"),
+        stop_mode=StopMode.STRUCTURAL_D1,
+        max_notional_pct=Decimal("1.0"),
+        small_account_full_allocation=True,
+    )
+    # 10 EUR de notionnel, stop à 4 % → 0,40 EUR = 3,3 % de 12 EUR : passe.
+    d = run(m=swing_market(), a=tiny, cfg=cfg)
+    assert d.approved, d.rejection_details
+    # Même compte, plafond petit compte ramené à 4 % : un stop à 5 % exigerait
+    # 5 % de risque, donc le refus est explicite.
+    capped = RiskConfig(
+        risk_per_trade_pct=Decimal("0.0175"),
+        stop_mode=StopMode.STRUCTURAL_D1,
+        max_notional_pct=Decimal("1.0"),
+        small_account_full_allocation=True,
+        small_account_max_risk_pct=Decimal("0.04"),
+    )
+    d2 = run(m=swing_market(swing_low="80"), a=tiny, cfg=capped)
+    assert not d2.approved
+    assert d2.rejection_code is RejectionCode.EXCHANGE_MIN_NOTIONAL_FAILED
+    assert "plafond petit compte" in (d2.rejection_details or "")
+
+
+def test_free_balance_below_min_notional_blocks_new_entry():
+    d = run(a=account(free_quote=Decimal("9"), equity_quote=Decimal("10000")))
+    assert not d.approved
+    assert d.rejection_code is RejectionCode.EXCHANGE_MIN_NOTIONAL_FAILED
+    assert "minimum notionnel" in (d.rejection_details or "")
+
+
+# ---------------------------------------------------------------------------
+# Sortie swing Chandelier (D-061)
+# ---------------------------------------------------------------------------
+
+
+def test_swing_exit_mode_defaults_to_ema20():
+    assert RiskConfig().swing_exit_mode is SwingExitMode.EMA20
+
+
+def test_swing_exit_mode_can_be_chandelier():
+    cfg = RiskConfig(swing_exit_mode=SwingExitMode.CHANDELIER)
+    assert cfg.swing_exit_mode is SwingExitMode.CHANDELIER
+
+
+def test_unknown_swing_exit_mode_is_refused():
+    with pytest.raises(ValueError, match="swing_exit_mode"):
+        RiskConfig(swing_exit_mode="TRAILING")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("period", [1, 0, -5, 201])
+def test_chandelier_period_must_stay_in_bounds(period):
+    with pytest.raises(ValueError, match="swing_chandelier_period"):
+        RiskConfig(swing_chandelier_period=period)
+
+
+@pytest.mark.parametrize("multiple", [Decimal("0"), Decimal("-1"), Decimal("NaN")])
+def test_chandelier_multiple_must_be_positive_and_finite(multiple):
+    with pytest.raises(ValueError, match="swing_chandelier_atr_multiple"):
+        RiskConfig(swing_chandelier_atr_multiple=multiple)

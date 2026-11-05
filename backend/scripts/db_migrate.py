@@ -119,6 +119,7 @@ async def cmd_verify(conn: asyncpg.Connection) -> int:
     expected = {
         "llm_signals", "risk_evaluations", "positions", "orders", "profit_sweeps",
         "bot_state", "equity_snapshots", "system_state_logs", "schema_migrations",
+        "runtime_settings", "shadow_trades", "lessons",
     }
     rows = await conn.fetch(
         "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"

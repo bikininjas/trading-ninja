@@ -14,9 +14,9 @@ Statuts : ⬜ à faire · 🟨 en cours · ✅ fait et vérifié · ⛔ bloqué 
 | Phase | Objectif | Statut | Avancement |
 |---|---|---|---|
 | **0. Fondations** | Le socle sur lequel rien ne peut perdre d'argent par accident | ✅ | 9 / 9 |
-| **1. Moteur** | Le bot existe et tourne, mais sans argent | 🟨 | 6 / 11 |
-| **2. Simulation** | Prouver la mécanique sur des centaines de trades fictifs | 🟨 | 2 / 4 |
-| **3. Testnet** | Prouver l'exécution réelle avec du capital fictif | ⬜ | 0 / 3 |
+| **1. Moteur** | Le bot existe et tourne, mais sans argent | 🟨 | 6 / 12 |
+| **2. Simulation** | Prouver la mécanique sur des centaines de trades fictifs | 🟨 | 2 / 5 |
+| **3. Pré-live** | Prouver l'exécution réelle avec un canary minuscule (Kraken n'a pas de testnet) | 🟨 | 1 / 3 |
 | **4. Argent réel** | Engager le minimum, profil prudent, sous surveillance | ⬜ | 0 / 3 |
 
 Le principe qui gouverne l'ordre : **on ne passe à la phase suivante que sur un
@@ -208,14 +208,14 @@ persistée) ; l'envoi réel et l'API d'administration restent à faire.
 - ✅ **1.10 — API d'administration** *(2026-11-04)*
   FastAPI : login + TOTP, start/stop/panic-sell protégés par 2FA, flux WebSocket pour
   le dashboard, métriques et logs d'audit.
-  *Fait* : `app/api/security.py` (scrypt, JWT HS256 15 min, TOTP ±1 pas avec anti-rejeu,
+  *Fait* : `app/api/security.py` (scrypt, JWT HS256 7 jours, TOTP ±1 pas avec anti-rejeu,
   limiteur 5 tentatives / 5 min), `app/api/main.py` (login, status, pause, resume,
   panic, historique, WebSocket), `app/api/service.py` (sérialisation sans flottants).
   Swagger désactivé, démarrage refusé sans les trois secrets.
   *Critère vérifié* : panic sans TOTP frais → 403, avec TOTP → liquidation ; session
-  expirée → 401 ; login réel 200 avec `expires_in = 900`.
+  expirée → 401 ; login réel 200 avec `expires_in = 604800`.
   *Fait aussi* : dashboard Node.js zéro dépendance (`dashboard/`) — proxy de l'API,
-  cookie `HttpOnly`, SSE, 18 tests. Le jeton reste côté serveur. `scripts/manage.sh`
+  cookie `HttpOnly`, SSE, 26 tests à ce jour. Le jeton reste côté serveur. `scripts/manage.sh`
   pilote les deux composants (start/stop/restart, PID vérifiés avant `kill`).
   *Reste* : le panic-sell réel.
 
@@ -230,6 +230,26 @@ persistée) ; l'envoi réel et l'API d'administration restent à faire.
   l'exécuteur live n'est pas revu.
   *Critère* : exécuté alors que le backend est arrêté, il solde quand même la position.
   (Vérifié en papier ; réel non câblé.)
+
+- 🟨 **1.12 — Pilotage et réglages depuis le dashboard** *(2026-11-04)*
+  Le dashboard montre les statistiques, les graphiques, l'état du modèle et permet de
+  modifier les réglages sans jargon financier.
+  *Fait* : `stats.py` et `settings_store.py` côté API, table `runtime_settings`
+  (migration 0005), panneaux HTML/JS (courbe du capital, gain/perte par jour, état du
+  modèle, formulaire de réglages), reprise automatique 24 h après un `HALT` du modèle,
+  bouton « Reprendre maintenant ». D-044.
+  *Fait aussi (2026-11-04)* : jauges de risque (jour, semaine, plus haut, pertes
+  consécutives, ordres/heure), refus du pare-feu avec libellés français, onglets
+  d'activité (signaux, pare-feu, ordres, positions) via un proxy `/api/history` en
+  liste blanche et borné à 50 lignes, périodes 24 h / 7 j / 30 j / tout et infobulles
+  sur la courbe, mode `PAPER`/`LIVE` visible, accessibilité (lien d'évitement, focus,
+  onglets clavier, `aria-live`), `docs/DASHBOARD.md` et 26 tests Node. D-062.
+  *Reste* : valider sur le navigateur de Seb (un smoke test Chromium headless a déjà
+  vérifié le rendu, les quatre périodes, l'infobulle, les onglets et l'absence
+  d'erreur JS), et décider si les réglages doivent demander un TOTP frais
+  (aujourd'hui : session 2FA seulement).
+  *Critère* : une modification dans le dashboard change la ligne `runtime_settings`,
+  le bot la relit au cycle suivant, et les graphiques reflètent les données réelles.
 
 ---
 
@@ -255,9 +275,152 @@ Objectif : mesurer, pas espérer.
   `test_counter_trend_buy_is_refused_by_the_gate` et le cycle réel du 2026-11-04
   (7 signaux persistés, 0 évaluation car tous HOLD).
 
-- ⬜ **2.3 — Suivre le résultat qu'aurait eu chaque trade accepté comme chaque trade refusé**
+- 🟨 **2.3 — Suivre le résultat qu'aurait eu chaque trade accepté comme chaque trade refusé** *(2026-11-04)*
+  *Fait* : table `shadow_trades` (migration 0006), enregistrement des BUY refusés par
+  le pare-feu et des HOLD sur setup valide, plan contrefactuel recalculé avec une
+  confiance forcée à 1,0, évaluation des lignes `OPEN` par
+  `scripts/shadow_report.py --evaluate` (stop/TP/fin de données, frais et slippage),
+  panneau « Achats refusés » dans le dashboard. D-046.
+  *Validé par* : `db_migrate.py apply` → 0006 appliquée ; `verify` → 28 relations ;
+  `shadow_report.py` → 0 ligne au départ ; insertion/fermeture réelle en base puis
+  nettoyage ; 403 tests Python.
+  *Reste* : accumuler des lignes (le bot en crée à chaque HOLD ou BUY refusé) et lire
+  le rapport après quelques semaines.
+  → Passer le statut en ✅ quand une première lecture réelle existe.
 - ⬜ **2.4 — Rapport de fin de phase** (nombre de trades, taux de réussite, espérance,
       drawdown maximal, répartition des codes de rejet)
+
+- 🟨 **2.5 — LLM autonome : BUY / SELL / HALT** *(2026-11-04)*
+  Le modèle peut acheter, vendre pour solder une position et arrêter le bot. Il ne
+  dimensionne toujours rien : la règle d'entrée déterministe choisit le contexte, le
+  pare-feu calcule taille et stop, et un garde-fou de sortie interdit toute vente à
+  découvert.
+  *Fait* : `app/engine/entry_rule.py` (pullback EMA50 dans une tendance),
+  `app/engine/exit_guard.py` (SELL/HALT sur position existante), action `HALT` dans le
+  schéma LLM, migration 0004 (`signal_action.HALT`, `order_purpose.LLM_EXIT`),
+  orchestrateur (vente et arrêt demandés par le modèle), backtest multi-paires
+  (`scripts/backtest.py measure`). Seuil `micro` ramené à 0,60 pour rendre un BUY
+  possible ; D-043. Filtre de pente EMA200 (D-051) : une tendance qui s'essouffle
+  n'est plus achetée ; 3 → 2 trades, −0,4811 → −0,3268 EUR.
+  *Mesure v3* : 33 BUY sur 7 paires, 4 trades approuvés, 0 gagnant, −0,6951 EUR
+  (frais Kraken réels 0,80 %/côté ; l'ancien −0,4999 utilisait 0,26 %).
+  Les 4 sorties sont des stops ; aucune sortie SELL/HALT. Le laboratoire
+  `scripts/backtest.py scenario` a testé stop 3,0/3,5/4,0 ATR, TP 3R et un filtre
+  « H1 positive » : **aucun scénario n'est positif**. Le 3,0 ATR perd moins seulement
+  parce qu'un achat devient sous le minimum Kraken (effet de sélection).
+  *Reste* : accumuler des échantillons (boucle papier, `shadow_trades` 2.3) et
+  mesurer une fenêtre plus longue ou un autre régime avant de figer un filtre. Le
+  flag `entry_require_positive_h1` reste un laboratoire, désactivé en production.
+  La pente EMA200 protège mais ne crée pas d'arête : 2 trades à −3,49 %, aucun
+  scénario positif avec trades.
+  *Critère* : le backtest multi-paires produit un nombre de trades interprétable, avec
+  des sorties LLM identifiables, et le golden de régression rejoue le nouveau
+  comportement sans réseau. (Atteint pour la mécanique ; pas pour l'edge.)
+
+- 🟨 **2.6 — Mémoire de leçons** *(2026-11-04)*
+  *Fait* : table `lessons` (migration 0007), relecture à un seul appel via
+  `scripts/lessons.py review`, injection des leçons actives dans le prompt de
+  décision, panneau « Leçons » dans le dashboard, A/B
+  `backtest.py measure --lessons-file`. D-047.
+  *Validé par* : `db_migrate.py apply` → 0007 appliquée ; `verify` → 29 relations ;
+  relecture réelle sur 5 shadow trades de test → 5 leçons, version 1, puis nettoyage ;
+  422 tests Python.
+  *Reste* : attendre 5 résultats réels, lancer la relecture, comparer avec et sans
+  leçons, et ne garder la mémoire que si la mesure montre un mieux. Premier A/B
+  (BTC/EUR, 30 bougies) : −3,49 % sans leçons, −3,45 % avec, écart dans le bruit ;
+  non concluant.
+
+- 🟨 **2.7 — Mandat short (laboratoire)** *(2026-11-04)*
+  *Fait* : `app/backtest/short_lab.py` + `scripts/short_lab.py` mesurent un short
+  miroir hors production, mêmes bougies/frais/slippage. BTC : 1 trade le 29 octobre,
+  **+0,93 %** (stop 2,5/TP 1,5) ou **+1,98 %** (stop 3/TP 2) ; variante distance
+  −2..0 ATR : −2,91 % sur 2 trades. D-052.
+  *Limite* : Kraken spot ne permet pas le short ; il faut de la marge ou Kraken Futures
+  (autre adaptateur, contrats, levier, liquidation). 9,37 EUR est trop petit.
+  *Reste* : mesurer sur plusieurs régimes et les 7 paires ; exiger un nombre de trades
+  interprétable avant d'ajouter `SHORT` au schéma, au Risk Gateway et au broker papier.
+  *Critère* : au moins 100 trades short simulés sur plusieurs régimes, espérance
+  positive nette de frais ; sinon on abandonne le short.
+
+- 🟨 **2.8 — Historique multi-années (jalon 1)** *(2026-11-04)*
+  720 bougies REST ne permettent pas de valider un filtre de tendance. Les archives
+  OHLCVT publiques de Kraken (trimestrielles, et complète en 5 parties) sont lues
+  **par requêtes HTTP Range** : le répertoire central du ZIP est analysé, seuls les
+  CSV `60`/`240` des paires visées sont récupérés. ~9,5 Go d'archive ne coûtent que
+  quelques mégaoctets.
+  *Fait* : `app/market/kraken_archive.py` (lecteur ZIP par plages, ZIP64),
+  `app/market/history.py` (CSV, trous, agrégation, cohérence, écriture idempotente),
+  `scripts/ingest_history.py`, migration 0008 (`market_candles_history` + vue
+  `v_history_coverage`, RLS + révocation). D-053, D-054, D-055.
+  *Validé par* : `db_migrate.py apply` → 0008 appliquée ; `ingest_history.py
+  --source full` → BTC/EUR 113 899 H1 depuis 2013-09-10, ETH/EUR 97 407 depuis
+  2015-08-07, SOL/EUR 47 041 depuis 2021-06-17 ; cohérence H1→H4 **OK** sur les trois
+  paires (aucune bougie H4 divergente de l'agrégation H1) ; `--report` → 1,18 % de
+  bougies manquantes sur BTC (concentrées en 2013-2014), 0,02 % sur SOL.
+  *Limite connue* : l'archive s'arrête au 30/09/2026 et le REST ne remonte qu'à 720
+  bougies → un trou de 111 h en H1 entre le 01/10 et le 05/10 2026 (le H4 est continu).
+  Un `--rest-only` quotidien empêche le trou de réapparaître ; celui-ci est assumé
+  (5 jours sur 730) et signalé, jamais interpolé.
+
+- 🟨 **2.9 — Balayage statistique du filtre de pente (jalon 2)** *(2026-11-04)*
+  `backtest.py sweep` rejoue 24 mois sur l'historique en base, en mode mécanique
+  (une réponse BUY constante remplace le LLM : le chemin règle d'entrée → `evaluate()`
+  → `PaperBroker` reste celui de la production). Pentes 0 / 1,0 / 1,5 / 2,0 ATR,
+  frais 80 pb (taker réel) et 100 pb (stress), équité virtuelle 1 000 EUR.
+  Métriques : N, PF, espérance par trade, drawdown max, verdict par les seuils du
+  brief (N ≥ 100, PF ≥ 1,30, E > 0, DD ≤ 15 %). D-056.
+  *Validé par* : `backtest.py sweep --months 6` → 7 trades (pente 0) et 5 trades
+  (pente 2,0) sur BTC, PF 0,21 et 0,10 — mesures ci-dessous.
+  *Résultat 24 mois, 48 scénarios* : voir `docs/BACKTEST.md` § « Balayage 24 mois ».
+  Deux modes d'entrée mesurés (D-058 : `EMA50_H4` et `PULLBACK_H1`), coupe-circuits
+  permanents levés et colonne `gel` (D-059 — sans quoi le verrou de pertes tronquait
+  la fenêtre au premier mauvais mois). **Aucun scénario positif** : PF de 0,11 à 0,62,
+  N de 14 à 39 trades par paire et par 24 mois. Le repli H1 améliore BTC à pente égale
+  (0,46 contre 0,29) mais fait moins bien sur ETH et SOL : déplacer le point d'entrée
+  ne change pas le signe.
+  *Conclusion* : le plafond de N n'est pas la finesse du setup mais la **cadence de
+  décision H4** (une opportunité H1 sur quatre est seulement vue) et la mesure par
+  paire. Le seuil de 100 trades n'est atteint qu'en agrégeant les trois paires
+  (95 trades à pente 0, mode H4), jamais sur une paire seule.
+  *Reste* : mesurer une cadence H1 ou un portefeuille multi-paires ; pas un troisième
+  filtre d'entrée. Ne rien figer sur ces chiffres.
+
+- ⛔ **2.10 — Ordres Maker (chantier 4) : gelé par décision**
+  Remplacer l'achat au marché par un ordre limite `post_only` au meilleur bid, avec
+  annulation après 120 s sans fill. **Interdit tant que 2.9 ne montre pas PF ≥ 1,30** :
+  optimiser l'exécution d'une stratégie perdante ne fait que perdre plus lentement, et
+  le chemin live est lui-même gelé (aucun ordre réel). Aucun code écrit.
+
+- ✅ **2.11 — Moteur swing macro Daily (D-060, D-061)** *(2026-11-04)*
+  *Fait* : `EntryMode.SWING_MACRO_D1` (clôture D1 > EMA50/EMA200, pente EMA50 5 j > 0,
+  cassure Donchian 20 **ou** rebond EMA20 avec RSI 50–65), `StopMode.STRUCTURAL_D1`
+  (creux 10 D1, plafond 5 %), breakeven à +1 R, sorties EMA20 D1 / Bollinger (20 ; 2,5)
+  avec divergence, preset `swing`, `backtest.py swing` (D1 agrégé du H4 en base, sans
+  interpolation), allocation 100 % sous 50 EUR avec plancher de viabilité.
+  D-061 ajoute : prompt LLM D1 séparé (`v3-d1`), évaluation rétention/filtration sans
+  ordre, sortie **Chandelier** optionnelle (`SWING_EXIT_MODE=ema20` par défaut),
+  migration **0009** (`1d` en base), scheduler **00:05 UTC**, breakeven live avec
+  remplacement de stop sûr (création avant annulation).
+  *Validé par* : **570 tests Python** (dont 21 swing/stop structurel, Chandelier,
+  scheduler D1, breakeven live) ; `db_migrate.py status` → 9 migrations appliquées ;
+  `backtest.py swing` sur BTC/ETH/SOL, 60 mois puis tout l'historique, sorties
+  `ema20,chandelier`.
+  *Résultat* : **négatif sur 2021-11 → 2026-11** (BTC ema20 PF 0,44 / chandelier 0,77 ;
+  ETH 0,57 / 0,38 ; SOL 0,19 / 0,14). Sur tout l'historique, Chandelier porte BTC à
+  71 trades, PF 2,81, +192,47 %, DD 11,99 % (EMA20 : 87 trades, PF 2,20) et ETH à
+  62 trades, PF 1,93, +68,29 % (EMA20 : PF 1,10) ; SOL reste KO (11 trades, PF 0,14).
+  BTC et ETH passent PF/payoff/MDD/N, pas SOL, et aucun ne passe sur la fenêtre
+  récente.
+  *Mesure LLM D1 invalide* : 144/144 appels en repli dégradé, Ollama 0.40.14 répond
+  HTTP 500 `llama-server binary not found`. Ce n'est pas un verdict du modèle ; rejouer
+  après réparation.
+  *Conclusion* : le trend-following D1 à faible taux de réussite est réel sur les cycles
+  2014–2021, pas une arête actuelle. Ne pas activer, ne pas figer les seuils. Critères
+  révisés : PF ≥ 1,35 net, payoff ≥ 3,5, MDD ≤ 20 %, N ≥ 50 ; le winrate ≥ 40 % est
+  abandonné.
+  *Reste* : mesurer un filtre de régime (BTC vs ETH, breadth) ou une sortie moins
+  whipsaw ; réparer Ollama puis rejouer l'évaluation LLM ; ne pas empiler un quatrième
+  filtre d'entrée.
 
 **Critère de passage en phase 3** : au moins **100 trades simulés**, drawdown maximal
 sous le seuil configuré, espérance positive. En dessous, on corrige ou on abandonne —
@@ -265,16 +428,28 @@ les deux sont des résultats utiles.
 
 ---
 
-## Phase 3 — Testnet ⬜
+## Phase 3 — Pré-live (testnet impossible) 🟨
 
-Objectif : prouver la mécanique avec du capital fictif mais un vrai exchange.
+Objectif : prouver la mécanique avec un vrai exchange et un capital minuscule. Kraken
+spot n'a pas de testnet dans CCXT 4.5.91 : le « testnet » est remplacé par un canary
+réel, sous-compte dédié, après validation à blanc.
 
-- ⬜ **3.1 — Cycle complet sur testnet** (achat → stop → sortie → sweep)
-- ⬜ **3.2 — Tests de panne** : coupure réseau, redémarrage, ordre rejeté, stop refusé
-- ⬜ **3.3 — Vérifier que le stop survit à l'arrêt du PC** (il vit chez l'exchange)
+- 🟨 **3.1 — Exécuteur réel validé à blanc** *(2026-11-04)*
+  `app/execution/live.py` : achat marché + stop bracket, fill réel, stop relu après le
+  fill, revente si le stop manque ; monitoring exchange-first pour ne jamais vendre
+  deux fois ; `scripts/reconcile.py --apply --confirm` ; `kill_switch.py
+  --confirm-live`. *Validé par* : 442 tests Python, aucun réseau, aucun ordre réel.
+  *Reste* : un essai sur le sous-compte Kraken avec un ordre volontairement rejeté
+  (montant sous le minimum) pour vérifier les erreurs réelles.
+- ⬜ **3.2 — Premier aller-retour réel minuscule** : sous-compte dédié, montant décidé
+  par Seb, achat → stop visible chez Kraken → sortie → sweep. Aucun solde manuel sur
+  la paire.
+- ⬜ **3.3 — Survie au redémarrage** : couper le bot pendant une position, vérifier que
+  le stop exchange déclenche, que la réconciliation enregistre la vente réelle sans
+  renvoyer d'ordre, et que le kill-switch fonctionne backend arrêté.
 
-**Critère de passage** : un cycle complet sans incident mécanique, et chaque scénario de
-panne s'est terminé sans position nue.
+**Critère de passage** : un cycle réel complet, stop visible chez Kraken, aucune
+position nue, et aucun double envoi après redémarrage.
 
 ---
 
@@ -286,6 +461,24 @@ panne s'est terminé sans position nue.
 
 **Règle** : le montant engagé est celui dont la perte totale ne change rien à la vie de
 Seb. Le risque par trade (0,5 %) reste inchangé quel que soit le capital.
+
+---
+
+## Checklist d'activation réelle
+
+À faire **dans cet ordre**, et seulement quand la mesure sera positive nette :
+
+1. Créer un **sous-compte Kraken dédié** au bot ; aucun BTC/ETH/… manuel dessus.
+2. Vérifier la clé : lecture + trading, **retraits désactivés**, IP restreinte.
+3. Choisir le montant que Seb accepte de perdre **entièrement**.
+4. Poser `TRADING_MODE=live`, `EXCHANGE_SANDBOX_MODE=false`,
+   `I_UNDERSTAND_REAL_MONEY=true` — jamais une seule des trois.
+5. `scripts/reconcile.py --mode live` doit être propre ; sinon `--apply --confirm`.
+6. `python -m app.main --serve` ; vérifier dans Kraken que le stop est visible.
+7. Premier aller-retour **minuscule** ; comparer le fill réel au ledger, puis le
+   kill-switch (`kill_switch.py --dry-run`, puis `--confirm-live` seulement si
+   nécessaire).
+8. Surveiller le premier mois ; le panic-sell reste le bouton rouge humain.
 
 ---
 

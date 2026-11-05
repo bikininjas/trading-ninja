@@ -18,7 +18,7 @@ couche Kraken, pas un remplacement.
 | Fichier | Rôle |
 |---|---|
 | `backend/app/exchange/kraken.py` | marchés → contraintes, formatage `Decimal`, bracket, permissions de clé |
-| `backend/tests/test_kraken_adapter.py` | 20 tests, aucun réseau |
+| `backend/tests/test_kraken_adapter.py` | 23 tests, aucun réseau |
 | `backend/scripts/check_kraken.py` | inspection lecture seule (marchés sans clé, permissions avec clé) |
 | `backend/app/core/settings.py` | alias `KRAKEN_*`, frais par exchange, paires EUR |
 
@@ -60,7 +60,7 @@ Mesures faites le 2026-11-04 avec `ccxt 4.5.91`, sur les marchés publics réels
 | `BTC/EUR` | pas de quantité `1e-08`, tick prix `0,1`, min `0,00006 BTC`, min notionnel `0,45 EUR` |
 | `ETH/EUR` | min `0,002 ETH`, tick `0,01`, min `0,45 EUR` |
 | `SOL/EUR` | min `0,05 SOL`, tick `0,01`, min `0,45 EUR` |
-| Frais taker/maker | 0,26 % / 0,16 % (palier 0) |
+| Frais taker/maker | 0,80 % / 0,40 % (palier 1, vérifié sur le compte le 2026-11-04) |
 | Sandbox | aucune URL de test dans CCXT |
 | `amount_to_precision` | **tronque** (`0.000123459` → `0.00012345`) |
 | `price_to_precision` | **arrondit au plus proche** (`78123.45` → `78123.5`) |
@@ -124,9 +124,17 @@ compare des sous-chaînes acceptait `query-closed-trades` comme droit d'annulati
 ### 4.4 La marge de frais était calibrée pour Binance
 
 `fee_buffer_pct` valait 0,2 %, soit un aller-retour à 0,10 % par côté — le tarif Binance.
-Kraken prend 0,26 % par côté, donc **0,52 %** par aller-retour. À 0,2 %, le dernier achat
-peut échouer pour quelques centimes de frais. La valeur dépend maintenant de
-`EXCHANGE_ID` (`0.002` Binance, `0.0052` Kraken), et reste surchargeable.
+Kraken prend **0,80 % par côté** (palier 1 depuis le 2026-07-09), donc **1,60 %** par
+aller-retour. À 0,2 %, le dernier achat peut échouer pour quelques centimes de frais. La
+valeur dépend maintenant de `EXCHANGE_ID` (`0.002` Binance, `0.016` Kraken), et reste
+surchargeable.
+
+Le tarif réel est lu par `fetch_trading_fee` quand la clé est présente : sur ce compte,
+il renvoie `taker=0.008`, `maker=0.004`, volume 30 jours 0, prochain palier à 2 500 USD.
+CCXT expose encore `market['taker'] = 0.26 %` : c'est un tarif historique, pas le palier
+actuel. Les chemins de coût (paper, backtest, shadow, kill-switch, API) passent par
+`resolve_taker_fee()` ; `market_info()` garde la valeur du marché comme défaut pour les
+scans publics et les tests.
 
 ### 4.5 `adjustForTimeDifference` ne résout pas les nonces
 
@@ -153,6 +161,15 @@ en cours change et rend le comportement irreproductible. Le mode papier doit rej
 bougies clôturées, pas un flux temps réel. Les WebSockets resteront un confort
 d'affichage, pas une source de décision.
 
+### 4.8 L'envoi réel est dans `app/execution/live.py`, pas dans l'adaptateur
+
+`kraken.py` prépare et formate ; `LiveBroker` est le seul module qui appelle
+`create_order()`. Il envoie l'achat avec le bracket, attend le fill, relit le stop chez
+Kraken et revend immédiatement si le stop manque. Le take-profit reste **local** tant
+que l'OCO n'est pas écrit : un TP séparé sans annulation du frère peut vendre deux fois.
+Le bot exige un **sous-compte dédié** ; sur un compte partagé, il ne peut pas distinguer
+sa position d'un avoir manuel et refuse d'entrer.
+
 ---
 
 ## 5. Ce que fait l'adaptateur
@@ -164,8 +181,9 @@ d'affichage, pas une source de décision.
 - `to_exchange_stop_price()` : refuse un stop arrondi **plus bas** que le stop validé
   (une perte plus grande que le budget).
 - `bracket_params()` / `build_bracket_entry()` : construisent l'achat marché avec
-  `close.ordertype = stop-loss`. **Aucun envoi.** La fonction exige une `RiskDecision`
-  approuvée : l'appelant ne peut pas fournir une taille ou un stop libre.
+  `close.ordertype = stop-loss`. **Aucun envoi dans ce module.** La fonction exige une
+  `RiskDecision` approuvée : l'appelant ne peut pas fournir une taille ou un stop libre.
+  L'envoi est fait par `app/execution/live.py`.
 - `verify_key_permissions()` : `GetApiKeyInfo`, retrait interdit, cinq droits exigés,
   réponse vide ou illisible = refus.
 

@@ -4,8 +4,11 @@ Trois couches, volontairement indépendantes :
 
 1. **Mot de passe** : scrypt (stdlib) avec sel aléatoire, comparaison à temps
    constant. Aucun mot de passe en clair n'est stocké ni journalisé.
-2. **Session** : JWT HS256 signé localement, 15 minutes, émis et vérifiés par
+2. **Session** : JWT HS256 signé localement, 7 jours, émis et vérifiés par
    l'API. Le secret doit faire au moins 32 caractères, sinon l'API refuse de servir.
+   Le jeton ne quitte jamais le processus du dashboard : le navigateur ne reçoit
+   qu'un cookie HttpOnly, SameSite=Strict. Sept jours est un choix de confort pour
+   une administration sur réseau de confiance ; derrière TLS, ou pas du tout.
 3. **Second facteur** : TOTP (RFC 6238), fenêtre ±1 pas de 30 s, avec anti-rejeu.
 
 Fail-closed : une configuration incomplète lève `AuthConfigError` au démarrage.
@@ -42,7 +45,7 @@ SCRYPT_N = 2**14
 SCRYPT_R = 8
 SCRYPT_P = 1
 DKLEN = 32
-TOKEN_TTL_SECONDS = 900
+TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60
 TOKEN_ISSUER = "trading-ninja"
 MIN_JWT_SECRET_CHARS = 32
 

@@ -73,6 +73,7 @@ def settings() -> SimpleNamespace:
             risk_per_trade_pct=Decimal("0.0175"),
             max_notional_pct=Decimal("0.50"),
             min_confidence=Decimal("0.85"),
+            entry_rule_enabled=False,
         ),
         paper_start_equity=Decimal("1000"),
         paper_slippage_bps=5,
@@ -101,7 +102,7 @@ class StubClient:
         self.price_spy = price_spy if price_spy is not None else []
         self.calls: list[datetime] = []
 
-    async def __call__(self, snapshot, context):
+    async def __call__(self, snapshot, context, has_position: bool = False):
         self.calls.append(snapshot.tick_at)
         self.price_spy.append((snapshot.tick_at, snapshot.price))
         if self.buy_at is not None and snapshot.tick_at == self.buy_at:
@@ -177,6 +178,64 @@ async def test_stop_wins_when_a_candle_touches_both_levels():
     assert len(result.trades) == 1
     assert result.trades[0].reason == "STOP_LOSS"
     assert result.trades[0].pnl_quote < 0
+
+
+class ExitStub:
+    """BUY à l'entrée, puis SELL/HALT à une bougie de sortie choisie."""
+
+    def __init__(self, entry_at: datetime | None, exit_at: datetime | None,
+                 action: str = "SELL", confidence: str = "0.90"):
+        self.entry_at = entry_at
+        self.exit_at = exit_at
+        self.action = action
+        self.confidence = confidence
+        self.calls: list[tuple[datetime, bool]] = []
+
+    async def __call__(self, snapshot, context, has_position: bool = False):
+        self.calls.append((snapshot.tick_at, has_position))
+        if has_position and snapshot.tick_at == self.exit_at:
+            return StubSignal(self.action, self.confidence)
+        if not has_position and snapshot.tick_at == self.entry_at:
+            return StubSignal("BUY")
+        return StubSignal("HOLD")
+
+
+@pytest.mark.asyncio
+async def test_llm_sell_closes_a_losing_or_winning_trade_before_stop():
+    h4 = candles(START, 260, H4_MS)
+    h1 = h1_series()
+    entry_at = close_time(h4[250])
+    exit_at = close_time(h4[252])
+
+    result = await run_backtest(
+        symbol="BTC/EUR", info=market_info(), h4=h4, h1=h1, settings=settings(),
+        propose=ExitStub(entry_at, exit_at, "SELL", "0.90"),
+        start_index=250, end_index=255,
+    )
+
+    assert len(result.trades) == 1
+    assert result.trades[0].reason == "LLM_SELL"
+    assert result.sell >= 1
+    assert result.llm_exits == 1
+
+
+@pytest.mark.asyncio
+async def test_llm_halt_closes_the_trade_and_stops_the_replay():
+    h4 = candles(START, 260, H4_MS)
+    h1 = h1_series()
+    entry_at = close_time(h4[250])
+    exit_at = close_time(h4[251])
+
+    result = await run_backtest(
+        symbol="BTC/EUR", info=market_info(), h4=h4, h1=h1, settings=settings(),
+        propose=ExitStub(entry_at, exit_at, "HALT", "0.90"),
+        start_index=250, end_index=255,
+    )
+
+    assert len(result.trades) == 1
+    assert result.trades[0].reason == "LLM_HALT"
+    assert result.halt >= 1
+    assert result.llm_exits == 1
 
 
 @pytest.mark.asyncio

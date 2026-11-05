@@ -38,6 +38,7 @@ from app.engine.risk_gate import (
     TradeIntent,
     evaluate,
 )
+from app.engine.entry_rule import evaluate_entry
 from app.execution.paper import Fill, PaperBroker
 from app.market.feed import (
     EMA_PERIOD,
@@ -114,6 +115,9 @@ class BacktestResult:
     baseline_trades: list[TradeRecord]
     baseline_equity_end: Decimal
     baseline_max_drawdown_pct: Decimal
+    sell: int = 0
+    halt: int = 0
+    llm_exits: int = 0
 
     # -- dérivés ---------------------------------------------------------
 
@@ -135,11 +139,82 @@ class BacktestResult:
             return Decimal(0)
         return Decimal(len(self.wins)) / Decimal(len(self.trades))
 
+    # -- statistiques de validation (jalon 2) ----------------------------
+
+    @property
+    def gross_profit(self) -> Decimal:
+        """Somme des gains bruts, frais déjà déduits par le broker."""
+        return sum((t.pnl_quote for t in self.trades if t.pnl_quote > 0), Decimal(0))
+
+    @property
+    def gross_loss(self) -> Decimal:
+        """Somme des pertes brutes, en valeur positive."""
+        return -sum((t.pnl_quote for t in self.trades if t.pnl_quote < 0), Decimal(0))
+
+    @property
+    def profit_factor(self) -> Decimal | None:
+        """Gains bruts / pertes brutes. `None` quand il n'y a pas de perte à opposer.
+
+        Un PF sans perte n'est pas « infini » au sens statistique : c'est un
+        échantillon qui ne contient pas encore de perte, donc une valeur non
+        interprétable. Un PF sur zéro trade vaut `None` aussi.
+        """
+        if not self.trades or self.gross_loss == 0:
+            return None
+        return self.gross_profit / self.gross_loss
+
+    @property
+    def profit_factor_label(self) -> str:
+        if not self.trades:
+            return "n/a"
+        if self.gross_loss == 0:
+            return "∞" if self.gross_profit > 0 else "n/a"
+        return f"{self.profit_factor:.2f}"
+
+    @property
+    def expectancy_quote(self) -> Decimal:
+        """Espérance par trade, en devise de cotation, nette de frais."""
+        if not self.trades:
+            return Decimal(0)
+        return self.net_pnl / Decimal(len(self.trades))
+
+    @property
+    def expectancy_pct(self) -> Decimal:
+        """Espérance par trade rapportée à l'équité de départ."""
+        if not self.trades or self.equity_start == 0:
+            return Decimal(0)
+        return self.expectancy_quote / self.equity_start
+
+    @property
+    def average_win(self) -> Decimal:
+        return self.gross_profit / Decimal(len(self.wins)) if self.wins else Decimal(0)
+
+    @property
+    def average_loss(self) -> Decimal:
+        return self.gross_loss / Decimal(len(self.losses)) if self.losses else Decimal(0)
+
     @property
     def return_pct(self) -> Decimal:
         if self.equity_start == 0:
             return Decimal(0)
         return (self.equity_end - self.equity_start) / self.equity_start
+
+    @property
+    def years(self) -> Decimal:
+        """Durée de la fenêtre en années (365,25 jours), jamais nulle."""
+        days = (self.period_end - self.period_start).total_seconds() / 86_400
+        return Decimal(str(max(days, 1))) / Decimal("365.25")
+
+    @property
+    def trades_per_year(self) -> Decimal:
+        return Decimal(len(self.trades)) / self.years if self.years > 0 else Decimal(0)
+
+    @property
+    def payoff_ratio(self) -> Decimal | None:
+        """Gain moyen / perte moyenne. None si l'un des deux camps est vide."""
+        if not self.wins or not self.losses:
+            return None
+        return self.average_win / self.average_loss
 
     @property
     def median_inference_ms(self) -> int:
@@ -164,6 +239,11 @@ class BacktestResult:
         lines += [
             f"trades                {len(self.trades)} · gagnants {len(self.wins)} · "
             f"perdants {len(self.losses)} · réussite {self.win_rate:.1%}",
+            f"profit factor         {self.profit_factor_label} · "
+            f"espérance {self.expectancy_quote:+.4f} EUR/trade "
+            f"({self.expectancy_pct:+.2%}) · gain moy {self.average_win:.4f} / "
+            f"perte moy {self.average_loss:.4f}",
+            f"sorties LLM           {self.llm_exits} (SELL {self.sell} · HALT {self.halt})",
             f"PnL net               {self.net_pnl:+.4f} EUR ({self.return_pct:+.2%}) · "
             f"équité {self.equity_start:.2f} → {self.equity_end:.2f}",
             f"drawdown max          {self.max_drawdown_pct:.2%} · "
@@ -216,6 +296,9 @@ class BacktestResult:
             "downgraded": self.downgraded,
             "degraded": self.degraded,
             "approvals": self.approvals,
+            "sell": self.sell,
+            "halt": self.halt,
+            "llm_exits": self.llm_exits,
             "rejections": dict(self.rejections),
             "trades": [trade(t) for t in self.trades],
             "counterfactuals": [
@@ -233,6 +316,13 @@ class BacktestResult:
             "net_pnl": str(self.net_pnl),
             "return_pct": str(self.return_pct),
             "win_rate": str(self.win_rate),
+            "profit_factor": (
+                str(self.profit_factor) if self.profit_factor is not None else None
+            ),
+            "expectancy_quote": str(self.expectancy_quote),
+            "expectancy_pct": str(self.expectancy_pct),
+            "gross_profit": str(self.gross_profit),
+            "gross_loss": str(self.gross_loss),
             "max_drawdown_pct": str(self.max_drawdown_pct),
             "buy_and_hold_pct": str(self.buy_and_hold_pct),
             "baseline": {
@@ -337,6 +427,66 @@ def _simulate_exit(
     return last_index, broker.exit(amount, price), "END_OF_WINDOW"
 
 
+async def _simulate_trade(
+    h4: list[list],
+    h1: list[list],
+    symbol: str,
+    info: Any,
+    entry_index: int,
+    decision: RiskDecision,
+    broker: PaperBroker,
+    propose: Callable[[MarketSnapshot, MarketContext, bool], Awaitable[Any]],
+    config: RiskConfig,
+    max_hold_candles: int = 0,
+    stop_index: int | None = None,
+) -> tuple[int, Fill, str, list[Any], bool]:
+    """Simule une position bougie par bougie, avec sorties stop/TP et LLM.
+
+    Le stop et le take-profit sont testés **avant** l'appel au modèle : ils vivent
+    dans la bougie, le modèle ne voit que sa clôture. Un SELL du modèle est rempli
+    à la clôture (plus slippage et frais) ; un HALT clôture et arrête le rejeu.
+    """
+    amount = decision.amount
+    stop = decision.stop_loss_price
+    take = decision.take_profit_price
+    if amount is None or stop is None:
+        raise ValueError("sortie simulée sans quantité ou sans stop")
+
+    replay = ReplayExchange(h4, h1)
+    ceiling = len(h4) - 1 if stop_index is None else min(stop_index, len(h4) - 1)
+    last_index = ceiling if max_hold_candles <= 0 else min(
+        ceiling, entry_index + max_hold_candles
+    )
+    exit_signals: list[Any] = []
+
+    for j in range(entry_index + 1, last_index + 1):
+        replay.set_now(h4[j][0] + DECISION_MS)
+        trigger = PaperBroker.exit_trigger(stop, take, h4[j])
+        if trigger is not None:
+            price, reason = trigger
+            return j, broker.exit(amount, price), reason, exit_signals, False
+
+        at = _close_time(h4[j])
+        try:
+            state = build_snapshot(
+                replay, symbol, info=info, now=at, with_order_book=False
+            )
+        except FeedError:
+            continue
+
+        signal = await propose(state.snapshot, state.context, True)
+        exit_signals.append(signal)
+        action = str(getattr(signal, "action", "HOLD"))
+        confidence = _decimal(getattr(signal, "confidence", 0))
+        if action == "HALT" and confidence >= config.min_halt_confidence:
+            return j, broker.exit(amount, state.snapshot.price), "LLM_HALT", exit_signals, True
+        if action == "SELL" and confidence >= config.min_exit_confidence:
+            return j, broker.exit(amount, state.snapshot.price), "LLM_SELL", exit_signals, False
+
+    price = _decimal(h4[last_index][4])
+    return last_index, broker.exit(amount, price), "END_OF_WINDOW", exit_signals, False
+
+
 def _pnl(entry: Fill, exit_fill: Fill) -> Decimal:
     return (
         exit_fill.notional_quote
@@ -363,7 +513,7 @@ async def run_backtest(
     h4: list[list],
     h1: list[list],
     settings: Any,
-    propose: Callable[[MarketSnapshot, MarketContext], Awaitable[Any]] | None,
+    propose: Callable[[MarketSnapshot, MarketContext, bool], Awaitable[Any]] | None,
     broker: PaperBroker | None = None,
     start_index: int | None = None,
     end_index: int | None = None,
@@ -371,6 +521,7 @@ async def run_backtest(
     mechanical: bool = False,
     counterfactuals: bool = True,
     progress: Callable[[int, int], None] | None = None,
+    use_entry_rule: bool = True,
 ) -> BacktestResult:
     """Rejoue une fenêtre et rend les métriques. Ne touche ni au réseau ni à la base."""
     if len(h4) < EMA_PERIOD + 2:
@@ -392,6 +543,8 @@ async def run_backtest(
     trades: list[TradeRecord] = []
     decisions = 0
     buy = hold = downgraded = degraded = approvals = 0
+    sell = halt = llm_exits = 0
+    halted = False
     rejections: Counter = Counter()
     counterfactual_rows: list[Counterfactual] = []
     inference: list[int] = []
@@ -416,7 +569,12 @@ async def run_backtest(
             i += 1
             continue
 
-        open_zone = zone_is_open(state.snapshot, state.context, config)
+        use_rule = use_entry_rule and config.entry_rule_enabled
+        open_zone = (
+            evaluate_entry(state.snapshot, state.context, config).triggered
+            if use_rule
+            else zone_is_open(state.snapshot, state.context, config)
+        )
         if not open_zone:
             i += 1
             continue
@@ -476,22 +634,38 @@ async def run_backtest(
         # -- décision du modèle --------------------------------------------
         if propose is None:
             raise ValueError("propose est requis hors mode mécanique")
-        signal = await propose(state.snapshot, state.context)
+        signal = await propose(state.snapshot, state.context, False)
         decisions += 1
         inference.append(int(getattr(signal, "inference_ms", 0)))
         action = str(getattr(signal, "action", "HOLD"))
+        confidence = _decimal(getattr(signal, "confidence", 0))
         if getattr(signal, "degraded", False):
             degraded += 1
         if getattr(signal, "degradation_reason", "") and "règle déterministe" in str(
             signal.degradation_reason
         ):
             downgraded += 1
-        buy += action == "BUY"
-        hold += action != "BUY"
+        if action == "BUY":
+            buy += 1
+        elif action == "SELL":
+            sell += 1
+        elif action == "HALT":
+            halt += 1
+        else:
+            hold += 1
+
+        # Sans position, un SELL ne peut pas créer un short, et un HALT n'a rien à
+        # liquider : il arrête simplement le rejeu.
+        if action == "HALT" and confidence >= config.min_halt_confidence:
+            halted = True
+            break
+        if action == "SELL":
+            i += 1
+            continue
 
         intent = TradeIntent(
             action=Action(action),
-            confidence=float(getattr(signal, "confidence", 0)),
+            confidence=float(confidence),
             market_regime=MarketRegime(str(getattr(signal, "market_regime", "RANGING"))),
             thesis=str(getattr(signal, "thesis", "")),
         )
@@ -508,9 +682,26 @@ async def run_backtest(
         if decision.approved:
             approvals += 1
             entry = paper_broker.entry(decision, state.snapshot.price)
-            exit_index, exit_fill, reason = _simulate_exit(
-                h4, i, decision, paper_broker, max_hold_candles, stop_index=last
+            exit_index, exit_fill, reason, exit_signals, halted_trade = await _simulate_trade(
+                h4, h1, symbol, info, i, decision, paper_broker, propose, config,
+                max_hold_candles=max_hold_candles, stop_index=last,
             )
+            for exit_signal in exit_signals:
+                exit_action = str(getattr(exit_signal, "action", "HOLD"))
+                if exit_action == "BUY":
+                    buy += 1
+                elif exit_action == "SELL":
+                    sell += 1
+                elif exit_action == "HALT":
+                    halt += 1
+                else:
+                    hold += 1
+                inference.append(int(getattr(exit_signal, "inference_ms", 0)))
+                if getattr(exit_signal, "degraded", False):
+                    degraded += 1
+            decisions += len(exit_signals)
+            if reason in ("LLM_SELL", "LLM_HALT"):
+                llm_exits += 1
             pnl = _pnl(entry, exit_fill)
             equity += pnl
             consecutive_losses = 0 if pnl > 0 else consecutive_losses + 1
@@ -533,6 +724,9 @@ async def run_backtest(
                 )
             )
             i = exit_index + 1
+            if halted_trade:
+                halted = True
+                break
             continue
 
         rejections[str(decision.rejection_code)] += 1
@@ -609,4 +803,7 @@ async def run_backtest(
         baseline_trades=baseline_trades,
         baseline_equity_end=baseline_equity,
         baseline_max_drawdown_pct=_max_drawdown(baseline_curve),
+        sell=sell,
+        halt=halt,
+        llm_exits=llm_exits,
     )

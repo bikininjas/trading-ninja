@@ -3,14 +3,24 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#070a0f">
   <title>Trading Ninja — supervision</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+  <a class="skip-link" href="#main">Aller au contenu</a>
+
   <header>
-    <div class="brand">TRADING NINJA <span class="muted">supervision</span></div>
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      TRADING NINJA <span class="muted">supervision</span>
+    </div>
     <div class="head-right">
-      <span id="conn" class="conn">connexion…</span>
+      <span id="conn" class="conn" data-online="false" role="status" aria-live="polite">connexion…</span>
+      <span id="last-update" class="conn sub">maj —</span>
+      <span id="mode-badge" class="badge mode-badge" data-mode="">—</span>
       <span id="state" class="badge" data-state="">—</span>
       <form method="post" action="/logout">
         <button class="ghost" type="submit">Déconnexion</button>
@@ -18,81 +28,327 @@
     </div>
   </header>
 
-  <main>
-    <section class="cards">
-      <article class="card">
-        <h2>Équité</h2>
+  <main id="main">
+    <section id="halt-banner" class="panel halt-banner" hidden>
+      <div class="panel-head">
+        <h2>Arrêt du bot</h2>
+        <span id="halt-badge" class="badge danger-badge">EMERGENCY_HALT</span>
+      </div>
+      <p id="halt-reason" class="muted"></p>
+      <p id="halt-recovery">Reprise automatique dans <strong id="halt-countdown">—</strong>.</p>
+      <p id="halt-manual" class="muted" hidden>Aucune reprise automatique : la reprise est manuelle.</p>
+      <div class="controls">
+        <button id="halt-resume" class="ok" type="button">Reprendre maintenant</button>
+      </div>
+    </section>
+
+    <section class="cards" aria-label="Résumé du compte">
+      <article class="card primary">
+        <h2>Capital total</h2>
         <p id="equity" class="value">—</p>
-        <p class="sub">EUR</p>
+        <p id="equity-sub" class="sub">EUR · équité virtuelle du mode papier</p>
       </article>
       <article class="card">
-        <h2>Disponible</h2>
+        <h2>Argent disponible</h2>
         <p id="free" class="value">—</p>
         <p class="sub">EUR</p>
       </article>
       <article class="card">
-        <h2>Réserve</h2>
+        <h2>Mis de côté</h2>
         <p id="reserve" class="value">—</p>
         <p class="sub">EUR</p>
       </article>
       <article class="card">
-        <h2>Drawdown / HWM</h2>
+        <h2>Baisse depuis le plus haut</h2>
         <p id="drawdown" class="value">—</p>
+        <p class="sub">% · plafond visible dans la marge de risque</p>
+      </article>
+      <article class="card">
+        <h2>Gain / perte cumulé</h2>
+        <p id="stat-pnl" class="value small">—</p>
+        <p class="sub">EUR net de frais</p>
+      </article>
+      <article class="card">
+        <h2>Transactions terminées</h2>
+        <p id="stat-trades" class="value small">—</p>
+        <p class="sub">gagnantes / total · <span id="stat-losses">—</span></p>
+      </article>
+      <article class="card">
+        <h2>Transactions gagnantes</h2>
+        <p id="stat-winrate" class="value small">—</p>
         <p class="sub">%</p>
+      </article>
+      <article class="card">
+        <h2>R moyen par transaction</h2>
+        <p id="stat-r" class="value small">—</p>
+        <p class="sub">multiple du risque engagé</p>
+      </article>
+      <article class="card">
+        <h2>Frais payés</h2>
+        <p id="stat-fees" class="value small">—</p>
+        <p class="sub">EUR</p>
       </article>
     </section>
 
+    <section class="panel risk-panel">
+      <div class="panel-head">
+        <h2>Marge de risque</h2>
+        <span class="muted">seuils du profil actif</span>
+      </div>
+      <div class="risk-grid">
+        <div class="risk" data-risk="daily" data-level="unknown">
+          <div class="risk-head"><span>Baisse du jour</span><strong id="risk-daily">—</strong></div>
+          <div class="meter" aria-hidden="true"><span id="risk-daily-bar" class="meter-fill"></span></div>
+          <small id="risk-daily-limit">plafond —</small>
+        </div>
+        <div class="risk" data-risk="weekly" data-level="unknown">
+          <div class="risk-head"><span>Baisse de la semaine</span><strong id="risk-weekly">—</strong></div>
+          <div class="meter" aria-hidden="true"><span id="risk-weekly-bar" class="meter-fill"></span></div>
+          <small id="risk-weekly-limit">plafond —</small>
+        </div>
+        <div class="risk" data-risk="hwm" data-level="unknown">
+          <div class="risk-head"><span>Depuis le plus haut</span><strong id="risk-hwm">—</strong></div>
+          <div class="meter" aria-hidden="true"><span id="risk-hwm-bar" class="meter-fill"></span></div>
+          <small id="risk-hwm-limit">plafond —</small>
+        </div>
+        <div class="risk" data-risk="losses" data-level="unknown">
+          <div class="risk-head"><span>Pertes consécutives</span><strong id="risk-losses">—</strong></div>
+          <div class="meter" aria-hidden="true"><span id="risk-losses-bar" class="meter-fill"></span></div>
+          <small id="risk-losses-limit">plafond —</small>
+        </div>
+        <div class="risk" data-risk="orders" data-level="unknown">
+          <div class="risk-head"><span>Ordres sur 1 h</span><strong id="risk-orders">—</strong></div>
+          <div class="meter" aria-hidden="true"><span id="risk-orders-bar" class="meter-fill"></span></div>
+          <small id="risk-orders-limit">plafond —</small>
+        </div>
+      </div>
+      <p class="muted note">
+        Le dashboard modifie le plafond journalier et le nombre d'ordres par heure.
+        Les plafonds hebdomadaire, depuis le plus haut et les pertes consécutives
+        restent en lecture seule ici.
+      </p>
+    </section>
+
+    <div class="split">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Position</h2>
+          <span id="position-symbol" class="muted"></span>
+        </div>
+        <div id="position" class="position empty">Aucune position ouverte.</div>
+        <p class="muted note">
+          Le risque brut exclut les frais d'achat et de vente. La perte au stop les
+          inclut, au tarif taker configuré.
+        </p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Commandes</h2>
+          <span class="muted">journalisées en base</span>
+        </div>
+        <div class="controls">
+          <button id="pause" class="warn" type="button">Pause</button>
+          <button id="resume" class="ok" type="button">Reprendre</button>
+          <button id="panic" class="danger" type="button">Panic-sell</button>
+        </div>
+        <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
+      </section>
+    </div>
+
     <section class="panel">
       <div class="panel-head">
-        <h2>Position</h2>
-        <span id="position-symbol" class="muted"></span>
+        <h2>Évolution du capital</h2>
+        <div class="panel-tools">
+          <div class="range-switch" role="group" aria-label="Période du graphique">
+            <button type="button" data-range="24h" aria-pressed="false">24 h</button>
+            <button type="button" data-range="7d" aria-pressed="false">7 j</button>
+            <button type="button" data-range="30d" aria-pressed="false">30 j</button>
+            <button type="button" data-range="all" class="is-active" aria-pressed="true">Tout</button>
+          </div>
+        </div>
       </div>
-      <div id="position" class="position empty">Aucune position ouverte.</div>
+      <div id="equity-summary" class="chart-summary" aria-live="polite">
+        <span>Courant <strong id="chart-current">—</strong></span>
+        <span>Variation <strong id="chart-change">—</strong></span>
+        <span>Plus haut <strong id="chart-high">—</strong></span>
+        <span>Plus bas <strong id="chart-low">—</strong></span>
+        <span id="chart-period" class="muted"></span>
+      </div>
+      <div class="chart-shell">
+        <div id="equity-chart" class="chart"></div>
+        <div id="equity-tooltip" class="chart-tooltip" hidden></div>
+      </div>
+      <p class="muted note">Survoler la courbe pour lire un point. Le graphique est calculé depuis les instantanés de capital.</p>
     </section>
 
     <section class="panel">
       <div class="panel-head">
-        <h2>Commandes</h2>
-        <span class="muted">chaque action est journalisée en base</span>
+        <h2>Gain / perte par jour</h2>
+        <span id="daily-total" class="muted">14 derniers jours</span>
       </div>
-      <div class="controls">
-        <button id="pause" class="warn" type="button">Pause</button>
-        <button id="resume" class="ok" type="button">Reprendre</button>
-        <button id="panic" class="danger" type="button">Panic-sell</button>
-      </div>
-      <p id="feedback" class="feedback" role="status"></p>
+      <div id="daily-chart" class="chart"></div>
     </section>
 
     <section class="panel">
       <div class="panel-head">
-        <h2>Derniers signaux</h2>
-        <span id="updated" class="muted"></span>
+        <h2>Modèle</h2>
+        <span id="llm-model" class="muted"></span>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Heure</th><th>Paire</th><th>Action</th><th>Conf.</th>
-              <th>Régime</th><th>Thèse</th>
-            </tr>
-          </thead>
-          <tbody id="signals">
-            <tr><td colspan="6" class="muted">—</td></tr>
-          </tbody>
-        </table>
+      <div class="model-grid">
+        <div class="kv"><span>Dernière décision</span><strong id="llm-action">—</strong></div>
+        <div class="kv"><span>Conviction</span><strong id="llm-confidence">—</strong></div>
+        <div class="kv"><span>Temps de réponse</span><strong id="llm-latency">—</strong></div>
+        <div class="kv"><span>Décisions sur 24 h</span><strong id="llm-total">—</strong></div>
+        <div class="kv"><span>Répartition</span><strong id="llm-counts">—</strong></div>
+        <div class="kv"><span>Replis techniques</span><strong id="llm-degraded">—</strong></div>
+      </div>
+      <p id="llm-thesis" class="muted thesis"></p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Refus du pare-feu</h2>
+        <span id="rejections-total" class="muted"></span>
+      </div>
+      <div id="rejections-list" class="rejection-list" hidden></div>
+      <p id="rejections-empty" class="muted empty-state">Aucun refus enregistré.</p>
+      <p class="muted note">Chaque refus est une décision du Risk Gateway : le code n'a pas laissé passer l'ordre.</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Achats refusés</h2>
+        <span id="shadow-total" class="muted"></span>
+      </div>
+      <div class="model-grid">
+        <div class="kv"><span>Refus du pare-feu</span><strong id="shadow-rejected">—</strong></div>
+        <div class="kv"><span>HOLD du modèle</span><strong id="shadow-holds">—</strong></div>
+        <div class="kv"><span>Avec un plan finançable</span><strong id="shadow-planned">—</strong></div>
+        <div class="kv"><span>Sans plan</span><strong id="shadow-no-plan">—</strong></div>
+        <div class="kv"><span>Résultat simulé</span><strong id="shadow-pnl">—</strong></div>
+        <div class="kv"><span>Gagnants / perdants</span><strong id="shadow-wins">—</strong></div>
+        <div class="kv"><span>En attente</span><strong id="shadow-open">—</strong></div>
+      </div>
+      <p id="shadow-note" class="muted thesis"></p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Leçons</h2>
+        <span id="lessons-meta" class="muted"></span>
+      </div>
+      <ul id="lessons-list" class="lessons" hidden></ul>
+      <p id="lessons-empty" class="muted thesis">
+        Aucune leçon active. La relecture attend au moins 5 résultats.
+      </p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Réglages</h2>
+        <span id="settings-updated" class="muted"></span>
+      </div>
+      <form id="settings-form" class="settings">
+        <label>
+          <span>Prudence</span>
+          <select id="set-profile"></select>
+          <small id="set-profile-help" class="muted"></small>
+        </label>
+
+        <label>
+          <span>Combien le bot peut mettre sur un achat</span>
+          <input id="set-notional" type="range" min="5" max="50" step="5">
+          <output id="set-notional-value">—</output>
+        </label>
+
+        <label>
+          <span>Quand le bot s'arrête pour la journée</span>
+          <input id="set-daily" type="range" min="2" max="20" step="1">
+          <output id="set-daily-value">—</output>
+        </label>
+
+        <label>
+          <span>Nombre maximum d'achats par heure</span>
+          <input id="set-orders" type="range" min="1" max="10" step="1">
+          <output id="set-orders-value">—</output>
+        </label>
+
+        <label>
+          <span>Niveau de conviction minimum du modèle</span>
+          <input id="set-confidence" type="range" min="40" max="95" step="5">
+          <output id="set-confidence-value">—</output>
+        </label>
+
+        <label>
+          <span>Le bot reprend tout seul après un arrêt du modèle (heures)</span>
+          <input id="set-halt" type="range" min="1" max="72" step="1">
+          <output id="set-halt-value">—</output>
+        </label>
+
+        <label class="check">
+          <input id="set-entry-rule" type="checkbox">
+          <span>Le bot peut acheter quand le marché recule un peu</span>
+        </label>
+
+        <div class="settings-actions">
+          <button type="submit" id="settings-save" class="ok">Enregistrer</button>
+          <button type="button" id="settings-reload" class="ghost">Recharger</button>
+          <span id="settings-feedback" class="feedback" role="status" aria-live="polite"></span>
+        </div>
+      </form>
+      <p id="settings-limits" class="muted note"></p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Activité récente</h2>
+        <span id="activity-meta" class="muted"></span>
+      </div>
+      <div class="activity-toolbar">
+        <div class="tabs" role="tablist" aria-label="Type d'activité">
+          <button type="button" role="tab" id="tab-llm_signals" aria-selected="true"
+                  aria-controls="activity-panel" data-table="llm_signals">Signaux</button>
+          <button type="button" role="tab" id="tab-risk_evaluations" aria-selected="false"
+                  aria-controls="activity-panel" data-table="risk_evaluations" tabindex="-1">Pare-feu</button>
+          <button type="button" role="tab" id="tab-orders" aria-selected="false"
+                  aria-controls="activity-panel" data-table="orders" tabindex="-1">Ordres</button>
+          <button type="button" role="tab" id="tab-positions" aria-selected="false"
+                  aria-controls="activity-panel" data-table="positions" tabindex="-1">Positions</button>
+        </div>
+        <label class="inline-field">
+          Lignes
+          <select id="activity-limit">
+            <option value="10">10</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+          </select>
+        </label>
+        <button id="activity-refresh" class="ghost" type="button">Rafraîchir</button>
+      </div>
+      <div id="activity-panel" role="tabpanel" aria-labelledby="tab-llm_signals">
+        <div class="table-wrap">
+          <table>
+            <caption class="sr-only">Dernières lignes d'activité</caption>
+            <thead id="activity-head"></thead>
+            <tbody id="activity-body">
+              <tr><td class="muted">Chargement…</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
 
     <p class="footer">
-      Mode papier · aucun ordre réel ·
-      <span id="mode">—</span> · flux <span id="updated-footer">—</span>
+      Mode <span id="mode">—</span> · <span id="footer-note">—</span> ·
+      flux <span id="updated-footer">—</span>
     </p>
   </main>
 
-  <dialog id="panic-dialog">
+  <dialog id="panic-dialog" aria-labelledby="panic-title" aria-describedby="panic-help">
     <form id="panic-form">
-      <h2>Liquider la position</h2>
-      <p class="muted">
+      <h2 id="panic-title">Liquider la position</h2>
+      <p id="panic-help" class="muted">
         Cette action solde la position au prix du marché et met le bot à l'arrêt.
         Saisir le code Authy courant.
       </p>

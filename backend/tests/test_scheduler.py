@@ -6,7 +6,11 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.runtime.scheduler import next_candle_close, seconds_until_next_close
+from app.runtime.scheduler import (
+    decision_delay_seconds,
+    next_candle_close,
+    seconds_until_next_close,
+)
 
 UTC = timezone.utc
 
@@ -56,3 +60,24 @@ def test_naive_datetime_is_refused():
 def test_unknown_timeframe_is_refused():
     with pytest.raises(ValueError, match="timeframe"):
         next_candle_close(at(11, 30), "2h")
+
+
+# ---------------------------------------------------------------------------
+# Marge après la clôture (D-061)
+# ---------------------------------------------------------------------------
+
+
+def test_daily_decisions_wait_five_minutes_after_the_close():
+    # Kraken publie la bougie à 00:00 UTC ; 00:05 laisse le temps à l'API de
+    # finaliser le chandelier avant que les indicateurs ne soient lus.
+    assert decision_delay_seconds("1d") == 300.0
+
+
+@pytest.mark.parametrize("timeframe", ["1h", "4h"])
+def test_intraday_decisions_keep_the_short_margin(timeframe):
+    assert decision_delay_seconds(timeframe) == 5.0
+
+
+def test_delay_refuses_an_unknown_timeframe():
+    with pytest.raises(ValueError, match="timeframe"):
+        decision_delay_seconds("15m")

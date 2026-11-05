@@ -29,6 +29,8 @@ class Fill:
     notional_quote: Decimal
     fee_quote: Decimal
     slippage_quote: Decimal
+    order_id: str | None = None
+    stop_order_id: str | None = None
 
 
 class PaperBroker:
@@ -44,7 +46,8 @@ class PaperBroker:
         """Frais taker d'un notionnel donné, pour reconstruire un coût d'entrée."""
         return notional_quote * self._taker
 
-    def entry(self, decision: RiskDecision, market_price: Decimal) -> Fill:
+    def entry(self, decision: RiskDecision, market_price: Decimal,
+              *, symbol: str | None = None) -> Fill:
         """Achat au marché simulé. La quantité vient de la décision, jamais d'ici."""
         if not decision.approved or decision.amount is None:
             raise ValueError("un fill d'entrée exige une décision approuvée avec quantité")
@@ -58,7 +61,9 @@ class PaperBroker:
             slippage_quote=(price - market_price) * decision.amount,
         )
 
-    def exit(self, amount: Decimal, market_price: Decimal) -> Fill:
+    def exit(self, amount: Decimal, market_price: Decimal,
+             *, symbol: str | None = None,
+             stop_price: Decimal | None = None) -> Fill:
         price = market_price * (Decimal(1) - self._slippage)
         notional = amount * price
         return Fill(

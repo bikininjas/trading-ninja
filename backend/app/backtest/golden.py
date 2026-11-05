@@ -119,6 +119,9 @@ def metrics_of(result: BacktestResult) -> dict[str, str]:
         "downgraded": str(result.downgraded),
         "degraded": str(result.degraded),
         "approvals": str(result.approvals),
+        "sell": str(result.sell),
+        "halt": str(result.halt),
+        "llm_exits": str(result.llm_exits),
         "rejections": json.dumps(dict(result.rejections), sort_keys=True),
         "trades": str(len(result.trades)),
         "wins": str(len(result.wins)),
@@ -161,16 +164,28 @@ class ReplayLLM:
     """Sert les décisions du golden. Échoue si une décision manque.
 
     Un HOLD silencieux serait pire qu'une erreur : il masquerait une fenêtre
-    différente entre l'enregistrement et le rejeu.
+    différente entre l'enregistrement et le rejeu. Le mode `scenario` peut
+    demander explicitement un HOLD par défaut quand la géométrie de sortie
+    change et que le golden ne contient pas la décision correspondante.
     """
 
-    def __init__(self, decisions: list[dict[str, Any]]) -> None:
+    def __init__(self, decisions: list[dict[str, Any]], *, default: str | None = None) -> None:
         self._by_time = {row["at"]: row for row in decisions}
+        self._default = default
+        self.missing = 0
 
-    async def __call__(self, snapshot, context) -> RecordedSignal:
+    async def __call__(self, snapshot, context, has_position: bool = False) -> RecordedSignal:
         key = snapshot.tick_at.isoformat()
         row = self._by_time.get(key)
         if row is None:
+            if self._default is not None:
+                self.missing += 1
+                return RecordedSignal({
+                    "action": self._default,
+                    "confidence": "0",
+                    "market_regime": "RANGING",
+                    "thesis": "décision absente du golden : HOLD de scénario",
+                })
             raise AssertionError(
                 f"aucune décision enregistrée pour {key} — la fenêtre du golden "
                 "ne correspond plus au rejeu (bougies ou indices modifiés ?)"

@@ -6,6 +6,610 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-04 · 19:45 — Dashboard : jauges de risque, activité et refus du pare-feu (D-062)
+
+**Fait** — Le dashboard devient un poste de supervision complet, toujours en client
+mince Node.js sans dépendance.
+
+- **API** : `friendly_settings` expose en lecture seule les plafonds hebdomadaire,
+  depuis le plus haut, de pertes consécutives et le risque par achat du preset.
+- **Proxy** : `GET /api/history/{table}` côté Node, limité à `llm_signals`,
+  `risk_evaluations`, `orders` et `positions`, avec `limit` borné à 1..50 (défaut 20).
+  Une table inconnue est refusée en `400` avant l'appel FastAPI.
+- **Écran** : cinq jauges de risque, courbe du capital avec périodes 24 h / 7 j / 30 j /
+  tout, infobulle et résumé haut/bas, histogramme quotidien avec infobulle, refus du
+  pare-feu libellés en français, onglets Signaux / Pare-feu / Ordres / Positions,
+  badge `PAPER`/`LIVE`, indicateur de fraîcheur, bouton « Recharger » des réglages,
+  lien d'évitement, focus visible, onglets clavier, `aria-live`, favicon local.
+- **Documentation** : `docs/DASHBOARD.md` (architecture, panneaux, contrat API,
+  sécurité, dépannage, limites), liens depuis `README.md` et `dashboard/README.md`,
+  mise à jour d'`ARCHITECTURE.md` et de la feuille de route 1.12.
+
+**Vérifié**
+```
+cd dashboard && node --test test/          → 26 tests, 26 pass
+cd backend && .venv/bin/python -m pytest   → 570 passed (1 warning Starlette)
+bash scripts/check.sh                      → TOUT EST VERT
+```
+
+Le `check.sh` couvre l'outillage, les secrets, les 570 tests Python, les 9 migrations,
+les drawdowns, la documentation, l'index du code, la syntaxe de `server.js`, les 26
+tests Node et le golden de backtest.
+
+Un smoke test Chromium headless a été exécuté sur une fausse API et une copie temporaire
+du dashboard (aucun `.env`, aucun ordre réel) : mode `PAPER`, connexion SSE, 9 cartes,
+jauges, quatre périodes de courbe, infobulle, histogramme, 4 onglets, changement de
+limite, rechargement des réglages, aucune erreur JavaScript. La capture est dans
+`/tmp/opencode/dashboard.png` (hors dépôt).
+
+**Décidé** — D-062 : historique en liste blanche, volumes bornés, plafonds de risque
+permanents en lecture seule dans le dashboard, TOTP frais réservé au panic-sell.
+
+**Limites** — Pas de test navigateur automatisé dans `check.sh` (smoke test manuel) ;
+pas encore de TOTP frais pour les réglages ; aucun commit, aucun ordre réel, aucun
+changement de `.env` ou `.env.local`.
+
+---
+
+## 2026-11-04 · 19:30 — Quatre chantiers swing : Chandelier mesuré, LLM D1 bloqué par Ollama (D-061)
+
+**Fait** — Les quatre chantiers du brief sont implémentés et testés.
+
+1. **LLM D1** : prompt `D1_SYSTEM_PROMPT` / `v3-d1` séparé du H4 (intact), payload
+   d'indicateurs D1 sans fuite H4, `decision_timeframe` propagé. `eval_llm_swing.py`
+   rejoue les trades sans passer d'ordre et calcule rétention/filtration.
+2. **Sortie Chandelier** : `max(High_20) − 3,0 × ATR_14`, cliquet haussier, sortie à la
+   clôture sous le niveau. `SWING_EXIT_MODE=ema20` par défaut, `chandelier` en option ;
+   période et multiple paramétrables.
+3. **Infra D1** : migration `0009_allow_1d_timeframe.sql` **appliquée** sur Supabase
+   (`1h`, `4h`, `1d` ; couverture 86 400 s ; vue `security_invoker`). Scheduler à
+   **00:05 UTC** pour le D1 (délai de 300 s après clôture).
+4. **Breakeven live** : `update_stop_loss_order()` édite si `editOrder` existe, sinon
+   crée le nouveau stop **avant** d'annuler l'ancien, vérifie le prix, et retire le
+   nouveau si l'ancien ne peut pas être annulé. Non branché en production.
+
+**Mesuré — Chandelier vs EMA20, 80 pb/côté, coupe-circuits levés**
+2021-11 → 2026-11 : BTC 0,44 → **0,77** (−12,69 % → −4,81 %, 23 trades) ; ETH 0,57 →
+0,38 ; SOL 0,19 → 0,14. **Aucun positif.**
+Tout l'historique : BTC 87 trades PF 2,20 → **71 trades PF 2,81** (+192,47 %, DD
+11,99 %) ; ETH 74 trades PF 1,10 → **62 trades PF 1,93** (+68,29 %) ; SOL 13 → 11
+trades, PF 0,19 → 0,14. BTC et ETH passent PF/payoff/MDD/N, SOL non.
+
+**Blocage — la mesure LLM ne vaut rien.** 144 appels sur les trades Chandelier :
+**144/144 repli dégradé HOLD**, 0 approbation, rétention 0 %, filtration 100 %. Ollama
+0.40.14 répond HTTP 500 `error starting llama-server: llama-server binary not found`.
+Ce n'est pas un verdict du modèle. Aucune réparation système tentée ; rejouer après
+réparation avant toute conclusion.
+
+**Vérifié** — `pytest -q -o addopts=""` → **570 passed** (1 warning Starlette) ;
+`db_migrate.py status` → 9 migrations appliquées, 0 en attente ; golden re-béni après
+`replay` montrant des métriques identiques (seuls `created_at` et `risk_fingerprint`
+changent). Aucun ordre réel, aucun changement de `.env`, aucun commit.
+
+**Décidé** — D-061. Critères swing révisés : PF ≥ 1,35 net, payoff ≥ 3,5, MDD ≤ 20 %,
+N ≥ 50 sur l'historique complet ; abandon du winrate ≥ 40 %. Le mode reste **non
+activé**, le live reste fermé.
+
+---
+
+## 2026-11-04 · 18:30 — Moteur swing Daily : la mécanique est prête, l'arête ne l'est pas (D-060)
+
+**Fait** — Un mode `SWING_MACRO_D1` complet, du filtre d'entrée au backtest multi-années.
+
+1. **Entrée D1** : clôture au-dessus de l'EMA50 **et** de l'EMA200, pente EMA50 positive
+   sur 5 jours, puis cassure Donchian 20 **ou** rebond de valeur EMA20 avec RSI 50–65.
+   `DECISION_TIMEFRAME=1d` est exigé au démarrage.
+2. **Risque** : `StopMode.STRUCTURAL_D1` sous le creux des 10 D1, plafonné à 5 % sous
+   l'entrée ; breakeven à +1 R (papier) ; sorties EMA20 D1 ou Bollinger (20 ; 2,5) avec
+   divergence baissière. Pas de take-profit fixe.
+3. **Petit compte** : 100 % d'exposition sous 50 EUR via
+   `SMALL_ACCOUNT_FULL_ALLOCATION`, avec un plancher de viabilité qui porte le risque au
+   minimum nécessaire pour atteindre le notionnel Kraken (~10 EUR), plafonné à 5 %.
+4. **Mesure** : `backtest.py swing` agrège le D1 depuis le H4 en base (journée incomplète
+   ignorée, jamais interpolée) et réutilise `evaluate()` + `PaperBroker`.
+
+**Mesuré — 2021-11 → 2026-11, 80 pb/côté, coupe-circuits levés**
+BTC `both` : 31 trades (7,2/an), réussite 9,7 %, payoff 4,06, PF 0,44, −126,94 EUR.
+ETH `both` : 19 trades, PF 0,57, −55,45 EUR. SOL `both` : 13 trades, PF 0,19, −55,46 EUR.
+**Aucun scénario positif sur la fenêtre demandée.** Les 5 trades Donchian d'ETH sont
+positifs (PF 2,11) mais l'échantillon est trop petit pour conclure.
+
+**Mesuré — tout l'historique**
+BTC `both` : 87 trades (7,1/an), réussite 17,2 %, payoff 10,56, PF 2,20, +148,9 %.
+BTC Donchian seul : 37 trades (3,0/an), réussite 35,1 %, PF 4,23, +199,9 %.
+ETH `value` : 54 trades (5,2/an), PF 1,67, +36,5 %. La réussite de 40 % n'est jamais
+atteinte : c'est un trend-following à faible taux de réussite et fort payoff, pas un
+système à 40 % de trades gagnants. Durée moyenne 9,4 j (BTC) / 5,8 j (ETH), dans la
+cible 3–15 j. Sorties BTC : 39 stops, 46 EMA20, 2 Bollinger.
+
+**Constat** : le résultat positif vient des cycles 2014–2021. Sur les cinq dernières
+années, le mode perd sur les trois paires. Le levier n'est donc pas la cadence D1 seule :
+il faut un filtre de régime ou une sortie moins whipsaw que l'EMA20, pas un quatrième
+filtre d'entrée.
+
+**Décidé** — D-060. Le mode est implémenté et testé mais **non activé** ; aucun ordre
+réel, aucun changement de `.env`.
+
+**Vérifié par** — `pytest -o addopts=""` → **520 passed** ; `backtest.py swing
+--symbols BTC/EUR,ETH/EUR,SOL/EUR --months 60 --fee-bps 80 --max-consecutive-losses 9999
+--max-hwm-drawdown 1.0` → 9 lignes, aucune OK ; même commande `--months 0` → BTC
+Donchian PF 4,23, BTC both PF 2,20, ETH value PF 1,67 ; `replay --bless` → métriques
+identiques (seul le fingerprint de risque change, nouveaux champs aux valeurs par
+défaut).
+
+**Reste** — mesurer un filtre de régime (BTC vs ETH, breadth) ou une sortie moins
+whipsaw ; ne pas figer les seuils sur 31 ou 87 trades ; ne pas activer le réel.
+
+---
+
+## 2026-11-04 · 16:15 — Le repli H1 ne débloque pas N, et le verrou faussait la mesure (D-057 → D-059)
+
+**Fait** — L'hygiène de build, un second mode d'entrée, et la réparation du banc.
+
+1. **Hygiène** : compteur de tests à jour (477 → 497), D-057 (plancher de 100 Mo libres
+   sur Supabase) écrite et référencée dans `AGENTS.md` §7, index du code régénéré,
+   `check.sh` **vert**.
+2. **Second mode d'entrée** (D-058) : `EntryMode` (`EMA50_H4` | `PULLBACK_H1`) choisi
+   par `ENTRY_MODE`, défaut inchangé. Le mode H1 exige que le bas de la dernière H1
+   touche l'EMA50 H1, que la clôture referme au-dessus, une extension ≤ 1 ATR H1 et un
+   RSI H1 ≤ 55. Mêmes garde-fous, même sizing, même pare-feu. `sweep --entry-modes`
+   compare les deux modes sur les mêmes bougies.
+3. **Banc réparé** (D-059) : `sweep` expose désormais `gel` (rejets par coupe-circuit
+   *permanent*) et la date du dernier trade, et sait lever les deux plafonds
+   (`--max-consecutive-losses`, `--max-hwm-drawdown`). Sans cela, la fenêtre de 24 mois
+   s'arrêtait au premier mauvais mois.
+
+**Mesuré — la bande RSI du brief est vide par construction.** Sur 102 replis BTC, le
+RSI(14) H1 d'une bougie qui referme au-dessus de son EMA50 vaut 45 à 60 : **aucune**
+occurrence sous 45. La bande 38–45 ne filtre pas, elle supprime. Corrigée en 38–55
+(plafond anti-extension) ; la zone de valeur est portée par le contact EMA50.
+
+**Mesuré — 48 scénarios, 24 mois, coupe-circuits levés** (3 paires × 2 modes ×
+4 pentes × 2 niveaux de frais) : **aucun positif**. PF de 0,11 à 0,62 ; N de 14 à 39
+trades par paire et par 24 mois. Meilleur PF : ETH `EMA50_H4` pente 2,0 → 0,62 sur
+18 trades (−79,78 EUR). Le repli H1 améliore BTC à pente égale (PF 0,46 contre 0,29 à
+1,5 ; DD 13,2 % contre 21,9 %) mais fait moins bien sur ETH (0,50 contre 0,62) et SOL
+(0,34 contre 0,45) : **déplacer le point d'entrée ne change pas le signe**.
+
+**Mesuré — le verrou expliquait une partie des anciens chiffres.** BTC `EMA50_H4`
+pente 2,0 : **9 trades** avec `max_consecutive_losses=4` (dernier le 2025-08-02) contre
+**21** levé (dernier le 2026-10-15). Les « 2 à 9 trades par paire et par an » de la
+session précédente étaient moitié rareté du setup, moitié gel de la mesure.
+
+**Constat** : le seuil de N ≥ 100 n'est pas atteignable par paire à cadence H4. En
+cumulant les trois paires à pente 0 (mesures indépendantes, chacune repartant de
+1 000 EUR), on totalise **95 trades** (H4) et **87** (H1) sur 24 mois. Le plafond est
+la cadence de décision (une opportunité H1 sur quatre est seulement vue), pas la
+finesse du filtre.
+
+**Décidé** — D-057 (plancher de stockage), D-058 (deux modes d'entrée, RSI corrigé),
+D-059 (balayage avec coupe-circuits levés et gel visible).
+
+**Vérifié par** — `pytest -o addopts=""` → **497 passed** ; `check.sh` → **TOUT EST
+VERT** ; `backtest.py sweep --months 24 --entry-modes EMA50_H4,PULLBACK_H1
+--max-consecutive-losses 9999 --max-hwm-drawdown 1.0` → 48 lignes, aucune OK ;
+`backtest.py replay` → métriques identiques, fingerprint re-bénit (les nouveaux
+réglages ne changent aucun comportement par défaut).
+
+**Reste** — mesurer une cadence H1 ou un portefeuille multi-paires ; ne pas empiler un
+troisième filtre d'entrée. Le chemin live reste fermé, aucun ordre réel.
+
+---
+
+## 2026-11-04 · 17:20 — 13 ans d'historique, 24 scénarios, zéro rentable (D-053 → D-056)
+
+**Fait** — Les trois chantiers prioritaires du brief, et le quatrième gelé.
+
+1. **Ingestion multi-années (jalon 1)** : `app/market/kraken_archive.py` lit les
+   archives OHLCVT de Kraken **par requêtes HTTP Range** (répertoire central + membres,
+   ZIP64 géré), `app/market/history.py` analyse le CSV, détecte les trous, agrège
+   H1 → H4 et écrit par lots idempotents, `scripts/ingest_history.py` pilote le tout.
+   Migration 0008 : `market_candles_history` + `v_history_coverage`, RLS et
+   révocation. Aucune hypertable : TimescaleDB n'existe pas sur Supabase 17 et
+   158 000 lignes ne justifient pas de partition.
+2. **Balayage statistique (jalon 2)** : `backtest.py sweep` — 24 mois, 3 paires,
+   pentes 0/1,0/1,5/2,0 ATR, frais 80 et 100 pb, équité virtuelle 1 000 EUR.
+   Métriques PF, espérance, drawdown, N, avec verdict par les seuils du brief.
+3. **Capital découplé (jalon 3)** : `PAPER_START_EQUITY` passe de 9,37 à **1 000 EUR**
+   (existant depuis la phase 1, aucune ligne de code nouvelle) — la formule de sizing
+   est enfin éprouvable sans toucher au compte.
+4. **Ordres Maker (chantier 4)** : **rien écrit**, gel décidé en 2.10. Optimiser
+   l'exécution d'une stratégie qui perd avant frais ne fait que perdre plus lentement.
+
+**Mesuré — historique** (`ingest_history.py --source full`) : BTC/EUR 113 899 H1
+depuis 2013-09-10, ETH/EUR 97 407 depuis 2015-08-07, SOL/EUR 47 041 depuis
+2021-06-17. Cohérence H1 → H4 : **aucune bougie divergente** sur les trois paires.
+Manquantes : 1,18 % BTC, 1,18 % ETH, 0,30 % SOL (concentrées en 2013-2014), plus un
+trou de 111 h en H1 entre le 01 et le 05/10/2026 (soudure archive ↔ REST), signalé et
+non interpolé.
+
+**Mesuré — balayage 24 mois** (2024-11-04 → 2026-11-04, 4 378 H4 par paire) :
+
+| paire | meilleur scénario | trades | PF | espérance | net | B&H |
+|---|---|---|---|---|---|---|
+| BTC/EUR | pente 0, 80 pb | 6 | 0,29 | −10,83 | −64,96 | +11,67 % |
+| ETH/EUR | pente 2,0, 80 pb | 18 | 0,62 | −4,43 | −79,78 | −7,48 % |
+| SOL/EUR | pente 0, 80 pb | 15 | 0,62 | −4,67 | −70,12 | −43,37 % |
+
+**24 scénarios, zéro positif.** PF de 0,00 à 0,62 ; à 100 pb/côté chacun perd 8 à
+25 EUR de plus. Aucun n'atteint N ≥ 100 : la règle d'entrée produit 2 à 9 trades par
+paire et par an. **Le problème n'est pas la profondeur d'historique, c'est la rareté
+du setup.** Le filtre de pente protège relativement sur SOL (B&H −43 % contre −12 %)
+mais ne crée d'arête nulle part.
+
+**Décidé** — D-053 (Range plutôt que téléchargement), D-054 (table simple, pas
+d'hypertable), D-055 (trous signalés, jamais interpolés), D-056 (balayage avec un
+`propose` constant plutôt que `mechanical=True`, qui laisse `trades` vide).
+
+**Vérifié par** — `db_migrate.py apply` → 0008 appliquée ; `ingest_history.py
+--source full` → 3 paires, cohérence OK ; `ingest_history.py --report` → tableau
+ci-dessus ; `backtest.py sweep --months 24` → 24 lignes, aucune OK ; `pytest
+-o addopts=""` → **477 passed** ; `check.sh` → **TOUT EST VERT**.
+
+**Reste** — élargir la règle d'entrée pour obtenir un N interprétable et refaire le
+balayage ; ne rien figer sur ces chiffres. Le chemin live reste fermé.
+
+---
+
+## 2026-11-04 · 16:45 — Mandat short : +0,93 % sur un seul trade, pas une preuve (D-052)
+
+**Fait** — `app/backtest/short_lab.py` + `scripts/short_lab.py` : mesure du mandat
+short hors production, mêmes bougies, mêmes frais (0,80 %/côté), même slippage. Aucun
+ordre, aucune écriture. La règle miroir vend un rallye dans une structure baissière
+(prix sous EMA200, EMA50 sous EMA200, pente ≤ 0, RSI 30–65).
+
+**Mesuré** — BTC, fenêtre du golden : 1 trade le 29 octobre, **+0,0871 EUR (+0,93 %)**
+avec stop 2,5/TP 1,5 ; **+0,1858 EUR (+1,98 %)** avec stop 3/TP 2 ; la variante
+« distance −2..0 ATR » perd −2,91 % sur 2 trades. Buy & hold BTC : −6,03 %.
+
+**Limite dure** — Kraken spot ne permet pas le short. Kraken Futures a un environnement
+demo, mais c'est un autre adaptateur (contrats, USD, levier, liquidation, financement) ;
+9,37 EUR est trop petit pour ce produit. `SHORT` n'est pas câblé dans le schéma, le
+Risk Gateway, le broker papier ni l'orchestrateur. **Un trade ne prouve rien** : le
+laboratoire dit seulement que le mandat mérite une mesure multi-régimes, pas qu'il est
+rentable.
+
+**Vérifié par** — `short_lab.py` (deux exécutions, sorties ci-dessus) ; `pytest` →
+442 tests ; `check.sh` → **TOUT EST VERT**.
+
+---
+
+## 2026-11-04 · 16:35 — Filtre de pente EMA200 : moins de pertes, pas d'arête (D-051)
+
+**Fait** — `MarketSnapshot.ema_200_slope_atr` (pente EMA200 H4 sur 60 bougies, en ATR)
+est calculée sans lookahead dans `build_snapshot` ; `RiskConfig.entry_ema200_slope_min`
+vaut 2,0 ATR dans les presets et `entry_rule` refuse une pente insuffisante. Le golden a
+été ré-enregistré après revue : 44 → 19 décisions dans la zone, 3 → 2 trades,
+−0,4811 → −0,3268 EUR.
+
+**Mesuré** — seuils de pente : 0 ATR = 3 trades −5,13 % ; 1–2 ATR = 2 trades −3,49 % ;
+3–5 ATR = 1 trade −1,48 %. **Aucun seuil ne produit un PnL positif avec des trades.**
+Mesure 7 paires avec le filtre : 2 trades cumulés (BTC), −0,3268 EUR ; les alts ne
+produisent plus aucun trade. Le filtre réduit la perte de 32 % mais ne crée pas d'arête.
+
+**Vérifié par** — `pytest` → 442 tests ; `replay --bless` → golden cohérent ; `check.sh`
+→ **TOUT EST VERT**.
+
+---
+
+## 2026-11-04 · 16:20 — Le seuil 0,90 supprime les trades, il ne crée pas d'arête
+
+**Mesuré** — `scenario --min-confidence` sur le golden BTC : 0,60 à 0,82 laissent 3
+trades et −5,09 à −5,13 % ; 0,85 laisse 3 trades et −5,15 % ; **0,90 ne laisse aucun
+trade (0,00 %)**. Un PnL nul sans trade n'est pas une stratégie positive, c'est l'arrêt.
+Le filtre H1 positif reste le moins mauvais avec 2 trades et −3,44 %.
+
+**Conséquence** — le point « stratégie positive » n'est pas résolu. Le chemin live est
+prêt, mais l'activer maintenant reviendrait à payer des frais pour une entrée sans
+arête. Prochain levier : le signal d'entrée, pas le seuil ni la sortie.
+
+---
+
+## 2026-11-04 · 16:10 — Chemin live écrit et testé hors réseau (D-050)
+
+**Fait** — `app/execution/live.py` : achat marché avec stop bracket, attente du fill,
+lecture des frais réels, vérification du stop chez Kraken, revente immédiate si le stop
+manque, sortie qui annule les protections avant de vendre et réarme le stop si la vente
+échoue. `factory.py` choisit papier/live et refuse testnet. `main.py` démarre en live
+seulement si la réconciliation est propre. `scripts/reconcile.py --apply --confirm`
+liquide les positions non protégées ; `kill_switch.py --confirm-live` et l'API panic
+utilisent le broker réel. En live, la boucle lit d'abord le solde et le stop distants :
+position plate → elle enregistre la vente réelle sans renvoyer d'ordre ; solde supérieur
+à la position → halte ; stop absent → vente d'urgence puis halte.
+
+**Sécurité** — pas de TP exchange tant que l'OCO n'est pas écrit (un TP séparé peut
+vendre deux fois) ; le TP reste local. Le broker refuse d'entrer si un solde de base
+existe déjà sur la paire : **sous-compte dédié obligatoire**.
+
+**Pas fait** — aucun ordre réel n'a été envoyé. Il reste à créer le sous-compte, choisir
+le montant, poser les trois verrous et faire le canary de la phase 3.
+
+**Vérifié par** — `pytest` → 440 tests ; `node --test` → 22 tests ; `node --check` OK ;
+`check.sh` → **TOUT EST VERT**.
+
+---
+
+## 2026-11-04 · 15:35 — Choix : assumer la perte nette au stop, sans réduire la taille (D-049)
+
+**Décidé** — après la correction des frais, le risque affiché reste **brut** : la perte
+nette au stop inclut les 1,60 % d'aller-retour, soit ~1,4× le budget de 1,75 %. On ne
+réduit pas la taille, car plusieurs tickets passeraient sous le minimum Kraken. Le
+dashboard affiche désormais « Risque brut » et « Perte au stop (frais inclus) » ;
+`/api/status` expose `estimated_net_risk_quote` et `fee_rate`. Les coupe-circuits
+restent calculés sur le PnL net.
+
+**Pas fait** — les ordres limit (0,40 %/côté au lieu de 0,80 %) attendent : le backtest
+ne modélise pas les fills limit, et l'entrée est déjà négative avant frais. Optimiser
+l'exécution ne corrige pas une entrée perdante.
+
+**Vérifié par** — `pytest tests/test_api.py` → 19 tests ; `node --test` → 22 tests ;
+`pytest --collect-only` → 422 tests ; `node --check public/app.js` OK. Un `check.sh`
+complet suit.
+
+---
+
+## 2026-11-04 · 15:20 — Frais Kraken réels : 0,80 %/côté, pas 0,26 % (D-048)
+
+**Constat** — `fetch_trading_fee("BTC/EUR")` sur le compte renvoie `taker=0.008`,
+`maker=0.004`, volume 30 jours 0, prochain palier à 2 500 USD. CCXT exposait
+`0.0026/0.0016` : un tarif historique. La grille Kraken du 2026-07-09 confirme le
+palier 1 à **0,80 % taker / 0,40 % maker**. Le code utilisait `market['taker']`, donc
+**sous-estimait les frais d'un facteur 3**.
+
+**Corrigé** — `resolve_taker_fee()` lit le tarif du compte via `fetch_trading_fee`,
+avec repli 0,008 ; `TAKER_FEE_PCT`/`MAKER_FEE_PCT` surchargeables ; `fee_buffer_pct`
+Kraken passe à 0,016 (aller-retour 1,60 %). Paper, backtest, shadow, kill-switch et
+API utilisent le tarif résolu.
+
+**Mesuré après correction**
+```
+record BTC 150 bougies   44 décisions (22 BUY) · 3 trades · 0 gagnant
+                         −0.4811 EUR (−5.13 %)   [avant : −0.3357]
+measure 7 paires         4 trades · 0 gagnant · −0.6951 EUR   [avant : −0.4999]
+scénario 3,0 ATR         −0.3603 EUR (−3.85 %)
+scénario filtre H1       −0.3226 EUR (−3.44 %) · aucun scénario positif
+A/B leçons               −3.49 % sans · −3.45 % avec · non concluant
+```
+
+**Conséquence** — à 9,37 EUR, un aller-retour à 1,60 % coûte ~0,064 EUR sur un ticket
+de 4 EUR, soit ~39 % du budget de risque (0,164 EUR). Le prochain levier n'est pas la
+sortie, c'est l'entrée et le coût des frais. Ne pas passer en réel sans une mesure
+positive **nette de frais**.
+
+---
+
+## 2026-11-04 · 15:05 — Premier A/B de la mémoire : non concluant
+
+**Mesuré** — BTC/EUR, 30 bougies H4, prompt avec et sans deux leçons génériques
+(recalculé après correction des frais, voir 15:20) :
+```
+sans leçons   19 décisions · 11 BUY · 2 trades · −0.3268 EUR (−3.49 %)
+avec leçons   21 décisions · 14 BUY · 2 trades · −0.3229 EUR (−3.45 %)
+```
+**Constat** — l'écart (+0,0039 EUR) est dans le bruit ; les deux scénarios perdent,
+0 gagnant. Les leçons n'ont pas empêché les achats perdants. Avec 2 trades, on ne
+peut pas conclure sur l'utilité de la mémoire — seulement dire que le mécanisme
+fonctionne.
+
+**Décision** — ne pas présenter la mémoire comme un gain. Attendre au moins 5
+résultats réels, lancer `lessons.py review`, puis refaire l'A/B sur la fenêtre
+complète. Le golden reste la référence du prompt de base ; les leçons sont mesurées
+par `measure --lessons-file`.
+
+---
+
+## 2026-11-04 · 14:55 — Mémoire de leçons : une relecture, pas un entraînement (D-047)
+
+**Construit**
+- migration 0007 `lessons` : une seule version active par mode, expiration 30 jours,
+  source des résultats et empreinte du journal.
+- `app/llm/lessons.py` : digest des trades clos + shadow trades, validation des
+  leçons (1 à 5, 240 caractères max, rejet d'une consigne de contournement), refus
+  sous 5 résultats. `SignalClient.review` : un appel séparé, schéma JSON dédié.
+- `scripts/lessons.py` : `review` (un appel, `--dry-run`, `--force`, `--show-digest`),
+  `show`, `history`, `clear`.
+- Injection : `SignalClient.propose(..., lessons=…)`, bloc « Leçons de tes dernières
+  décisions » dans le prompt, `lessons_count` et `lessons_sha256` dans le payload
+  persisté. Orchestrateur : lecture des leçons actives à chaque cycle.
+- Dashboard : panneau « Leçons » ; API `/api/stats` expose la version active.
+- A/B : `scripts/backtest.py measure --lessons-file`.
+
+**Vérifié**
+```
+db_migrate.py apply       → 0007 appliquée (67 ms)
+db_migrate.py verify      → 29 relations, 5 vues, 16 partitions
+lessons.py review         → 5 shadow trades de test, 5 leçons, version 1
+lessons.py show/history   → leçons actives puis purge
+pytest --collect-only     → 415 tests
+node --test               → 22 tests
+```
+
+**Constat** — le premier digest disait « Shadow trades évalués » sans préciser que
+ces trades n'avaient pas été pris. Le modèle a écrit des leçons inversées (« les
+rejets entraînent des pertes »). Correction : « achats NON pris · PnL contrefactuel ·
+un négatif = perte évitée ». La deuxième relecture produit des leçons correctes
+(« le rejet CONFIDENCE_TOO_LOW protège le capital »). Le libellé du digest est donc
+partie intégrante de la qualité de l'apprentissage.
+
+**Reste** — attendre 5 résultats réels, lancer `lessons.py review`, puis comparer
+`measure` avec et sans leçons. Ne pas garder la mémoire si la mesure ne montre pas
+un mieux.
+
+---
+
+## 2026-11-04 · 14:40 — Shadow trades : les achats non pris sont mesurés (D-046)
+
+**Construit**
+- migration 0006 `shadow_trades` (partitionnée ; `GATE_REJECTED_BUY` / `MODEL_HOLD`,
+  plan `OPEN`/`NO_PLAN`, issues `STOP_LOSS`/`TAKE_PROFIT`/`END_OF_DATA`).
+- `Orchestrator._record_shadow` : à chaque BUY refusé par le pare-feu et à chaque
+  HOLD sur setup d'entrée, le plan est recalculé avec `evaluate(confidence=1.0,
+  régime du signal)`. Aucun ordre, aucune position, aucun argent.
+- `app/runtime/shadow.py` : `simulate_shadow` (stop prioritaire, frais et slippage
+  du broker papier, fin de données) et `evaluate_open_shadow_trades`.
+- `scripts/shadow_report.py` : résumé par kind et par code de rejet, `--evaluate`
+  pour fermer les lignes `OPEN`.
+- API `GET /api/stats` et panneau dashboard « Achats refusés ». D-046.
+
+**Vérifié**
+```
+db_migrate.py apply       → 0006 appliquée (104 ms)
+db_migrate.py verify      → 28 relations, 5 vues, 16 partitions
+shadow_report.py          → 0 ligne (table vide au départ)
+insert / close / summary  → 1 ligne OPEN puis STOP_LOSS −0.27, nettoyée
+pytest --collect-only     → 403 tests
+node --test               → 22 tests
+```
+
+**Constat** — la table est vide pour l'instant : les 7 derniers signaux sont des HOLD
+antérieurs à la fonctionnalité. Elle se remplira aux prochains HOLD ou BUY refusés ;
+`--evaluate` donnera alors le contrefactuel. Les lignes `NO_PLAN` diront si le refus
+vient du minimum exchange ou de la structure, pas du modèle.
+
+**Reste** — accumuler quelques semaines de lignes, lire `shadow_report.py`, puis
+décider si le plancher de confiance ou la règle d'entrée doivent bouger.
+
+---
+
+## 2026-11-04 · 14:30 — Scénarios de sortie : le stop n'est pas le levier
+
+**Construit**
+- `scripts/backtest.py scenario` : rejoue le golden avec `--stop-atr`,
+  `--take-profit-r`, `--min-confidence` et `--require-positive-h1`, sans écrire et
+  sans appeler le LLM. `ReplayLLM` accepte un HOLD de scénario pour les décisions
+  absentes, avec un compteur affiché.
+- `RiskConfig.entry_require_positive_h1` (défaut `False`) : laboratoire pour exiger
+  que la dernière H1 clôturée soit positive. **Pas activé en production.**
+
+**Mesuré** (golden 44 décisions, BTC/EUR, décisions figées)
+```
+stop 2.5 / TP 2.0    3 trades  −0.3357 EUR  (−3.58 %)  référence
+stop 3.0 / TP 2.0    2 trades  −0.2619 EUR  (−2.80 %)  3 décisions manquantes
+stop 3.5 / TP 2.0    2 trades  −0.2957 EUR  (−3.16 %)  3 décisions manquantes
+stop 2.5 / TP 3.0    3 trades  −0.3357 EUR  (−3.58 %)  TP jamais atteint
+stop 3.5 / TP 3.0    2 trades  −0.2957 EUR  (−3.16 %)  TP jamais atteint
+stop 4.0 / TP 3.0    2 trades  −0.2842 EUR  (−3.03 %)  13 décisions manquantes
+2.5 + filtre H1 +    2 trades  −0.2238 EUR  (−2.39 %)  0 décision manquante
+```
+
+**Constat** — aucun scénario ne rend la stratégie positive. Les quatre trades de
+référence sortent tous au stop ; le take-profit 2R/3R n'est jamais touché. Le 3,0 ATR
+perd moins parce qu'un troisième achat devient impossible (notionnel sous le minimum
+Kraken) : effet de sélection, pas un edge. Le filtre H1 positive évite un perdant et
+donne −2,39 %, mais sur deux trades seulement. Trois trades ne distinguent pas un
+edge d'un hasard.
+
+**Décision** — ne pas changer le stop ou le TP en production. Accumuler des
+échantillons (boucle papier, `shadow_trades`) et mesurer une fenêtre plus longue ou
+un autre régime avant de figer un filtre. Le laboratoire `scenario` reste disponible.
+
+**Vérifié**
+```
+pytest --collect-only          → 397 tests
+pytest tests/test_backtest_golden.py → 3 verts (fingerprint re-béni, métriques identiques)
+scenario 2.5/2.0               → identique au golden (−0.3357)
+```
+
+---
+
+## 2026-11-04 · 14:20 — Dashboard pilotable, réglages en base, session 7 jours (D-044, D-045)
+
+**Construit**
+- `runtime_settings` (migration 0005) : une ligne par mode, payload JSONB, `updated_at`,
+  `updated_by`. Le bot relit la ligne à chaque cycle (`Orchestrator._refresh_settings`) ;
+  `.env` reste le point de départ, la base devient la vérité des réglages modifiés.
+- `app/api/settings_store.py` : libellés français (Prudent / Équilibré / Audacieux /
+  Micro), validation, fusion du payload, liste blanche `RUNTIME_ALLOWED_KEYS`.
+- API : `GET /api/settings`, `POST /api/settings`, `GET /api/stats`.
+- Dashboard : cartes de résultat, courbe du capital, gain/perte par jour, panneau
+  modèle (dernière décision, conviction, latence, répartition, replis), formulaire de
+  réglages sans jargon, bandeau d'arrêt avec compte à rebours et bouton « Reprendre
+  maintenant ».
+- `HALT` du modèle : solde puis `EMERGENCY_HALT` avec `auto_resume_at = now + 24 h` ;
+  reprise auto au cycle suivant ou bouton. Un panic-sell humain n'a pas d'échéance.
+- Prompt v3 : section « scénario d'achat » (pullback EMA50) et payload enrichi ; le
+  modèle est passé de 0 BUY à 23 BUY sur BTC.
+- Session : JWT 7 jours (`TOKEN_TTL_SECONDS = 604800`), cookie `tn_session` HttpOnly
+  aligné sur le plus court des deux TTL. D-045.
+
+**Vérifié** (commandes réelles)
+```
+pytest --collect-only          → 397 tests
+node --test                    → 22 tests
+db_migrate.py status            → 0005 appliquée à 12:49:49
+db_migrate.py verify            → 26 relations, 5 vues, 16 partitions
+API réelle + base réelle        → GET 200 (0.50), POST 200 (0.35/48 h), base 0.35/48,
+                                  orchestrateur applique 0.35/48, combinaison invalide 422,
+                                  payload restauré à {}
+backtest.py record              → 44 décisions (23 BUY, 21 HOLD), 3 trades approuvés,
+                                  3 perdants, −3,58 % vs B&H −6,03 %, golden 44
+```
+
+**Constat** — la calibration du prompt débloque l'achat : 36 BUY sur les sept paires,
+4 trades approuvés, **0 gagnant**, −0,4999 EUR (−5,3 % du compte). BTC −3,58 % vs
+buy & hold −6,03 % ; BNB −1,75 % vs −6,98 % ; ADA a produit 7 BUY mais tous refusés
+par `SIZING_BELOW_EXCHANGE_MINIMUM` (le budget de risque est trop petit face au
+minimum Kraken). Le prochain levier est la géométrie entrée/sortie (stop 2,5 ATR,
+take-profit 2R), pas le seuil de confiance.
+
+**Reste**
+- Vérifier l'affichage du dashboard dans un navigateur réel (cartes, SVG, formulaire).
+- Rejouer le golden avec `stop_atr_multiple` 3,5 et `take_profit_r_multiple` 3,0 pour
+  voir si les quatre stops étaient du bruit H4 ou une mauvaise entrée.
+- Étape 2.3 : `shadow_trades` (migration 0006, le numéro 0005 est pris par
+  `runtime_settings`).
+
+---
+
+## 2026-11-04 · 14:10 — Le LLM peut acheter, vendre et arrêter (D-043)
+
+**Construit**
+- `app/engine/entry_rule.py` : règle pure de pullback EMA50 dans une tendance
+  (prix > EMA200 + marge, EMA50 > EMA200, RSI 40-65, ATR dans la bande, pas de couteau).
+  Elle décide **quand** le modèle est consulté, pas ce qu'il doit répondre.
+- `app/engine/exit_guard.py` : garde-fou pur de sortie. Un SELL ou un HALT du modèle ne
+  peut que solder une position existante, jamais créer un short, jamais dépasser la
+  quantité détenue. Seuils séparés (0,55 pour SELL, 0,80 pour HALT).
+- Action `HALT` dans le schéma LLM et le prompt (v2) ; migration 0004
+  (`signal_action.HALT`, `order_purpose.LLM_EXIT`).
+- Orchestrateur : le LLM est consulté à chaque bougie clôturée pendant une position ;
+  SELL solde au prix courant, HALT solde puis force `EMERGENCY_HALT`. Le bouton rouge
+  2FA reste l'override manuel.
+- Backtest : `_simulate_trade` bougie par bougie, stop/TP **avant** le LLM, puis
+  SELL/HALT à la clôture ; commande `scripts/backtest.py measure` sur les 7 paires.
+
+**Vérifié** (commandes réelles)
+```
+pytest                        → 386 passed
+db_migrate.py apply           → 0004 appliquée (48 ms)
+db_migrate.py verify          → 25 relations, 5 vues, 16 partitions, OK
+backtest.py record            → golden ré-enregistré : 26 décisions, 0 BUY, 0 trade
+backtest.py replay            → 3 tests de régression verts
+```
+
+**Constat mesuré** — BTC/EUR, 150 bougies H4, politique règle + LLM :
+la règle a déclenché 26 fois, le modèle a répondu **HOLD 26 fois** (confiance 0,40 à
+0,90), aucun achat. Le plancher à 0,60 n'est donc plus le blocage : c'est le modèle
+lui-même qui refuse le pullback. Le contrefactuel « acheter à chaque refus » perd
+−3,50 EUR sur la fenêtre ; ses HOLD étaient justifiés. Le seuil n'est pas le problème,
+la calibration du prompt ou le choix de la règle le sont.
+
+**Mesure 7 paires** (BTC, ETH, ADA, DOGE, PAXG, HBAR, BNB ; 150 bougies H4) :
+**46 déclenchements, 46 HOLD, 0 BUY, 0 trade**. Le buy & hold est négatif sur les sept
+paires (−3,96 % à −25,06 %). Contrefactuels : −3,50 EUR BTC, −0,11 EUR ETH, −0,16 EUR
+BNB ; ADA et HBAR n'ont même pas de contrefactuel finançable. Le modèle est capable
+d'acheter — il ne le fait pas, et sur cette fenêtre il a eu raison.
+
+**Décidé** : D-043 (le LLM déclenche dans un cadre déterministe, ne dimensionne rien,
+SELL/HALT gardés). Le plancher `micro` passe à 0,60 pour rendre un BUY possible ; à
+0,85 il était mathématiquement impossible.
+
+**Reste** : calibrer le prompt pour définir explicitement le pullback comme setup
+d'achat (ou accepter que le LLM ne trade pas dans ce régime), puis 2.3
+(`shadow_trades`, migration 0005) et 2.4. Aucun argent réel, aucun ordre envoyé.
+
+---
+
 ## 2026-11-04 · 12:50 — Réconciliation exchange, drawdowns prouvés, une décision par bougie
 
 **Construit**

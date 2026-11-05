@@ -18,9 +18,19 @@ from datetime import datetime, timedelta, timezone
 
 from app.market.feed import TIMEFRAME_MS
 
-__all__ = ["EPOCH", "next_candle_close", "seconds_until_next_close"]
+__all__ = [
+    "EPOCH",
+    "decision_delay_seconds",
+    "next_candle_close",
+    "seconds_until_next_close",
+]
 
 EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+# Kraken publie la bougie D1 à 00:00 UTC, mais laisser cinq minutes évite de
+# lire une archive ou un flux encore en cours de publication. Les autres
+# timeframes n'ont besoin que d'une petite marge de sécurité.
+DECISION_DELAYS = {"1d": 300.0}
+DEFAULT_DECISION_DELAY = 5.0
 
 
 def next_candle_close(now: datetime, timeframe: str) -> datetime:
@@ -38,3 +48,15 @@ def next_candle_close(now: datetime, timeframe: str) -> datetime:
 def seconds_until_next_close(now: datetime, timeframe: str) -> float:
     """Secondes à attendre avant la prochaine clôture (toujours > 0)."""
     return (next_candle_close(now, timeframe) - now).total_seconds()
+
+
+def decision_delay_seconds(timeframe: str) -> float:
+    """Marge après la clôture avant d'évaluer.
+
+    Le Daily attend 00:05 UTC : cinq minutes pour que Kraken ait publié la
+    bougie et que l'ingestion éventuelle ne lise pas une clôture partielle.
+    Les timeframes H1/H4 gardent les cinq secondes historiques.
+    """
+    if timeframe not in TIMEFRAME_MS:
+        raise ValueError(f"timeframe non géré : {timeframe}")
+    return DECISION_DELAYS.get(timeframe, DEFAULT_DECISION_DELAY)

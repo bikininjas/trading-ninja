@@ -29,7 +29,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.core.settings import load_settings  # noqa: E402
 from app.db.repository import PostgresRepository  # noqa: E402
 from app.exchange.kraken import build_exchange  # noqa: E402
-from app.runtime.reconciliation import inspect_exchange  # noqa: E402
+from app.execution.factory import make_broker  # noqa: E402
+from app.runtime.reconciliation import (  # noqa: E402
+    apply_reconciliation,
+    inspect_exchange,
+)
 
 __all__ = ["main"]
 
@@ -51,6 +55,21 @@ async def _run(args: argparse.Namespace) -> int:
             repo, exchange, mode, settings.exchange.allowed_symbols,
             quote_currency=settings.exchange.quote_currency,
         )
+        actions: list[str] = []
+        if args.apply:
+            if mode != "LIVE" or settings.mode != "live":
+                print(
+                    "REFUS : --apply exige --mode live ET TRADING_MODE=live "
+                    "(avec I_UNDERSTAND_REAL_MONEY=true).",
+                    file=sys.stderr,
+                )
+                return 2
+            await repo.ensure_mode(mode)
+            broker = make_broker(settings, exchange, mode="live")
+            actions = await apply_reconciliation(
+                plan, repo, exchange, broker,
+                starting_equity=settings.paper_start_equity,
+            )
     finally:
         await repo.close()
 
@@ -58,11 +77,16 @@ async def _run(args: argparse.Namespace) -> int:
         payload = asdict(plan)
         payload["clean"] = plan.clean
         payload["liquidate"] = list(plan.liquidate)
+        payload["applied"] = actions
         print(json.dumps(payload, ensure_ascii=False, default=str, indent=2))
     else:
         for line in plan.lines():
             print(line)
+        for action in actions:
+            print(f"  APPLIQUÉ  {action}")
 
+    if args.apply and actions:
+        return 0
     if plan.critical or plan.halt:
         return 1
     return 0
@@ -75,7 +99,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--mode", choices=["paper", "testnet", "live"],
                         help="mode base à vérifier (défaut : mode configuré)")
     parser.add_argument("--json", action="store_true", help="sortie JSON")
+    parser.add_argument(
+        "--apply", action="store_true",
+        help="applique le plan en mode live : liquide les positions sans stop couvrant",
+    )
+    parser.add_argument(
+        "--confirm", action="store_true",
+        help="confirme l'application réelle (obligatoire avec --apply)",
+    )
     args = parser.parse_args(argv)
+    if args.apply and not args.confirm:
+        parser.error("--apply exige --confirm : une liquidation réelle n'est pas un audit")
     try:
         return asyncio.run(_run(args))
     except KeyboardInterrupt:

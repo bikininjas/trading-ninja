@@ -24,8 +24,17 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(HERE, 'public');
 const COOKIE_NAME = 'tn_session';
-const SESSION_TTL_MS = 15 * 60 * 1000;
+/* Sept jours : le cookie du navigateur et le jeton de l'API doivent rester alignés.
+ * Le serveur prend le plus court des deux ; un cookie plus long qu'un jeton ne sert
+ * à rien, un cookie plus court oblige à se reconnecter alors que le jeton vit encore. */
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_BODY_BYTES = 8 * 1024;
+/* Liste blanche : le dashboard ne relaie que les tables de supervision, jamais une
+ * table arbitraire. L'API applique déjà sa propre liste, celle-ci évite même de
+ * construire une URL inattendue à partir du navigateur. */
+const HISTORY_TABLES = new Set(['llm_signals', 'risk_evaluations', 'positions', 'orders']);
+const HISTORY_DEFAULT_LIMIT = 20;
+const HISTORY_MAX_LIMIT = 50;
 
 const PAGES = {
   '/': 'index.html',
@@ -35,6 +44,7 @@ const PAGES = {
 const ASSETS = {
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
+  '/favicon.svg': ['favicon.svg', 'image/svg+xml'],
 };
 
 const SECURITY_HEADERS = {
@@ -261,9 +271,13 @@ export function createDashboardServer(options = {}) {
       for (const [key, value] of sessions) {
         if (value.expiresAt <= now) sessions.delete(key);
       }
-      sessions.set(sid, { token: result.data.token, expiresAt: now + sessionTtlMs });
+      const apiTtlMs = Number(result.data.expires_in) > 0
+        ? Number(result.data.expires_in) * 1000
+        : sessionTtlMs;
+      const ttlMs = Math.min(sessionTtlMs, apiTtlMs);
+      sessions.set(sid, { token: result.data.token, expiresAt: now + ttlMs });
       return redirect(res, '/', {
-        'Set-Cookie': sessionCookie(sid, Math.floor(sessionTtlMs / 1000), cookieSecure),
+        'Set-Cookie': sessionCookie(sid, Math.floor(ttlMs / 1000), cookieSecure),
       });
     }
 
@@ -278,6 +292,54 @@ export function createDashboardServer(options = {}) {
       const session = requireSession(req, res);
       if (!session) return;
       const result = await callApi('/api/status', { token: session.token });
+      if (result.status === 401) return expireSession(res, session);
+      return sendJson(res, result.status, result.data);
+    }
+
+    if (method === 'GET' && pathname === '/api/stats') {
+      const session = requireSession(req, res);
+      if (!session) return;
+      const result = await callApi('/api/stats', { token: session.token });
+      if (result.status === 401) return expireSession(res, session);
+      return sendJson(res, result.status, result.data);
+    }
+
+    if (method === 'GET' && pathname === '/api/settings') {
+      const session = requireSession(req, res);
+      if (!session) return;
+      const result = await callApi('/api/settings', { token: session.token });
+      if (result.status === 401) return expireSession(res, session);
+      return sendJson(res, result.status, result.data);
+    }
+
+    if (method === 'GET' && pathname.startsWith('/api/history/')) {
+      const session = requireSession(req, res);
+      if (!session) return;
+      const match = /^\/api\/history\/([a-z_]+)$/.exec(pathname);
+      const table = match?.[1];
+      if (!table || !HISTORY_TABLES.has(table)) {
+        return sendJson(res, 400, { error: 'table non exposée' });
+      }
+      const requested = Number.parseInt(url.searchParams.get('limit') ?? '', 10);
+      const limit = Number.isFinite(requested)
+        ? Math.min(HISTORY_MAX_LIMIT, Math.max(1, requested))
+        : HISTORY_DEFAULT_LIMIT;
+      const result = await callApi(
+        `/api/history/${table}?limit=${limit}`,
+        { token: session.token },
+      );
+      if (result.status === 401) return expireSession(res, session);
+      return sendJson(res, result.status, result.data);
+    }
+
+    if (method === 'POST' && pathname === '/api/settings') {
+      if (!sameOrigin(req)) return sendJson(res, 403, { error: 'origine refusée' });
+      const session = requireSession(req, res);
+      if (!session) return;
+      const body = await readJson(req);
+      const result = await callApi('/api/settings', {
+        method: 'POST', token: session.token, body,
+      });
       if (result.status === 401) return expireSession(res, session);
       return sendJson(res, result.status, result.data);
     }

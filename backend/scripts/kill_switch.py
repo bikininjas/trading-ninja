@@ -12,8 +12,9 @@ En mode `paper`, il liquide la position du ledger papier au prix courant, annule
 stop armé, écrit l'ordre `EMERGENCY_EXIT`, passe la position en
 `EMERGENCY_LIQUIDATED` et force `bot_state` en `EMERGENCY_HALT`.
 
-En mode `live`, il refuse : l'envoi réel n'est pas câblé et un kill-switch qui
-enverrait un ordre par un chemin non revu serait pire que pas de kill-switch.
+En mode `live`, il envoie une vraie vente au marché après avoir annulé les protections,
+puis halte le bot. Il exige `--confirm-live` : une liquidation réelle ne doit jamais
+partir d'une commande tapée par erreur.
 """
 
 from __future__ import annotations
@@ -28,19 +29,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.settings import load_settings  # noqa: E402
 from app.db.repository import PostgresRepository  # noqa: E402
-from app.exchange.kraken import build_exchange, market_info  # noqa: E402
-from app.execution.paper import PaperBroker  # noqa: E402
+from app.exchange.kraken import build_exchange  # noqa: E402
+from app.execution.factory import make_broker  # noqa: E402
 from app.runtime.recovery import liquidate_open_positions  # noqa: E402
 
 
-async def _run(dry_run: bool) -> int:
+async def _run(dry_run: bool, confirm_live: bool) -> int:
     settings = load_settings()
     mode = settings.execution_mode
 
-    if settings.mode != "paper":
+    if settings.mode not in {"paper", "live"}:
         print(
-            "REFUS : le kill-switch réel n'est pas câblé. Utiliser l'interface de "
-            "l'exchange pour solder la position, puis relancer en paper.",
+            "REFUS : le mode testnet n'existe pas chez Kraken spot dans CCXT 4.5.91. "
+            "Utiliser paper, ou live avec les deux verrous.",
+            file=sys.stderr,
+        )
+        return 2
+    if settings.mode == "live" and not dry_run and not confirm_live:
+        print(
+            "REFUS : une liquidation réelle exige --confirm-live. "
+            "Relancer avec --confirm-live après avoir vérifié la position.",
             file=sys.stderr,
         )
         return 2
@@ -66,10 +74,7 @@ async def _run(dry_run: bool) -> int:
             api_key=settings.exchange.api_key, secret=settings.exchange.secret
         )
         exchange.load_markets()
-        fees = [market_info(exchange, symbol).taker_fee
-                for symbol in settings.exchange.allowed_symbols]
-        broker = PaperBroker(max(fees) if fees else Decimal("0.0026"),
-                             settings.paper_slippage_bps)
+        broker = make_broker(settings, exchange, settings.exchange.allowed_symbols)
 
         results = await liquidate_open_positions(
             repo, exchange, broker, mode,
@@ -93,9 +98,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Kill-switch — solde et halte")
     parser.add_argument("--dry-run", action="store_true",
                         help="affiche la position et les ordres sans rien modifier")
+    parser.add_argument("--confirm-live", action="store_true",
+                        help="confirme une vente réelle en mode live")
     args = parser.parse_args()
     try:
-        return asyncio.run(_run(args.dry_run))
+        return asyncio.run(_run(args.dry_run, args.confirm_live))
     except KeyboardInterrupt:
         return 130
 

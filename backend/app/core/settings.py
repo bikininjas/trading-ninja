@@ -25,7 +25,7 @@ from typing import Mapping
 from app.core.db import DatabaseConfig
 from app.core.db import from_env as database_from_env
 from app.core.env import load_env, read_dotenv
-from app.engine.risk_gate import RiskConfig
+from app.engine.risk_gate import EntryMode, RiskConfig, StopMode, SwingExitMode
 
 __all__ = ["Settings", "ExchangeSettings", "LLMSettings", "load_settings", "RISK_PRESETS"]
 
@@ -44,6 +44,7 @@ RISK_PRESETS: dict[str, dict[str, str]] = {
         "STOP_ATR_MULTIPLE": "2.5",
         "TAKE_PROFIT_R_MULTIPLE": "2.0",
         "MIN_CONFIDENCE": "0.80",
+        "ENTRY_EMA200_SLOPE_MIN": "2.0",
         "MAX_DAILY_DRAWDOWN_PCT": "0.02",
         "MAX_WEEKLY_DRAWDOWN_PCT": "0.05",
         "MAX_DRAWDOWN_FROM_HWM_PCT": "0.10",
@@ -57,6 +58,7 @@ RISK_PRESETS: dict[str, dict[str, str]] = {
         "STOP_ATR_MULTIPLE": "2.5",
         "TAKE_PROFIT_R_MULTIPLE": "2.0",
         "MIN_CONFIDENCE": "0.75",
+        "ENTRY_EMA200_SLOPE_MIN": "2.0",
         "MAX_DAILY_DRAWDOWN_PCT": "0.03",
         "MAX_WEEKLY_DRAWDOWN_PCT": "0.07",
         "MAX_DRAWDOWN_FROM_HWM_PCT": "0.15",
@@ -70,6 +72,7 @@ RISK_PRESETS: dict[str, dict[str, str]] = {
         "STOP_ATR_MULTIPLE": "2.0",
         "TAKE_PROFIT_R_MULTIPLE": "2.0",
         "MIN_CONFIDENCE": "0.70",
+        "ENTRY_EMA200_SLOPE_MIN": "1.5",
         "MAX_DAILY_DRAWDOWN_PCT": "0.04",
         "MAX_WEEKLY_DRAWDOWN_PCT": "0.10",
         "MAX_DRAWDOWN_FROM_HWM_PCT": "0.20",
@@ -86,11 +89,37 @@ RISK_PRESETS: dict[str, dict[str, str]] = {
         "MAX_NOTIONAL_PCT": "0.50",
         "STOP_ATR_MULTIPLE": "2.5",
         "TAKE_PROFIT_R_MULTIPLE": "2.0",
-        "MIN_CONFIDENCE": "0.85",
+        # Le modèle mesuré plafonne à 0,72 sur les BUY. Un plancher à 0,85 rendait
+        # tout achat impossible ; 0,60 rend le LLM capable d'agir, et la règle
+        # d'entrée + le pare-feu restent les filtres. C'est une expérience mesurée
+        # par le backtest, pas une baisse de garde-fou : le dimensionnement et le
+        # stop ne dépendent pas de la confiance.
+        "MIN_CONFIDENCE": "0.60",
+        "ENTRY_EMA200_SLOPE_MIN": "2.0",
         "MAX_DAILY_DRAWDOWN_PCT": "0.08",
         "MAX_WEEKLY_DRAWDOWN_PCT": "0.15",
         "MAX_DRAWDOWN_FROM_HWM_PCT": "0.20",
         "MAX_CONSECUTIVE_LOSSES": "4",
+        "MAX_ORDERS_PER_HOUR": "3",
+    },
+    # Swing macro Daily (D-060) : peu de trades, stop structurel sous le creux D1,
+    # pas de take-profit fixe (la sortie est la tendance qui casse). Le seuil de
+    # confiance reste bas : le LLM peut bloquer, il ne dimensionne rien.
+    "swing": {
+        "ENTRY_MODE": "SWING_MACRO_D1",
+        "STOP_MODE": "STRUCTURAL_D1",
+        "RISK_PER_TRADE_PCT": "0.005",
+        "MAX_NOTIONAL_PCT": "1.0",
+        "SMALL_ACCOUNT_FULL_ALLOCATION": "true",
+        "STOP_ATR_MULTIPLE": "2.5",
+        "TAKE_PROFIT_R_MULTIPLE": "0",
+        "MIN_CONFIDENCE": "0.60",
+        "ENTRY_EMA200_SLOPE_MIN": "0",
+        "SWING_EXIT_MODE": "ema20",
+        "MAX_DAILY_DRAWDOWN_PCT": "0.08",
+        "MAX_WEEKLY_DRAWDOWN_PCT": "0.15",
+        "MAX_DRAWDOWN_FROM_HWM_PCT": "0.20",
+        "MAX_CONSECUTIVE_LOSSES": "6",
         "MAX_ORDERS_PER_HOUR": "3",
     },
 }
@@ -111,11 +140,48 @@ EXCHANGE_KEY_ALIASES: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
 # Marge de frais utilisée pour ne jamais engager le solde libre en entier.
 # Elle doit couvrir un aller-retour au tarif taker de l'exchange, sinon le dernier
 # achat peut échouer pour quelques centimes de frais. Mesuré sur les marchés réels :
-# Binance spot 0,10 %/côté → 0,20 % ; Kraken spot 0,26 %/côté → 0,52 %.
+# Binance spot 0,10 %/côté → 0,20 % ; Kraken spot 0,80 %/côté (palier 1 depuis le
+# 2026-07-09) → 1,60 %. Le tarif réel du compte est lu par `fetch_trading_fee` et
+# peut être surchargé par `TAKER_FEE_PCT`.
 EXCHANGE_FEE_BUFFER_DEFAULTS: dict[str, str] = {
     "binance": "0.002",
-    "kraken": "0.0052",
+    "kraken": "0.016",
 }
+
+# Tarifs de repli si l'exchange ne répond pas ou si le compte n'est pas lisible.
+# CCXT annonce encore 0,26 %/0,16 % pour Kraken : c'est le tarif historique, pas
+# le palier 1 actuel. Le tarif réel est demandé à l'API privée quand une clé existe.
+EXCHANGE_TAKER_FEE_DEFAULTS: dict[str, str] = {
+    "binance": "0.001",
+    "kraken": "0.008",
+}
+EXCHANGE_MAKER_FEE_DEFAULTS: dict[str, str] = {
+    "binance": "0.001",
+    "kraken": "0.004",
+}
+
+# Clés qu'un fichier de réglages runtime (écrit par le dashboard) a le droit de
+# modifier. Tout le reste est ignoré : un fichier de réglages ne doit pas pouvoir
+# changer le mode d'exécution, l'exchange ou les secrets.
+RUNTIME_ALLOWED_KEYS = frozenset({
+    "RISK_PROFILE",
+    "RISK_PER_TRADE_PCT",
+    "MAX_NOTIONAL_PCT",
+    "MAX_DAILY_DRAWDOWN_PCT",
+    "MAX_WEEKLY_DRAWDOWN_PCT",
+    "MAX_DRAWDOWN_FROM_HWM_PCT",
+    "MAX_CONSECUTIVE_LOSSES",
+    "MAX_ORDERS_PER_HOUR",
+    "MIN_CONFIDENCE",
+    "ENTRY_RULE_ENABLED",
+    "ENTRY_RSI_MIN",
+    "ENTRY_RSI_MAX",
+    "ENTRY_PULLBACK_ATR",
+    "ENTRY_REQUIRE_EMA50_ABOVE_EMA200",
+    "MIN_EXIT_CONFIDENCE",
+    "MIN_HALT_CONFIDENCE",
+    "HALT_AUTO_RESUME_HOURS",
+})
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +234,8 @@ class ExchangeSettings:
     allowed_symbols: tuple[str, ...] = ()
     daily_timeframe_decision: str = "4h"
     entry_timeframe: str = "1h"
+    taker_fee: Decimal = Decimal("0.001")
+    maker_fee: Decimal = Decimal("0.001")
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,6 +266,7 @@ class Settings:
     paper_slippage_bps: int = 5
     sweep_ratio: Decimal = Decimal("0.30")
     sweep_min_transfer_quote: Decimal = Decimal("1.00")
+    halt_auto_resume_hours: int = 24
     _raw_env: Mapping[str, str] = field(default_factory=dict, repr=False, compare=False)
 
     @property
@@ -266,6 +335,38 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
     def p(key: str) -> str:
         return merged.get(key, preset.get(key, ""))
 
+    try:
+        entry_mode = EntryMode(_env(merged, "ENTRY_MODE", preset.get("ENTRY_MODE", "EMA50_H4")))
+    except ValueError as exc:
+        raise RuntimeError(
+            f"ENTRY_MODE invalide : {merged.get('ENTRY_MODE')!r} "
+            f"(connus : {', '.join(m.value for m in EntryMode)})"
+        ) from exc
+    try:
+        stop_mode = StopMode(_env(merged, "STOP_MODE", preset.get("STOP_MODE", "ATR")))
+    except ValueError as exc:
+        raise RuntimeError(
+            f"STOP_MODE invalide : {merged.get('STOP_MODE')!r} "
+            f"(connus : {', '.join(m.value for m in StopMode)})"
+        ) from exc
+    try:
+        swing_exit_mode = SwingExitMode(
+            _env(merged, "SWING_EXIT_MODE", preset.get("SWING_EXIT_MODE", "EMA20")).upper()
+        )
+    except ValueError as exc:
+        raise RuntimeError(
+            f"SWING_EXIT_MODE invalide : {merged.get('SWING_EXIT_MODE')!r} "
+            f"(connus : {', '.join(m.value for m in SwingExitMode)})"
+        ) from exc
+
+    default_decision = "1d" if entry_mode is EntryMode.SWING_MACRO_D1 else "4h"
+    decision_timeframe = _env(merged, "DECISION_TIMEFRAME", default_decision)
+    if entry_mode is EntryMode.SWING_MACRO_D1 and decision_timeframe != "1d":
+        raise RuntimeError(
+            "ENTRY_MODE=SWING_MACRO_D1 exige DECISION_TIMEFRAME=1d : la règle "
+            "Donchian/EMA20 lit des bougies Daily, pas H4."
+        )
+
     risk = RiskConfig(
         risk_per_trade_pct=Decimal(p("RISK_PER_TRADE_PCT")),
         max_notional_pct=Decimal(p("MAX_NOTIONAL_PCT")),
@@ -277,6 +378,18 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
         take_profit_r_multiple=Decimal(p("TAKE_PROFIT_R_MULTIPLE")),
         trend_buffer_pct=Decimal(merged.get("TREND_BUFFER_PCT", "0.005")),
         falling_knife_atr_multiple=Decimal(merged.get("FALLING_KNIFE_ATR_MULTIPLE", "2.5")),
+        stop_mode=stop_mode,
+        max_stop_distance_pct=Decimal(merged.get("MAX_STOP_DISTANCE_PCT", "0.05")),
+        small_account_full_allocation=_env_bool(
+            merged, "SMALL_ACCOUNT_FULL_ALLOCATION",
+            preset.get("SMALL_ACCOUNT_FULL_ALLOCATION", "false"),
+        ),
+        small_account_threshold_quote=Decimal(
+            merged.get("SMALL_ACCOUNT_THRESHOLD_QUOTE", "50")
+        ),
+        small_account_max_risk_pct=Decimal(
+            merged.get("SMALL_ACCOUNT_MAX_RISK_PCT", "0.05")
+        ),
         min_atr_pct_of_price=Decimal(merged.get("MIN_ATR_PCT_OF_PRICE", "0.0015")),
         max_atr_pct_of_price=Decimal(merged.get("MAX_ATR_PCT_OF_PRICE", "0.08")),
         min_confidence=Decimal(p("MIN_CONFIDENCE")),
@@ -290,6 +403,34 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
         max_orders_per_hour=_env_int(merged, "MAX_ORDERS_PER_HOUR", p("MAX_ORDERS_PER_HOUR")),
         stale_data_seconds=_env_int(merged, "STALE_DATA_SECONDS", "5"),
         max_open_positions=_env_int(merged, "MAX_OPEN_POSITIONS", "1"),
+        entry_rule_enabled=_env_bool(merged, "ENTRY_RULE_ENABLED", "true"),
+        entry_rsi_min=Decimal(merged.get("ENTRY_RSI_MIN", "40")),
+        entry_rsi_max=Decimal(merged.get("ENTRY_RSI_MAX", "65")),
+        entry_pullback_atr=Decimal(merged.get("ENTRY_PULLBACK_ATR", "0.75")),
+        entry_require_ema50_above_ema200=_env_bool(
+            merged, "ENTRY_REQUIRE_EMA50_ABOVE_EMA200", "true"
+        ),
+        entry_ema200_slope_min=Decimal(p("ENTRY_EMA200_SLOPE_MIN")),
+        entry_mode=entry_mode,
+        entry_pullback_h1_atr=Decimal(merged.get("ENTRY_PULLBACK_H1_ATR", "1.0")),
+        entry_h1_rsi_min=Decimal(merged.get("ENTRY_H1_RSI_MIN", "38")),
+        entry_h1_rsi_max=Decimal(merged.get("ENTRY_H1_RSI_MAX", "55")),
+        swing_donchian_days=_env_int(merged, "SWING_DONCHIAN_DAYS", "20"),
+        swing_rsi_min=Decimal(merged.get("SWING_RSI_MIN", "50")),
+        swing_rsi_max=Decimal(merged.get("SWING_RSI_MAX", "65")),
+        swing_require_donchian=_env_bool(merged, "SWING_REQUIRE_DONCHIAN", "true"),
+        swing_require_value_rebound=_env_bool(merged, "SWING_REQUIRE_VALUE_REBOUND", "true"),
+        swing_breakeven_r=Decimal(merged.get("SWING_BREAKEVEN_R", "1")),
+        swing_exit_mode=swing_exit_mode,
+        swing_exit_below_ema20=_env_bool(merged, "SWING_EXIT_BELOW_EMA20", "true"),
+        swing_bollinger_period=_env_int(merged, "SWING_BOLLINGER_PERIOD", "20"),
+        swing_bollinger_std=Decimal(merged.get("SWING_BOLLINGER_STD", "2.5")),
+        swing_chandelier_period=_env_int(merged, "SWING_CHANDELIER_PERIOD", "20"),
+        swing_chandelier_atr_multiple=Decimal(
+            merged.get("SWING_CHANDELIER_ATR_MULTIPLE", "3.0")
+        ),
+        min_exit_confidence=Decimal(merged.get("MIN_EXIT_CONFIDENCE", "0.55")),
+        min_halt_confidence=Decimal(merged.get("MIN_HALT_CONFIDENCE", "0.80")),
     )
 
     sandbox = _env_bool(merged, "EXCHANGE_SANDBOX_MODE", "true")
@@ -322,6 +463,12 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
     allowed_symbols = tuple(dict.fromkeys((symbol, *declared_symbols)))
 
     key_names, secret_names = EXCHANGE_KEY_ALIASES[exchange_id]
+    taker_fee = Decimal(merged.get("TAKER_FEE_PCT", EXCHANGE_TAKER_FEE_DEFAULTS[exchange_id]))
+    maker_fee = Decimal(merged.get("MAKER_FEE_PCT", EXCHANGE_MAKER_FEE_DEFAULTS[exchange_id]))
+    if not (Decimal("0") < taker_fee <= Decimal("0.05")):
+        raise RuntimeError(f"TAKER_FEE_PCT doit être dans ]0, 5%], reçu {taker_fee}")
+    if not (Decimal("0") <= maker_fee <= Decimal("0.05")):
+        raise RuntimeError(f"MAKER_FEE_PCT doit être dans [0, 5%], reçu {maker_fee}")
     exchange = ExchangeSettings(
         exchange_id=exchange_id,
         api_key=_first(merged, "EXCHANGE_API_KEY", *key_names),
@@ -330,8 +477,10 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
         symbol=symbol,
         quote_currency=quote_currency,
         allowed_symbols=allowed_symbols,
-        daily_timeframe_decision=_env(merged, "DECISION_TIMEFRAME", "4h"),
+        daily_timeframe_decision=decision_timeframe,
         entry_timeframe=_env(merged, "ENTRY_TIMEFRAME", "1h"),
+        taker_fee=taker_fee,
+        maker_fee=maker_fee,
     )
     if mode == "live" and (not exchange.api_key or not exchange.secret):
         raise RuntimeError("TRADING_MODE=live sans clés API exchange")
@@ -349,6 +498,10 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
     slippage_bps = int(merged.get("PAPER_SLIPPAGE_BPS", "5"))
     if slippage_bps < 0:
         raise RuntimeError("PAPER_SLIPPAGE_BPS ne peut pas être négatif")
+
+    halt_auto_resume_hours = _env_int(merged, "HALT_AUTO_RESUME_HOURS", "24")
+    if not (0 <= halt_auto_resume_hours <= 168):
+        raise RuntimeError("HALT_AUTO_RESUME_HOURS doit être entre 0 et 168 heures")
 
     llm = LLMSettings(
         base_url=_env(merged, "LLM_BASE_URL", "http://127.0.0.1:11434/v1"),
@@ -374,5 +527,6 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
         paper_slippage_bps=slippage_bps,
         sweep_ratio=sweep_ratio,
         sweep_min_transfer_quote=sweep_min,
+        halt_auto_resume_hours=halt_auto_resume_hours,
         _raw_env=merged,
     )
