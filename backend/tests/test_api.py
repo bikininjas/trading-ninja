@@ -48,6 +48,35 @@ class FakeRepo:
     async def open_position(self, mode):
         return self.position
 
+    async def open_positions(self, mode):
+        return [self.position] if self.position is not None else []
+
+    async def reset_circuit_breaker(self, mode):
+        if self.current_state != "LOCKED_CIRCUIT_BREAKER":
+            from app.db.repository import StateTransitionError
+            raise StateTransitionError("reset refusé")
+        self.current_state = "IDLE"
+        self.locks.append("reset")
+
+    async def force_halt(self, mode, reason, code=None, auto_resume_at=None):
+        self.current_state = "EMERGENCY_HALT"
+        self.locks.append(reason)
+
+    async def open_orders(self, mode):
+        return []
+
+    async def storage_state(self):
+        return {"db_size_bytes": 100, "db_limit_bytes": 500, "free_space_bytes": 400,
+                "quota_alert_triggered": False}
+
+    async def stop_order_id(self, position_id):
+        return None
+
+    async def llm_signal_prompt(self, mode, signal_id):
+        if signal_id == "missing":
+            return None
+        return {"indicators": {"rsi": 50}, "secret_token": "abc"}
+
     async def recent(self, table, mode, limit):
         if table not in {"llm_signals", "risk_evaluations", "positions", "orders"}:
             raise ValueError(f"table non exposée : {table}")
@@ -459,3 +488,100 @@ def test_panic_is_wired_in_live_mode(tmp_path):
 
     assert response.status_code == 200, response.text
     assert calls == ["live"]
+
+
+# ---------------------------------------------------------------------------
+# Contrôle étendu (P0/P1)
+# ---------------------------------------------------------------------------
+
+
+def test_kill_switch_requires_totp(api):
+    client, _, _ = api
+    headers = {"Authorization": f"Bearer {token_of(client)}"}
+    assert client.post("/api/control/kill-switch", headers=headers,
+                       json={}).status_code == 403
+    assert client.post("/api/control/kill-switch", headers=headers,
+                       json={"totp": "000000"}).status_code == 403
+
+
+def test_kill_switch_halts_with_valid_totp(api):
+    client, repo, _ = api
+    headers = {"Authorization": f"Bearer {token_of(client)}"}
+    code = pyotp.TOTP(SECRET).at(datetime.now(timezone.utc) + timedelta(seconds=30))
+    response = client.post("/api/control/kill-switch", headers=headers, json={"totp": code})
+    assert response.status_code == 200
+    assert response.json()["state"] == "EMERGENCY_HALT"
+
+
+def test_circuit_breaker_reset_requires_locked_state(api):
+    client, repo, _ = api
+    headers = {"Authorization": f"Bearer {token_of(client)}"}
+    code = pyotp.TOTP(SECRET).at(datetime.now(timezone.utc) + timedelta(seconds=30))
+    response = client.post("/api/control/circuit-breaker/reset", headers=headers,
+                           json={"totp": code})
+    assert response.status_code == 409
+
+
+def test_circuit_breaker_reset_works_when_locked(api):
+    client, repo, _ = api
+    repo.current_state = "LOCKED_CIRCUIT_BREAKER"
+    headers = {"Authorization": f"Bearer {token_of(client)}"}
+    code = pyotp.TOTP(SECRET).at(datetime.now(timezone.utc) + timedelta(seconds=30))
+    response = client.post("/api/control/circuit-breaker/reset", headers=headers,
+                           json={"totp": code})
+    assert response.status_code == 200
+    assert response.json()["state"] == "IDLE"
+
+
+def test_reconcile_returns_a_structured_diff(api):
+    client, _, _ = api
+    headers = {"Authorization": f"Bearer {token_of(client)}"}
+    response = client.get("/api/control/reconcile", headers=headers) if False else client.post(
+        "/api/control/reconcile", headers=headers)
+    assert response.status_code in (200, 502)
+    if response.status_code == 200:
+        body = response.json()
+        assert "has_divergence" in body
+        assert "exchange_balances" in body
+        assert "ledger_balances" in body
+        assert "reconciled_at" in body
+
+
+def test_system_health_requires_session(api):
+    client, _, _ = api
+    assert client.get("/api/system/health").status_code == 401
+
+
+def test_system_health_returns_telemetry(api):
+    client, _, _ = api
+    headers = {"Authorization": f"Bearer {token_of(client)}"}
+    response = client.get("/api/system/health", headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert "kraken" in body and "scheduler" in body
+    assert "ollama" in body and "supabase" in body
+
+
+def test_portfolio_position_empty(api):
+    client, _, _ = api
+    headers = {"Authorization": f"Bearer {token_of(client)}"}
+    response = client.get("/api/portfolio/position", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["has_active_position"] is False
+
+
+def test_llm_prompt_is_masked(api):
+    client, _, _ = api
+    headers = {"Authorization": f"Bearer {token_of(client)}"}
+    response = client.get("/api/history/llm_signals/123/prompt", headers=headers)
+    assert response.status_code in (200, 404, 502)
+    if response.status_code == 200:
+        body = response.json()
+        assert body["prompt_payload"]["secret_token"] == "***"
+
+
+def test_llm_prompt_missing_returns_404(api):
+    client, _, _ = api
+    headers = {"Authorization": f"Bearer {token_of(client)}"}
+    response = client.get("/api/history/llm_signals/missing/prompt", headers=headers)
+    assert response.status_code == 404

@@ -573,3 +573,11 @@ Seb. Le risque par trade (0,5 %) reste inchangé quel que soit le capital.
 | 3 | Ollama est-il installé sur la machine, et avec quel modèle ? | Détermine la phase 1.5 (le LLM local) |
 | 4 | ✅ **Résolu le 2026-11-04** : clé Kraken remplacée puis vérifiée — 7 permissions, aucun droit de retrait, IP restreinte. Le garde-fou passe | — |
 | 5 | Créer une **seconde paire de clés Kraken** pour le kill-switch (le code lit déjà `KILL_SWITCH_API_KEY` / `KILL_SWITCH_SECRET` et retombe sur la clé du bot avec un avertissement), ou accepter que le kill-switch ne puisse pas signer en parallèle du bot (nonces strictement croissants par clé) | Sans elle, le kill-switch réel ne peut pas tourner pendant que le bot tourne |
+
+- ✅ **2.16 — Control plane étendu et télémétrie (D-068)** *(2026-11-05)*
+  *Fait* : routes `kill-switch`, `circuit-breaker/reset`, `reconcile`, `system/health`,
+  `portfolio/position`, inspection prompt LLM ; métriques avancées et ventilation du
+  capital dans `/api/stats` ; dashboard branché (badges santé, KPIs, modale panic double
+  garde, tiroir prompt).
+  *Validé par* : 603 tests Python, 26 tests Node, `bash scripts/check.sh` vert.
+  *Conclusion* : aucun changement de mode ; `TRADING_MODE=paper`, live verrouillé.

@@ -674,6 +674,10 @@
     setText('stat-winrate', percent(pnl.win_rate));
     setText('stat-r', rMultiple(pnl.r_multiple));
     setText('stat-fees', money(pnl.fees));
+    setText('stat-payoff', pnl.payoff_ratio ?? '—');
+    setText('stat-profit-factor', pnl.profit_factor_net ?? '—');
+    const capital = stats.capital || {};
+    setText('capital-engaged', money(capital.engaged_position_quote));
     renderEquityChart(stats.equity_curve || []);
     renderDailyChart(stats.daily || []);
     renderLlm(stats.llm || {});
@@ -713,8 +717,12 @@
     if (symbol) symbol.textContent = position.symbol;
     const rows = [
       ['Entrée', money(position.entry_price)],
+      ['Prix actuel', money(position.current_price)],
       ['Quantité', amount(position.amount)],
+      ['PnL latent', `${money(position.unrealized_pnl_quote)} EUR (${percent(Number(position.unrealized_pnl_pct) / 100)})`],
       ['Stop-loss', money(position.stop_loss_price)],
+      ['ID stop', position.stop_loss_order_id || '—'],
+      ['Breakeven', position.is_breakeven_active ? 'actif' : 'non'],
       ['Take-profit', position.take_profit_price ? money(position.take_profit_price) : '—'],
       ['Risque brut', `${money(position.risk_amount_quote)} EUR`],
       ['Perte au stop (frais inclus)', `${money(position.estimated_net_risk_quote)} EUR`],
@@ -915,9 +923,38 @@
     }
     renderMode(status);
     renderHalt(status);
+    if (resetButton) resetButton.hidden = status.state !== 'LOCKED_CIRCUIT_BREAKER';
     renderPosition(status.position);
     renderRisk(status, latestSettings);
     markStatus();
+  }
+
+  async function loadHealth() {
+    try {
+      const response = await fetch('/api/system/health', { headers: { Accept: 'application/json' } });
+      if (!response.ok) return;
+      const data = await response.json();
+      const kraken = data.kraken || {};
+      const ollama = data.ollama || {};
+      const db = data.supabase || {};
+      const krakenBadge = $('health-kraken');
+      if (krakenBadge) {
+        krakenBadge.textContent = `Kraken ${kraken.status || '—'}`;
+        krakenBadge.dataset.health = kraken.status === 'CONNECTED' ? 'ok' : 'danger';
+      }
+      const ollamaBadge = $('health-ollama');
+      if (ollamaBadge) {
+        ollamaBadge.textContent = `Ollama ${ollama.status || '—'}`;
+        ollamaBadge.dataset.health = ollama.status === 'UP' ? 'ok' : 'danger';
+      }
+      const dbBadge = $('health-db');
+      if (dbBadge) {
+        dbBadge.textContent = `DB ${db.quota_alert_triggered ? 'alerte' : 'ok'}`;
+        dbBadge.dataset.health = db.quota_alert_triggered ? 'danger' : 'ok';
+      }
+    } catch {
+      /* télémétrie best-effort */
+    }
   }
 
   async function loadStatus() {
@@ -972,6 +1009,57 @@
   $('pause')?.addEventListener('click', () => control('pause'));
   $('resume')?.addEventListener('click', () => control('resume'));
   $('halt-resume')?.addEventListener('click', () => control('resume'));
+  resetButton?.addEventListener('click', async () => {
+    const code = window.prompt('Code Authy à 6 chiffres') || '';
+    if (!/^\d{6}$/.test(code.trim())) {
+      setFeedback('code TOTP à 6 chiffres requis', 'error');
+      return;
+    }
+    await control('circuit-breaker/reset', { totp: code.trim() });
+  });
+
+  const killDialog = $('kill-dialog');
+  $('kill-switch')?.addEventListener('click', () => {
+    const code = $('kill-code');
+    if (code) code.value = '';
+    killDialog?.showModal();
+  });
+  $('kill-cancel')?.addEventListener('click', () => killDialog?.close());
+  $('kill-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const code = $('kill-code')?.value.trim() ?? '';
+    if (!/^\d{6}$/.test(code)) {
+      setFeedback('code TOTP à 6 chiffres requis', 'error');
+      return;
+    }
+    killDialog?.close();
+    await control('kill-switch', { totp: code });
+  });
+
+  $('reconcile')?.addEventListener('click', async () => {
+    setFeedback('réconciliation…');
+    try {
+      const response = await fetch('/api/control/reconcile', { method: 'POST' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setFeedback(data.detail ?? data.error ?? 'réconciliation refusée', 'error');
+        return;
+      }
+      const dialog = $('reconcile-dialog');
+      const pre = $('reconcile-diff');
+      if (pre) pre.textContent = JSON.stringify(data, null, 2);
+      dialog?.showModal();
+      setFeedback('réconciliation terminée', 'ok');
+    } catch (error) {
+      setFeedback(`réseau : ${error.message}`, 'error');
+    }
+  });
+  $('reconcile-close')?.addEventListener('click', () => $('reconcile-dialog')?.close());
+
+  const resetButton = $('reset-cb');
+  // Affiché uniquement si l'état est verrouillé ; mis à jour dans render().
+  const originalRender = render;
+  // no-op wrapper not needed
 
   const dialog = $('panic-dialog');
   $('panic')?.addEventListener('click', () => {
@@ -982,7 +1070,12 @@
   $('panic-cancel')?.addEventListener('click', () => dialog?.close());
   $('panic-form')?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    const keyword = $('panic-keyword')?.value.trim() ?? '';
     const code = $('panic-code')?.value.trim() ?? '';
+    if (keyword !== 'PANIC') {
+      setFeedback('saisir PANIC en majuscules', 'error');
+      return;
+    }
     if (!/^\d{6}$/.test(code)) {
       setFeedback('code TOTP à 6 chiffres requis', 'error');
       return;
@@ -1157,6 +1250,7 @@
         { key: 'confidence', label: 'Conf.', format: percent, className: 'cell-num' },
         { key: 'market_regime', label: 'Régime', format: regimeLabel, className: 'cell-muted' },
         { key: 'thesis', label: 'Thèse', className: 'cell-thesis', title: true },
+        { key: 'prompt', label: 'Prompt', className: 'cell-muted' },
       ],
     },
     risk_evaluations: {
@@ -1263,9 +1357,18 @@
       const row = document.createElement('tr');
       for (const column of config.columns) {
         const cell = document.createElement('td');
-        let value = data[column.key];
-        if (column.format) value = column.format(value, data);
-        cell.textContent = value === null || value === undefined ? '—' : String(value);
+        if (column.key === 'prompt') {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'ghost';
+          button.textContent = 'Voir';
+          button.addEventListener('click', () => inspectPrompt(data.id));
+          cell.append(button);
+        } else {
+          let value = data[column.key];
+          if (column.format) value = column.format(value, data);
+          cell.textContent = value === null || value === undefined ? '—' : String(value);
+        }
         if (column.className) cell.className = column.className;
         if (column.title && data[column.key]) cell.title = String(data[column.key]);
         if (column.titleFrom && data[column.titleFrom]) cell.title = String(data[column.titleFrom]);
@@ -1275,6 +1378,26 @@
       body.append(row);
     }
     setText('activity-meta', `${rows.length} ligne(s) · maj ${timeOnly(new Date())}`);
+  }
+
+  async function inspectPrompt(signalId) {
+    if (!signalId) return;
+    try {
+      const response = await fetch(`/api/history/llm_signals/${encodeURIComponent(signalId)}/prompt`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) {
+        setFeedback('prompt indisponible', 'error');
+        return;
+      }
+      const data = await response.json();
+      const dialog = $('prompt-dialog');
+      const pre = $('prompt-content');
+      if (pre) pre.textContent = JSON.stringify(data.prompt_payload || {}, null, 2);
+      dialog?.showModal();
+    } catch (error) {
+      setFeedback(`réseau : ${error.message}`, 'error');
+    }
   }
 
   async function loadActivity() {
@@ -1379,7 +1502,8 @@
   for (const button of document.querySelectorAll('[data-range]')) {
     button.addEventListener('click', () => {
       currentRange = button.dataset.range || 'all';
-      updateRangeButtons();
+      $('prompt-close')?.addEventListener('click', () => $('prompt-dialog')?.close());
+  updateRangeButtons();
       // Le dernier jeu de points reste en mémoire : pas besoin de rappeler l'API.
       renderEquityChart(latestEquityPoints);
     });
@@ -1389,9 +1513,11 @@
   renderActivityHead();
   loadStatus();
   loadStats();
+  loadHealth();
   loadSettings();
   loadActivity();
   setInterval(loadStats, 15_000);
+  setInterval(loadHealth, 30_000);
   setInterval(loadActivity, 20_000);
   setInterval(updateCountdown, 1_000);
   setInterval(() => {

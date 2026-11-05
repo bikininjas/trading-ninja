@@ -130,7 +130,7 @@ backend/
   scripts/shadow_report.py achats non pris : résumé + évaluation stop/TP
   scripts/lessons.py      relecture des résultats → leçons actives
   scripts/verify_drawdowns.py  drawdowns sur jeu figé, transaction annulée
-  tests/                   593 tests Python (+ golden de backtest)
+  tests/                   603 tests Python (+ golden de backtest)
 ```
 
 ## 7. Pièges connus de cet environnement

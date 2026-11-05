@@ -26,10 +26,30 @@ async def build_stats(repo, settings: Settings) -> dict:
     active_lessons = await repo.active_lessons(mode)
     lesson_history = await repo.recent_lessons(mode, 1)
 
+    account = await repo.account(mode, settings.paper_start_equity)
+    position = await repo.open_position(mode)
+
     total = int(metrics.get("total_trades") or 0)
     wins = int(metrics.get("wins") or 0)
     losses = int(metrics.get("losses") or 0)
     win_rate = Decimal(wins) / Decimal(total) if total else Decimal(0)
+
+    gross_profit = Decimal(str(metrics.get("gross_profit", 0) or 0))
+    gross_loss = Decimal(str(metrics.get("gross_loss", 0) or 0))
+    fees = Decimal(str(metrics.get("fees", 0) or 0))
+    avg_win = Decimal(str(metrics.get("avg_win", 0) or 0))
+    avg_loss = Decimal(str(metrics.get("avg_loss", 0) or 0))
+
+    payoff_ratio = (avg_win / abs(avg_loss)) if avg_loss != 0 else Decimal(0)
+    profit_factor_denominator = abs(gross_loss) + fees
+    profit_factor_net = (
+        gross_profit / profit_factor_denominator
+        if profit_factor_denominator != 0 else Decimal(0)
+    )
+
+    engaged_position = Decimal(0)
+    if position is not None:
+        engaged_position = position.entry_price * position.amount
 
     rejection_total = sum(int(row["count"]) for row in rejections) or 1
     rejection_rows = [
@@ -61,6 +81,16 @@ async def build_stats(repo, settings: Settings) -> dict:
             "net_pnl": jsonable(metrics.get("net_pnl", Decimal("0"))),
             "fees": jsonable(metrics.get("fees", Decimal("0"))),
             "r_multiple": jsonable(metrics.get("r_multiple", Decimal("0"))),
+            "payoff_ratio": str(payoff_ratio),
+            "profit_factor_net": str(profit_factor_net),
+            "gross_profit": jsonable(gross_profit),
+            "gross_loss": jsonable(gross_loss),
+        },
+        "capital": {
+            "free_quote": jsonable(account.free_quote),
+            "engaged_position_quote": jsonable(engaged_position),
+            "reserve_quote": jsonable(account.reserve_quote),
+            "equity": jsonable(account.equity),
         },
         "daily": [
             {

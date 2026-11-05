@@ -1601,3 +1601,38 @@ pas un filtre d'entrée supplémentaire.
 `rotation_dual.txt` ; **12 tests** dans `backend/tests/test_rotation.py` ; suite
 complète **593 passed**. Chiffres repris dans `docs/BACKTEST.md` § « Rotation momentum
 multi-paires ».
+
+---
+
+## D-068 — Control plane étendu : kill-switch, réconciliation, télémétrie, audit LLM
+
+**Contexte** : l'audit du dashboard a montré que le control plane se limitait à
+pause/reprise/panic, sans kill-switch API, sans réconciliation forcée, sans reset
+de circuit-breaker, sans télémétrie d'infrastructure ni inspection du prompt LLM.
+
+**Décision** :
+
+1. Trois nouvelles routes de contrôle, toutes protégées par TOTP frais :
+   `POST /api/control/kill-switch` (annulation des ordres ouverts puis
+   `EMERGENCY_HALT`, clé dédiée si présente), `POST /api/control/circuit-breaker/reset`
+   (remise à zéro des compteurs et retour `IDLE` depuis `LOCKED_CIRCUIT_BREAKER`),
+   `POST /api/control/reconcile` (lecture seule, diff structuré).
+2. `GET /api/system/health` regroupe Kraken, scheduler, Ollama et quota Supabase
+   en best-effort, sans faire planter l'API.
+3. `GET /api/portfolio/position` expose le prix courant, le PnL latent, l'ID d'ordre
+   stop et le statut breakeven, sans calcul côté client.
+4. `build_stats` ajoute `payoff_ratio`, `profit_factor_net`, `gross_profit`,
+   `gross_loss` et la ventilation du capital (`free_quote`, `engaged_position_quote`,
+   `reserve_quote`).
+5. `GET /api/history/llm_signals/{signal_id}/prompt` restitue le `prompt_payload`
+   avec masquage des clés sensibles.
+6. Le dashboard (client mince Node.js) branche les nouveaux boutons, la modale
+   panic à double garde (`PANIC` + TOTP), les badges de santé, les KPIs avancés et
+   le tiroir d'inspection du prompt.
+
+**Conséquence** : aucun changement de mode de trading. `TRADING_MODE` reste `paper`,
+les verrous live intacts, aucun ordre réel. La suite passe à 603 tests Python et
+26 tests Node.
+
+**Validé par** : `pytest -q` → 603 passed ; `node --test test/` → 26 passed ;
+`bash scripts/check.sh` → TOUT EST VERT.

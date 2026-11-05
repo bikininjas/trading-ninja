@@ -21,6 +21,9 @@
       <span id="conn" class="conn" data-online="false" role="status" aria-live="polite">connexion…</span>
       <span id="last-update" class="conn sub">maj —</span>
       <span id="mode-badge" class="badge mode-badge" data-mode="">—</span>
+      <span id="health-kraken" class="badge" data-health="">Kraken —</span>
+      <span id="health-ollama" class="badge" data-health="">Ollama —</span>
+      <span id="health-db" class="badge" data-health="">DB —</span>
       <span id="state" class="badge" data-state="">—</span>
       <form method="post" action="/logout">
         <button class="ghost" type="submit">Déconnexion</button>
@@ -88,6 +91,21 @@
         <p id="stat-fees" class="value small">—</p>
         <p class="sub">EUR</p>
       </article>
+      <article class="card">
+        <h2>Payoff ratio</h2>
+        <p id="stat-payoff" class="value small">—</p>
+        <p class="sub">gain moyen / perte moyenne</p>
+      </article>
+      <article class="card">
+        <h2>Profit factor net</h2>
+        <p id="stat-profit-factor" class="value small">—</p>
+        <p class="sub">frais déduits</p>
+      </article>
+      <article class="card">
+        <h2>Solde engagé</h2>
+        <p id="capital-engaged" class="value small">—</p>
+        <p class="sub">EUR · position en cours</p>
+      </article>
     </section>
 
     <section class="panel risk-panel">
@@ -151,6 +169,9 @@
           <button id="pause" class="warn" type="button">Pause</button>
           <button id="resume" class="ok" type="button">Reprendre</button>
           <button id="panic" class="danger" type="button">Panic-sell</button>
+          <button id="kill-switch" class="danger" type="button">Kill-switch</button>
+          <button id="reconcile" class="ghost" type="button">Réconcilier</button>
+          <button id="reset-cb" class="ghost" type="button" hidden>Réinitialiser coupe-circuit</button>
         </div>
         <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
       </section>
@@ -352,6 +373,10 @@
         Cette action solde la position au prix du marché et met le bot à l'arrêt.
         Saisir le code Authy courant.
       </p>
+      <label>
+        Confirmation
+        <input id="panic-keyword" type="text" placeholder="PANIC" autocomplete="off" required>
+      </label>
       <input id="panic-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
              placeholder="123456" autocomplete="one-time-code" required>
       <div class="dialog-actions">
@@ -359,6 +384,35 @@
         <button type="submit" class="danger">Liquider</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="kill-dialog" aria-labelledby="kill-title">
+    <form id="kill-form">
+      <h2 id="kill-title">Kill-switch</h2>
+      <p class="muted">Arrêt brutal du bot. Saisir le code Authy courant.</p>
+      <input id="kill-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+             placeholder="123456" autocomplete="one-time-code" required>
+      <div class="dialog-actions">
+        <button type="button" id="kill-cancel" class="ghost">Annuler</button>
+        <button type="submit" class="danger">Arrêter</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="reconcile-dialog" aria-labelledby="reconcile-title">
+    <div class="panel-head"><h2 id="reconcile-title">Réconciliation</h2></div>
+    <pre id="reconcile-diff" class="muted"></pre>
+    <div class="dialog-actions">
+      <button type="button" id="reconcile-close" class="ghost">Fermer</button>
+    </div>
+  </dialog>
+
+  <dialog id="prompt-dialog" aria-labelledby="prompt-title">
+    <div class="panel-head"><h2 id="prompt-title">Prompt LLM</h2></div>
+    <pre id="prompt-content" class="muted"></pre>
+    <div class="dialog-actions">
+      <button type="button" id="prompt-close" class="ghost">Fermer</button>
+    </div>
   </dialog>
 
   <script src="/app.js" defer></script>

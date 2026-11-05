@@ -6,6 +6,24 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-05 · 11:00 — Control plane étendu : kill-switch, réconciliation, télémétrie, audit LLM (D-068)
+
+**Fait** : audit puis implémentation des lacunes du dashboard et du backend. Trois
+nouvelles routes de contrôle (`/api/control/kill-switch`, `/circuit-breaker/reset`,
+`/reconcile`), télémétrie (`/api/system/health`), position enrichie
+(`/api/portfolio/position`), métriques avancées et ventilation du capital dans
+`/api/stats`, inspection du prompt LLM (`/api/history/llm_signals/{id}/prompt`),
+modale panic à double garde, badges de santé et KPIs dans le dashboard.
+
+**Vérifié**
+```
+cd backend && .venv/bin/python -m pytest -q -o addopts=""  → 603 passed
+cd dashboard && node --test test/                          → 26 passed
+bash scripts/check.sh                                     → TOUT EST VERT
+```
+603 tests = 593 + 10 tests API. Aucun fichier hors lab/tests/docs/backend/dashboard.
+`TRADING_MODE=paper`, live verrouillé, aucun ordre réel.
+
 ## 2026-11-05 · 09:30 — Dual momentum : drawdown réduit, cible de 25 % non atteinte (D-067)
 
 **Fait — filtre absolu.** `app/backtest/rotation.py` et `scripts/lab_rotation.py`

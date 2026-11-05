@@ -495,6 +495,46 @@ class PostgresRepository:
         positions = await self.open_positions(mode)
         return positions[0] if positions else None
 
+    async def stop_order_id(self, position_id) -> str | None:
+        return await self._conn.fetchval(
+            "SELECT id::text FROM orders WHERE position_id = $1 "
+            "AND purpose = 'STOP_LOSS' ORDER BY created_at DESC LIMIT 1",
+            position_id,
+        )
+
+    async def storage_state(self) -> dict:
+        db_bytes = int(await self._conn.fetchval("SELECT pg_database_size(current_database())"))
+        limit = 500 * 1024 * 1024
+        free = max(0, limit - db_bytes)
+        return {
+            "db_size_bytes": db_bytes,
+            "db_limit_bytes": limit,
+            "free_space_bytes": free,
+            "quota_alert_triggered": free < 100 * 1024 * 1024,
+        }
+
+    async def llm_signal_prompt(self, mode: str, signal_id: str):
+        import uuid as _uuid
+        try:
+            parsed = _uuid.UUID(str(signal_id))
+        except (ValueError, TypeError):
+            return None
+        row = await self._conn.fetchrow(
+            "SELECT prompt_payload FROM llm_signals "
+            "WHERE mode = $1::execution_mode AND id = $2",
+            mode, parsed,
+        )
+        if row is None:
+            return None
+        payload = row["prompt_payload"]
+        if isinstance(payload, str):
+            import json as _json
+            try:
+                payload = _json.loads(payload)
+            except Exception:  # noqa: BLE001
+                payload = {"raw": payload}
+        return payload
+
     async def insert_order(self, mode: str, *, client_order_id: str, symbol: str,
                            side: str, order_type: str, purpose: str, status: str,
                            requested_amount: Decimal, filled_amount: Decimal,
@@ -678,6 +718,32 @@ class PostgresRepository:
                 mode, previous, reason[:150], who,
             )
 
+    async def reset_circuit_breaker(self, mode: str, who: str = "admin") -> None:
+        """Remet à zéro les compteurs de circuit-breaker et repasse en IDLE."""
+        async with self._conn.transaction():
+            previous = await self._conn.fetchval(
+                "SELECT state::text FROM bot_state WHERE mode = $1::execution_mode", mode,
+            )
+            if previous != "LOCKED_CIRCUIT_BREAKER":
+                raise StateTransitionError(
+                    f"reset refusé : état courant {previous}, pas LOCKED_CIRCUIT_BREAKER"
+                )
+            await self._conn.execute(
+                "UPDATE bot_state SET state = 'IDLE'::system_state, "
+                "consecutive_losses = 0, cooldown_until = NULL, lock_details = NULL, "
+                "unlocked_by = $2, unlocked_at = CLOCK_TIMESTAMP(), "
+                "updated_at = CLOCK_TIMESTAMP() "
+                "WHERE mode = $1::execution_mode",
+                mode, who,
+            )
+            await self._conn.execute(
+                "INSERT INTO system_state_logs (mode, previous_state, current_state, "
+                "trigger_reason, resolved_at, resolved_by_admin) "
+                "VALUES ($1::execution_mode, $2::system_state, 'IDLE'::system_state, "
+                "'reset circuit-breaker', CLOCK_TIMESTAMP(), $3)",
+                mode, previous, who,
+            )
+
     async def force_halt(self, mode: str, reason: str, code: str | None = None,
                          auto_resume_at: datetime | None = None) -> None:
         """Arrêt d'urgence déclenché par un humain, depuis n'importe quel état.
@@ -773,6 +839,10 @@ class PostgresRepository:
             "COUNT(*) FILTER (WHERE net_pnl_quote <= 0) AS losses, "
             "COALESCE(SUM(net_pnl_quote), 0) AS net_pnl, "
             "COALESCE(SUM(total_fees_quote), 0) AS fees, "
+            "COALESCE(SUM(net_pnl_quote) FILTER (WHERE net_pnl_quote > 0), 0) AS gross_profit, "
+            "COALESCE(SUM(net_pnl_quote) FILTER (WHERE net_pnl_quote < 0), 0) AS gross_loss, "
+            "COALESCE(AVG(net_pnl_quote) FILTER (WHERE net_pnl_quote > 0), 0) AS avg_win, "
+            "COALESCE(AVG(net_pnl_quote) FILTER (WHERE net_pnl_quote < 0), 0) AS avg_loss, "
             "COALESCE(SUM(net_pnl_quote) / NULLIF(SUM(risk_amount_quote), 0), 0) AS r_multiple "
             "FROM positions WHERE mode = $1::execution_mode "
             "AND status IN ('CLOSED', 'EMERGENCY_LIQUIDATED')",
