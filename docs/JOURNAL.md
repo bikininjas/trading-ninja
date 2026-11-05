@@ -6,6 +6,62 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-05 · 09:30 — Dual momentum : drawdown réduit, cible de 25 % non atteinte (D-067)
+
+**Fait — filtre absolu.** `app/backtest/rotation.py` et `scripts/lab_rotation.py`
+acceptent `--abs-filter none|ema200|roc60|dual`. Le classement relatif 30/60 D1 choisit
+le leader **avant** le filtre ; si le leader échoue (sous EMA200, ROC60 négatif, ou les
+deux), l'allocation passe à 100 % CASH — jamais au deuxième du classement. Les frais
+sont comptés par transaction : CASH → CASH = 0, crypto → CASH = 1 côté, CASH → crypto
+= 1 côté, crypto → crypto = 2 côtés. `--summary-table` affiche le comparatif ; la
+sortie détaille aussi le temps en cash, les rotations vers cash/crypto et la ventilation
+annuelle. 12 tests unitaires.
+
+**Mesuré — 16 scénarios (4 filtres × 2 cadences × 2 frais), 2021-11 → 2026-11, 1 762 D1.**
+```
+cd backend && .venv/bin/python scripts/lab_rotation.py --months 60 \
+  --fees-bps 25,80 --cadences 7,14 --abs-filter dual --summary-table --verbose
+# rejouer avec --abs-filter none, ema200, roc60
+```
+| filtre | cadence | frais | retour | DD max | rotations | cash |
+|---|---:|---:|---:|---:|---:|---:|
+| none | 7 j | 25 pb | −1,22 % | 77,41 % | 54 | 0,0 % |
+| none | 14 j | 25 pb | −26,24 % | 79,68 % | 48 | 0,0 % |
+| ema200 | 7 j | 25 pb | +78,96 % | 62,18 % | 49 | 49,7 % |
+| ema200 | 14 j | 25 pb | +95,14 % | 63,18 % | 38 | 50,1 % |
+| roc60 | 7 j | 25 pb | +13,00 % | 71,51 % | 60 | 39,3 % |
+| roc60 | 14 j | 25 pb | −6,31 % | 70,21 % | 43 | 39,7 % |
+| dual | 7 j | 25 pb | +86,00 % | 64,55 % | 47 | 56,4 % |
+| dual | 14 j | 25 pb | **+125,56 %** | **54,46 %** | 32 | 56,4 % |
+
+À 80 pb, `dual` 14 j reste à +71,33 % mais son DD monte à 60,20 % ; les autres
+scénarios à 80 pb sont dans `docs/BACKTEST.md`. Buy & hold même fenêtre : BTC +69,7 %,
+ETH −39,6 %, SOL −44,4 %.
+
+**Diagnostic.** Le filtre absolu fait bien son travail en 2022 : `dual` 14 j/25 pb passe
+**96,1 % de l'année en cash** (14 jours investis, 347 en cash) et bloque le bear market.
+Le drawdown maximal vient de **2024** : pic à 4 674,34 EUR le 2024-04-01, creux à
+2 128,82 EUR le 2024-08-06, −54,46 %, avec seulement 19,2 % de cash cette année-là. La
+porte EMA200 hebdomadaire sort trop tard pendant la chute SOL/ETH. Le rendement cible
+(> +70 %) est atteint, la cible de drawdown (< 25 %) ne l'est pas.
+
+**Changement de sémantique.** Les chiffres D-066 (+163,74 % à 7 j/25 pb, +238,13 % à
+14 j/25 pb) provenaient du filtre historique « EMA200 **et** score > 0 ». Le mode
+`none` est désormais le relatif pur demandé par le brief et ne les reproduit pas ; le
+tableau ci-dessus est la nouvelle référence.
+
+**Vérifié**
+```
+cd backend && .venv/bin/python -m pytest -q -o addopts=""   → 593 passed
+bash scripts/check.sh                                       → TOUT EST VERT
+```
+593 tests = 587 + 6 nouveaux tests dual momentum. `TRADING_MODE=paper`, aucun ordre
+réel, chemin live toujours fermé. Aucun filtre d'entrée ajouté aux stratégies
+directionnelles ; le dual momentum reste un laboratoire de rotation, non branché sur
+le runtime.
+
+---
+
 ## 2026-11-05 · 07:30 — Frais maker : pas d'arête cachée ; rotation momentum mesurée (D-065, D-066)
 
 **Fait — sensibilité aux frais maker.** `scripts/backtest.py` accepte `--maker-fees

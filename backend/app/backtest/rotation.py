@@ -9,10 +9,11 @@ Règles :
 - univers : BTC/EUR, ETH/EUR, SOL/EUR, plus CASH/EUR (rendement nul) ;
 - réévaluation toutes les 7 ou 14 bougies D1 ;
 - force relative : moyenne des rendements 30 D1 et 60 D1 ;
-- un actif n'est éligible que si sa clôture est **au-dessus de son EMA200 D1**
-  et si sa force relative est positive ;
-- allocation 100 % à l'actif éligible de plus forte force relative ; sinon 100 %
-  cash.
+- l'actif leader est celui de plus forte force relative ;
+- un filtre absolu optionnel décide s'il reçoit l'allocation : aucun filtre
+  (``none``), clôture au-dessus de l'EMA200 D1 (``ema200``), ROC60 positif
+  (``roc60``) ou les deux (``dual``) ;
+- si le filtre absolu échoue, allocation 100 % en cash.
 
 Le module est PUR : il reçoit des bougies D1 déjà agrégées et ne touche ni à la
 base, ni à l'exchange, ni à une horloge. Les frais sont appliqués à chaque
@@ -32,15 +33,18 @@ from app.backtest.engine import _max_drawdown
 from app.backtest.swing import _ema_series
 
 __all__ = [
+    "ABS_FILTERS",
     "CASH",
     "Momentum",
     "Rotation",
     "RotationResult",
     "evaluate_momentum",
     "run_rotation_backtest",
+    "select_target",
 ]
 
 CASH = "CASH/EUR"
+ABS_FILTERS = ("none", "ema200", "roc60", "dual")
 DEFAULT_UNIVERSE = ("BTC/EUR", "ETH/EUR", "SOL/EUR")
 DAY_MS = 86_400_000
 EMA_PERIOD = 200
@@ -66,9 +70,20 @@ class Momentum:
     score: Decimal
     above_ema: bool
 
-    @property
-    def eligible(self) -> bool:
-        return self.above_ema and self.score > 0
+    def passes(self, abs_filter: str = "dual") -> bool:
+        """Le leader valide-t-il le filtre absolu demandé ?"""
+        if abs_filter == "none":
+            return True
+        if abs_filter == "ema200":
+            return self.above_ema
+        if abs_filter == "roc60":
+            return self.ret_long > 0
+        if abs_filter == "dual":
+            return self.above_ema and self.ret_long > 0
+        raise ValueError(
+            f"filtre absolu inconnu : {abs_filter!r} "
+            f"(connus : {', '.join(ABS_FILTERS)})"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +116,8 @@ class RotationResult:
     days_in_cash: int
     buy_and_hold: tuple[tuple[str, Decimal], ...]
     final_symbol: str
+    yearly: tuple[tuple[int, int, int], ...] = ()
+    equity_curve: tuple[tuple[datetime, Decimal], ...] = ()
 
     @property
     def net_pnl(self) -> Decimal:
@@ -125,6 +142,27 @@ class RotationResult:
     def exposure_pct(self) -> Decimal:
         total = self.days_in_market + self.days_in_cash
         return Decimal(self.days_in_market) / Decimal(total) if total else Decimal(0)
+
+    @property
+    def cash_pct(self) -> Decimal:
+        total = self.days_in_market + self.days_in_cash
+        return Decimal(self.days_in_cash) / Decimal(total) if total else Decimal(0)
+
+    @property
+    def rotations_to_cash(self) -> int:
+        return sum(1 for rotation in self.rotations if rotation.to_symbol == CASH)
+
+    @property
+    def rotations_to_crypto(self) -> int:
+        return sum(1 for rotation in self.rotations if rotation.to_symbol != CASH)
+
+    def cash_pct_for_year(self, year: int) -> Decimal | None:
+        """Part de jours en cash pour une année mesurée, si elle existe."""
+        for current_year, market_days, cash_days in self.yearly:
+            if current_year == year:
+                total = market_days + cash_days
+                return Decimal(cash_days) / Decimal(total) if total else Decimal(0)
+        return None
 
 
 def evaluate_momentum(
@@ -152,6 +190,23 @@ def evaluate_momentum(
     )
 
 
+def select_target(scores: Sequence[Momentum], abs_filter: str = "none") -> str:
+    """Choisit le leader relatif, puis applique le filtre absolu.
+
+    Le leader est toujours le score le plus élevé ; le filtre absolu ne le
+    remplace jamais par le deuxième. S'il échoue, le portefeuille va en cash.
+    """
+    if abs_filter not in ABS_FILTERS:
+        raise ValueError(
+            f"filtre absolu inconnu : {abs_filter!r} "
+            f"(connus : {', '.join(ABS_FILTERS)})"
+        )
+    if not scores:
+        raise ValueError("aucun score de momentum à comparer")
+    leader = max(scores, key=lambda item: item.score)
+    return leader.symbol if leader.passes(abs_filter) else CASH
+
+
 def _series(candles: Sequence[Sequence[Any]]) -> tuple[dict[int, list], list[Decimal], list[Decimal]]:
     if len(candles) < EMA_PERIOD:
         raise ValueError(f"historique insuffisant : {len(candles)} bougies D1")
@@ -172,6 +227,7 @@ def run_rotation_backtest(
     cadence_days: int = 7,
     momentum_short: int = MOMENTUM_SHORT,
     momentum_long: int = MOMENTUM_LONG,
+    abs_filter: str = "none",
     start_at: datetime | None = None,
 ) -> RotationResult:
     """Rejoue la rotation sur des bougies D1 alignées par date d'ouverture.
@@ -181,6 +237,11 @@ def run_rotation_backtest(
     """
     if cadence_days <= 0:
         raise ValueError("cadence_days doit être positif")
+    if abs_filter not in ABS_FILTERS:
+        raise ValueError(
+            f"filtre absolu inconnu : {abs_filter!r} "
+            f"(connus : {', '.join(ABS_FILTERS)})"
+        )
     if momentum_short <= 0 or momentum_long <= 0 or momentum_short >= momentum_long:
         raise ValueError("il faut 0 < momentum_short < momentum_long")
     symbols = tuple(universe)
@@ -225,6 +286,8 @@ def run_rotation_backtest(
     fees = Decimal(0)
     days_in_market = 0
     days_in_cash = 0
+    yearly_market: dict[int, int] = {}
+    yearly_cash: dict[int, int] = {}
     rotations: list[Rotation] = []
     curve: list[tuple[datetime, Decimal]] = [(_close_time(common[first - 1]), equity)]
 
@@ -237,8 +300,7 @@ def run_rotation_backtest(
                 )
                 for symbol in symbols
             )
-            eligible = [item for item in scores if item.eligible]
-            target = max(eligible, key=lambda item: item.score).symbol if eligible else CASH
+            target = select_target(scores, abs_filter)
             if target != current:
                 before = equity
                 fee_total = Decimal(0)
@@ -268,12 +330,15 @@ def run_rotation_backtest(
                 ))
                 current = target
 
+        day = _close_time(common[index])
         if current == CASH:
             days_in_cash += 1
+            yearly_cash[day.year] = yearly_cash.get(day.year, 0) + 1
         else:
             equity = units * closes[current][index]
             days_in_market += 1
-        curve.append((_close_time(common[index]), equity))
+            yearly_market[day.year] = yearly_market.get(day.year, 0) + 1
+        curve.append((day, equity))
 
     final_symbol = current
     if current != CASH:
@@ -302,4 +367,9 @@ def run_rotation_backtest(
         days_in_cash=days_in_cash,
         buy_and_hold=returns,
         final_symbol=final_symbol,
+        yearly=tuple(
+            (year, yearly_market.get(year, 0), yearly_cash.get(year, 0))
+            for year in sorted(set(yearly_market) | set(yearly_cash))
+        ),
+        equity_curve=tuple(curve),
     )

@@ -3,18 +3,18 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `f1a7b3f426420e0c`
+Empreinte des sources : `7290a277bffdc5cd`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
 | Modules Python | 102 |
-| Lignes Python | 23084 |
+| Lignes Python | 23339 |
 | Classes | 122 |
-| Fonctions et méthodes | 806 |
-| Cas de test collectés par pytest | 587 |
-| Fonctions de test (comptage statique) | 464 |
+| Fonctions et méthodes | 815 |
+| Cas de test collectés par pytest | 593 |
+| Fonctions de test (comptage statique) | 470 |
 | Migrations SQL | 9 |
 | Scripts shell | 3 |
 
@@ -34,7 +34,7 @@ Empreinte des sources : `f1a7b3f426420e0c`
 | `backend/app/backtest/golden.py` | 213 | Golden de backtest : décisions enregistrées + métriques attendues. |
 | `backend/app/backtest/llm_eval.py` | 92 | Métriques pures pour l'évaluation du LLM sur les signaux swing D1. |
 | `backend/app/backtest/mean_reversion.py` | 349 | Laboratoire Mean Reversion — hypothèse mesurée, jamais activée. |
-| `backend/app/backtest/rotation.py` | 305 | Laboratoire de rotation momentum — BTC/ETH/SOL contre cash, sans I/O. |
+| `backend/app/backtest/rotation.py` | 375 | Laboratoire de rotation momentum — BTC/ETH/SOL contre cash, sans I/O. |
 | `backend/app/backtest/short_lab.py` | 260 | Laboratoire du mandat short — mesure hors production. |
 | `backend/app/backtest/swing.py` | 488 | Rejeu du moteur swing Daily — le vrai pare-feu, le vrai broker, aucune I/O. |
 | `backend/app/core/__init__.py` | 1 |  |
@@ -80,7 +80,7 @@ Empreinte des sources : `f1a7b3f426420e0c`
 | `backend/scripts/hash_password.py` | 35 | Génère un hash de mot de passe administrateur (scrypt). |
 | `backend/scripts/ingest_history.py` | 471 | Ingestion de l'historique OHLCVT multi-années de Kraken. |
 | `backend/scripts/kill_switch.py` | 121 | Kill-switch autonome — solde la position et halte le bot, backend arrêté ou non. |
-| `backend/scripts/lab_rotation.py` | 232 | Laboratoire de rotation momentum D1 — aucun ordre, aucune écriture. |
+| `backend/scripts/lab_rotation.py` | 294 | Laboratoire de rotation momentum D1 — aucun ordre, aucune écriture. |
 | `backend/scripts/lessons.py` | 168 | Mémoire de leçons — relecture des résultats, affichage, purge. |
 | `backend/scripts/live_probe.py` | 172 | Sonde 3.1 — vérifier qu'un ordre réel rejeté ne fait pas planter le bot. |
 | `backend/scripts/probe_backtest.py` | 92 | Sonde : combien de décisions LLM un backtest coûterait-il sur BTC/EUR ? |
@@ -117,7 +117,7 @@ Empreinte des sources : `f1a7b3f426420e0c`
 | `backend/tests/test_reconciliation.py` | 268 | Tests de la réconciliation base ↔ exchange, sans réseau ni base réelle. |
 | `backend/tests/test_recovery.py` | 238 | Tests du kill-switch : liquidation, annulation des ordres, halte forcée. |
 | `backend/tests/test_risk_gate.py` | 582 | Tests du pare-feu transactionnel. |
-| `backend/tests/test_rotation.py` | 127 | Tests du laboratoire de rotation — aucun réseau, aucun ordre. |
+| `backend/tests/test_rotation.py` | 250 | Tests du laboratoire de rotation — aucun réseau, aucun ordre. |
 | `backend/tests/test_scheduler.py` | 83 | Tests de la cadence : prochaine clôture de bougie, alignée sur l'époque Unix. |
 | `backend/tests/test_schema_contract.py` | 173 | Contrat entre le schéma SQL et le code Python. |
 | `backend/tests/test_settings.py` | 389 | Tests du chargement de configuration : presets, écrasements, verrous d'armement. |
@@ -295,20 +295,25 @@ le code, pas une copie de celui-ci.
 
 *Laboratoire de rotation momentum — BTC/ETH/SOL contre cash, sans I/O.*
 
-- **class Momentum** (l.60) — Force relative d'un actif à une date de réévaluation.
-  - `def eligible(self) -> bool` (l.70)
-- **class Rotation** (l.75) — Un changement d'allocation, frais et slippage compris.
-- **class RotationResult** (l.88) — Résultat complet d'un rejeu de rotation.
-  - `def net_pnl(self) -> Decimal` (l.106)
-  - `def return_pct(self) -> Decimal` (l.110)
-  - `def years(self) -> Decimal` (l.116)
-  - `def rotations_per_year(self) -> Decimal` (l.121)
-  - `def exposure_pct(self) -> Decimal` (l.125)
-- `def _d(value: Any) -> Decimal` (l.51)
-- `def _close_time(open_ms: int) -> datetime` (l.55)
-- `def evaluate_momentum(closes: Sequence[Decimal], ema: Sequence[Decimal], index: int, *, symbol: str, short: int=MOMENTUM_SHORT, long: int=MOMENTUM_LONG) -> Momentum` (l.130) — Rendements 30/60 D1 et position relative à l'EMA200, sans futur.
-- `def _series(candles: Sequence[Sequence[Any]]) -> tuple[dict[int, list], list[Decimal], list[Decimal]]` (l.155)
-- `def run_rotation_backtest(*, candles_by_symbol: dict[str, Sequence[Sequence[Any]]], equity_start: Decimal, universe: Sequence[str]=DEFAULT_UNIVERSE, fee_bps: Decimal=Decimal('25'), slippage_bps: int=5, cadence_days: int=7, momentum_short: int=MOMENTUM_SHORT, momentum_long: int=MOMENTUM_LONG, start_at: datetime | None=None) -> RotationResult` (l.165) — Rejoue la rotation sur des bougies D1 alignées par date d'ouverture.
+- **class Momentum** (l.64) — Force relative d'un actif à une date de réévaluation.
+  - `def passes(self, abs_filter: str='dual') -> bool` (l.73) — Le leader valide-t-il le filtre absolu demandé ?
+- **class Rotation** (l.90) — Un changement d'allocation, frais et slippage compris.
+- **class RotationResult** (l.103) — Résultat complet d'un rejeu de rotation.
+  - `def net_pnl(self) -> Decimal` (l.123)
+  - `def return_pct(self) -> Decimal` (l.127)
+  - `def years(self) -> Decimal` (l.133)
+  - `def rotations_per_year(self) -> Decimal` (l.138)
+  - `def exposure_pct(self) -> Decimal` (l.142)
+  - `def cash_pct(self) -> Decimal` (l.147)
+  - `def rotations_to_cash(self) -> int` (l.152)
+  - `def rotations_to_crypto(self) -> int` (l.156)
+  - `def cash_pct_for_year(self, year: int) -> Decimal | None` (l.159) — Part de jours en cash pour une année mesurée, si elle existe.
+- `def _d(value: Any) -> Decimal` (l.55)
+- `def _close_time(open_ms: int) -> datetime` (l.59)
+- `def evaluate_momentum(closes: Sequence[Decimal], ema: Sequence[Decimal], index: int, *, symbol: str, short: int=MOMENTUM_SHORT, long: int=MOMENTUM_LONG) -> Momentum` (l.168) — Rendements 30/60 D1 et position relative à l'EMA200, sans futur.
+- `def select_target(scores: Sequence[Momentum], abs_filter: str='none') -> str` (l.193) — Choisit le leader relatif, puis applique le filtre absolu.
+- `def _series(candles: Sequence[Sequence[Any]]) -> tuple[dict[int, list], list[Decimal], list[Decimal]]` (l.210)
+- `def run_rotation_backtest(*, candles_by_symbol: dict[str, Sequence[Sequence[Any]]], equity_start: Decimal, universe: Sequence[str]=DEFAULT_UNIVERSE, fee_bps: Decimal=Decimal('25'), slippage_bps: int=5, cadence_days: int=7, momentum_short: int=MOMENTUM_SHORT, momentum_long: int=MOMENTUM_LONG, abs_filter: str='none', start_at: datetime | None=None) -> RotationResult` (l.220) — Rejoue la rotation sur des bougies D1 alignées par date d'ouverture.
 
 ### `backend/app/backtest/short_lab.py`
 
@@ -935,12 +940,13 @@ le code, pas une copie de celui-ci.
 
 *Laboratoire de rotation momentum D1 — aucun ordre, aucune écriture.*
 
-- `def _decimal_list(raw: str) -> list[Decimal]` (l.38)
-- `def _int_list(raw: str) -> list[int]` (l.45)
-- `async def _load(args) -> tuple[dict[str, list[list]], datetime | None, datetime]` (l.52)
-- `def _print_result(result, *, fee_bps: Decimal, cadence: int, slippage: int, verbose: bool) -> None` (l.86)
-- `async def _run(args) -> int` (l.134)
-- `def main() -> int` (l.197)
+- `def _decimal_list(raw: str) -> list[Decimal]` (l.39)
+- `def _int_list(raw: str) -> list[int]` (l.46)
+- `async def _load(args) -> tuple[dict[str, list[list]], datetime | None, datetime]` (l.53)
+- `def _print_result(result, *, abs_filter: str, fee_bps: Decimal, cadence: int, slippage: int, verbose: bool) -> None` (l.87)
+- `async def _run(args) -> int` (l.151)
+- `def _print_summary(abs_filter: str, rows) -> None` (l.229) — Tableau Markdown des scénarios cadence × frais d'un filtre.
+- `def main() -> int` (l.251)
 
 ### `backend/scripts/lessons.py`
 
@@ -1703,14 +1709,21 @@ le code, pas une copie de celui-ci.
 
 *Tests du laboratoire de rotation — aucun réseau, aucun ordre.*
 
-- `def candles(price, count: int=320) -> list[list]` (l.16)
-- `def universe(btc, eth, sol) -> dict[str, list[list]]` (l.24)
-- `def test_all_assets_below_their_ema_stay_in_cash()` (l.28)
-- `def test_the_strongest_asset_above_its_ema_takes_the_whole_allocation()` (l.42)
-- `def test_fees_reduce_the_final_equity()` (l.61)
-- `def test_a_crash_below_the_ema_sends_the_book_to_cash()` (l.81)
-- `def test_momentum_is_a_plain_average_of_the_two_windows()` (l.104)
-- `def test_an_invalid_window_is_refused()` (l.117)
+- `def candles(price, count: int=320) -> list[list]` (l.22)
+- `def universe(btc, eth, sol) -> dict[str, list[list]]` (l.30)
+- `def ramp_then_flat(base: int=100, slope: str='0.5', plateau_at: int=260, count: int=340) -> list[list]` (l.34) — Monte linéairement puis plafonne : le ROC60 finit par tomber à zéro.
+- `def test_none_holds_the_least_bad_asset_below_ema()` (l.45)
+- `def test_all_assets_below_their_ema_stay_in_cash()` (l.58)
+- `def test_the_strongest_asset_above_its_ema_takes_the_whole_allocation()` (l.73)
+- `def test_fees_reduce_the_final_equity()` (l.92)
+- `def test_a_crash_below_the_ema_sends_the_book_to_cash()` (l.112)
+- `def test_dual_momentum_fallback_to_cash_on_negative_roc()` (l.135)
+- `def test_dual_momentum_fallback_to_cash_on_sub_ema200()` (l.149)
+- `def test_dual_momentum_allocates_leader_when_valid()` (l.163)
+- `def test_fee_accounting_transitions()` (l.176)
+- `def test_momentum_is_a_plain_average_of_the_two_windows()` (l.213)
+- `def test_an_invalid_window_is_refused()` (l.228)
+- `def test_an_invalid_abs_filter_is_refused()` (l.241)
 
 ### `backend/tests/test_scheduler.py`
 
@@ -1869,14 +1882,14 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_reconciliation.py` | 15 |
 | `backend/tests/test_recovery.py` | 8 |
 | `backend/tests/test_risk_gate.py` | 147 |
-| `backend/tests/test_rotation.py` | 6 |
+| `backend/tests/test_rotation.py` | 12 |
 | `backend/tests/test_scheduler.py` | 13 |
 | `backend/tests/test_schema_contract.py` | 18 |
 | `backend/tests/test_settings.py` | 41 |
 | `backend/tests/test_shadow.py` | 5 |
 | `backend/tests/test_sweep.py` | 13 |
 | `backend/tests/test_swing_backtest.py` | 7 |
-| **Total** | **587** |
+| **Total** | **593** |
 
 ## 5. Schéma SQL
 

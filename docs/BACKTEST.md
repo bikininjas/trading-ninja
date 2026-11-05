@@ -560,41 +560,82 @@ PF ≥ 1,30.
 D1 reste négatif en cumulé et la mean reversion ne produit que des poches à petit N.
 Le seuil d'activation (PF ≥ 1,30 **et** N ≥ 100) reste non atteint. D-065.
 
-## Rotation momentum multi-paires — laboratoire (2026-11-05)
+## Rotation momentum multi-paires — laboratoire (2026-11-05, étendu D-067)
 
 Hypothèse : ne pas choisir un actif, mais **le meilleur des trois à chaque instant**,
 avec une porte de sortie vers le cash. Univers `BTC/EUR`, `ETH/EUR`, `SOL/EUR`,
 `CASH/EUR`. Toutes les 7 ou 14 bougies D1, on calcule pour chaque crypto le momentum
-moyen 30 j / 60 j ; on alloue 100 % au score le plus élevé **si** sa clôture est
-au-dessus de son EMA200 D1 et que son score est positif. Sinon, 100 % cash. Aucun
-stop, aucun levier, aucun ordre réel : `app/backtest/rotation.py` est pur et
-`scripts/lab_rotation.py` ne fait que charger les D1 depuis la base.
+moyen 30 j / 60 j, on retient le score le plus élevé, puis on applique un **filtre
+absolu** (`--abs-filter`) :
+
+| mode | condition pour garder le leader | sinon |
+|---|---|---|
+| `none` | aucune (relatif pur) | — |
+| `ema200` | clôture > EMA200 D1 | 100 % CASH |
+| `roc60` | ROC 60 D1 > 0 | 100 % CASH |
+| `dual` | clôture > EMA200 D1 **et** ROC 60 D1 > 0 | 100 % CASH |
+
+Le leader est toujours choisi avant le filtre : si le premier échoue, le laboratoire
+va en cash, il ne se rabat pas sur le deuxième. Les frais sont comptés par transaction :
+CASH → CASH = 0, crypto → CASH = 1 côté, CASH → crypto = 1 côté, crypto → crypto =
+2 côtés. Aucun stop, aucun levier, aucun ordre réel : `app/backtest/rotation.py` est
+pur et `scripts/lab_rotation.py` ne fait que charger les D1 depuis la base.
 
 ```bash
 cd backend && .venv/bin/python scripts/lab_rotation.py --months 60 \
-  --symbols BTC/EUR,ETH/EUR,SOL/EUR --fee-bps 25,80 --cadence-days 7,14
+  --fees-bps 25,80 --cadences 7,14 --abs-filter dual --summary-table
+# rejouer de même avec --abs-filter none, ema200, roc60
 ```
 
 Fenêtre commune mesurée : 1 762 bougies D1 (2021-11 → 2026-11). Buy & hold sur la
 même fenêtre : BTC +69,7 %, ETH −39,6 %, SOL −44,4 %.
 
-| cadence | frais | équité finale | retour | DD max | rotations | N/an | frais payés |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| 7 j | 25 pb | 2 637,37 | +163,74 % | 54,57 % | 48 | 9,9 | 391,12 |
-| 14 j | 25 pb | 3 381,33 | +238,13 % | 60,13 % | 34 | 7,0 | 443,16 |
-| 7 j | 80 pb | 1 774,94 | +77,49 % | 58,80 % | 48 | 9,9 | 994,12 |
-| 14 j | 80 pb | 2 512,46 | +151,25 % | 61,84 % | 34 | 7,0 | 1 200,24 |
+| filtre | cadence | frais | équité finale | retour | DD max | rotations | N/an | temps cash | frais payés | final |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| none | 7 j | 25 pb | 987,80 | −1,22 % | 77,41 % | 54 | 11,2 | 0,0 % | 259,07 | BTC |
+| none | 14 j | 25 pb | 737,64 | −26,24 % | 79,68 % | 48 | 9,9 | 0,0 % | 196,99 | BTC |
+| none | 7 j | 80 pb | 545,37 | −45,46 % | 80,17 % | 54 | 11,2 | 0,0 % | 590,20 | BTC |
+| none | 14 j | 80 pb | 435,04 | −56,50 % | 83,56 % | 48 | 9,9 | 0,0 % | 468,54 | BTC |
+| ema200 | 7 j | 25 pb | 1 789,61 | +78,96 % | 62,18 % | 49 | 10,1 | 49,7 % | 349,20 | BTC |
+| ema200 | 14 j | 25 pb | 1 951,44 | +95,14 % | 63,18 % | 38 | 7,9 | 50,1 % | 363,41 | BTC |
+| ema200 | 7 j | 80 pb | 1 204,40 | +20,44 % | 68,88 % | 49 | 10,1 | 49,7 % | 901,13 | BTC |
+| ema200 | 14 j | 80 pb | 1 418,44 | +41,84 % | 70,49 % | 38 | 7,9 | 50,1 % | 982,78 | BTC |
+| roc60 | 7 j | 25 pb | 1 130,04 | +13,00 % | 71,51 % | 60 | 12,4 | 39,3 % | 241,00 | BTC |
+| roc60 | 14 j | 25 pb | 936,92 | −6,31 % | 70,21 % | 43 | 8,9 | 39,7 % | 166,16 | BTC |
+| roc60 | 7 j | 80 pb | 711,94 | −28,81 % | 74,51 % | 60 | 12,4 | 39,3 % | 599,18 | BTC |
+| roc60 | 14 j | 80 pb | 651,70 | −34,83 % | 72,65 % | 43 | 8,9 | 39,7 % | 437,41 | BTC |
+| dual | 7 j | 25 pb | 1 859,95 | +86,00 % | 64,55 % | 47 | 9,7 | 56,4 % | 331,11 | BTC |
+| dual | 14 j | 25 pb | 2 255,58 | +125,56 % | 54,46 % | 32 | 6,6 | 56,4 % | 317,26 | BTC |
+| dual | 7 j | 80 pb | 1 293,74 | +29,37 % | 68,44 % | 47 | 9,7 | 56,4 % | 870,15 | BTC |
+| dual | 14 j | 80 pb | 1 713,26 | +71,33 % | 60,20 % | 32 | 6,6 | 56,4 % | 874,64 | BTC |
 
-Petit compte : `--equity 9.37 --fee-bps 25 --cadence-days 7` → 9,37 → 24,71 EUR
-(+163,74 %), mêmes 54,57 % de drawdown, 3,66 EUR de frais. Le calcul tient à 9,37 EUR,
-mais **les minimums d'ordre de l'exchange ne sont pas modélisés** par ce laboratoire :
-rien ne garantit qu'une rotation soit exécutable à ce capital.
+**Lecture** :
 
-**Lecture** : la rotation bat le buy & hold de chaque actif sur la fenêtre et produit
-7 à 10 rotations par an, dans la cible. Mais le drawdown de 55 à 62 % est très au-dessus
-du critère projet de 20 %, et les frais taker (80 pb) divisent le gain par deux. Sans
-stop ni ciblage de volatilité, le laboratoire montre une **direction**, pas une
-stratégie activable. Il n'est pas branché sur le runtime. D-066.
+- Le relatif pur (`none`) est perdant et garde 77 à 84 % de drawdown : il reste
+  investi dans l'actif « le moins baissier » pendant les purges, exactement le défaut
+  identifié dans le brief.
+- Les filtres absolus redressent le signe, mais **aucun scénario ne passe sous 25 % de
+  drawdown**. Le meilleur est `dual` 14 j / 25 pb : +125,56 % (au-dessus du buy & hold
+  BTC) mais 54,46 % de DD. `dual` 7 j / 25 pb : +86,00 %, 64,55 % de DD.
+- Le filtre fait bien son travail en 2022 : `dual` 14 j / 25 pb passe **96,1 % de
+  l'année en cash** (14 jours investis, 347 en cash) et bloque le bear market. Le
+  drawdown maximal vient de **2024** : pic à 4 674,34 EUR le 2024-04-01, creux à
+  2 128,82 EUR le 2024-08-06, soit −54,46 %, avec seulement 19,2 % de temps en cash
+  cette année-là. La porte EMA200 hebdomadaire sort trop tard pendant la chute
+  SOL/ETH.
+- Les frais taker (80 pb) divisent environ le gain par deux ; `dual` 14 j / 80 pb
+  reste à +71,33 % mais son DD monte à 60,20 %.
+- **Changement de sémantique** : les chiffres D-066 (+163,74 % à 7 j/25 pb, +238,13 %
+  à 14 j/25 pb) provenaient du filtre historique « EMA200 **et** score > 0 ». Le mode
+  `none` est désormais le relatif pur demandé par le brief et ne reproduit pas ces
+  chiffres ; `ema200` ne teste que l'EMA, sans la condition de score. Le tableau
+  ci-dessus est la nouvelle référence.
+
+**Verdict** : le dual momentum réduit fortement le drawdown par rapport au relatif pur
+et redevient rentable, mais il reste très au-dessus de la cible de 25 %. Il n'est pas
+branché sur le runtime. Le prochain levier est une sortie de risque plus rapide
+(contrôle quotidien du titre détenu, stop ou ciblage de volatilité), pas un filtre
+d'entrée supplémentaire. D-067.
 
 ## Tests récurrents
 

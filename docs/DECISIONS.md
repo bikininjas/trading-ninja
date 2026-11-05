@@ -1549,3 +1549,55 @@ laboratoires mesurés mais non activés. Le seuil live reste gelé.
 7,14 --verbose` → `/tmp/opencode/rotation_2021_2026.txt` ; 6 tests unitaires dans
 `backend/tests/test_rotation.py`. Chiffres repris dans `docs/BACKTEST.md` § « Rotation
 momentum multi-paires ».
+
+> **Note (2026-11-05, D-067)** : les chiffres ci-dessus proviennent du filtre
+> historique « EMA200 **et** score > 0 ». Le mode `none` du laboratoire étendu est le
+> relatif pur, sans filtre absolu ; il ne reproduit donc pas ces valeurs. Voir D-067.
+
+---
+
+## D-067 — Dual momentum : filtre absolu mesuré, cible de drawdown non atteinte
+
+**Contexte** : la rotation mesurée en D-066 battait le buy & hold mais restait
+investie dans l'actif « le moins baissier » pendant les purges, avec des drawdowns de
+54 à 61 % sur la mesure historique. Le brief demande d'ajouter un **momentum absolu**
+pour couper l'exposition quand le leader ne valide pas sa tendance macro, avec deux
+objectifs chiffrés : drawdown maximal sous **25 %** et rendement net supérieur au
+buy & hold BTC (**> +70 %**).
+
+**Décision** :
+
+1. `app/backtest/rotation.py` expose `ABS_FILTERS = ("none", "ema200", "roc60",
+   "dual")` et `select_target(scores, abs_filter)`. Le leader est choisi par le score
+   relatif 30/60 D1 **avant** le filtre ; s'il échoue, l'allocation est 100 % CASH,
+   jamais le deuxième du classement.
+2. Les quatre modes sont : `none` (relatif pur), `ema200` (clôture > EMA200 D1),
+   `roc60` (ROC 60 D1 > 0) et `dual` (les deux conditions). Le défaut reste `none`,
+   pour que le laboratoire puisse mesurer le relatif pur demandé par le brief.
+3. `scripts/lab_rotation.py` accepte `--abs-filter`, `--cadences`/`--cadence-days`,
+   `--fees-bps`/`--fee-bps` et `--summary-table`. La comptabilité est par transaction :
+   CASH → CASH = 0 frais, crypto → CASH = 1 côté, CASH → crypto = 1 côté,
+   crypto → crypto = 2 côtés ; la liquidation finale paie un côté.
+4. Mesure 2021-11 → 2026-11, 1 762 bougies D1, 16 scénarios (4 filtres × 2 cadences
+   × 2 niveaux de frais). `none` perd de l'argent et garde 77 à 84 % de drawdown.
+   `dual` 14 j / 25 pb est le meilleur : **+125,56 %**, DD **54,46 %**, 32 rotations
+   (6,6/an), 56,4 % de temps en cash. `dual` 7 j / 25 pb : +86,00 %, DD 64,55 %.
+5. Le filtre absolu fonctionne en 2022 : `dual` 14 j / 25 pb passe **96,1 % de l'année
+   en cash** (14 jours investis, 347 en cash). Le drawdown maximal vient de **2024** :
+   pic 4 674,34 EUR le 2024-04-01, creux 2 128,82 EUR le 2024-08-06, −54,46 %, avec
+   seulement 19,2 % de temps en cash. La porte EMA200 hebdomadaire sort trop tard
+   pendant la chute SOL/ETH.
+
+**Conséquence** : la cible de drawdown **< 25 % n'est pas atteinte**. Le dual momentum
+améliore nettement le relatif pur (signe positif, DD divisé) et dépasse le buy & hold
+BTC en rendement, mais il reste un laboratoire, **non activé** : aucun ordre, aucun
+changement de runtime, `TRADING_MODE=paper`. Le prochain levier est une sortie de
+risque plus rapide (contrôle quotidien du titre détenu, stop ou ciblage de volatilité),
+pas un filtre d'entrée supplémentaire.
+
+**Validé par** : `scripts/lab_rotation.py --months 60 --fees-bps 25,80 --cadences
+7,14 --abs-filter none|ema200|roc60|dual --summary-table --verbose` →
+`/tmp/opencode/rotation_none.txt`, `rotation_ema200.txt`, `rotation_roc60.txt`,
+`rotation_dual.txt` ; **12 tests** dans `backend/tests/test_rotation.py` ; suite
+complète **593 passed**. Chiffres repris dans `docs/BACKTEST.md` § « Rotation momentum
+multi-paires ».

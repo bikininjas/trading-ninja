@@ -2,12 +2,13 @@
 """Laboratoire de rotation momentum D1 — aucun ordre, aucune écriture.
 
     .venv/bin/python scripts/lab_rotation.py --months 60
-    .venv/bin/python scripts/lab_rotation.py --months 60 --cadence-days 7,14
+    .venv/bin/python scripts/lab_rotation.py --months 60 --abs-filter dual
 
 Univers : BTC/EUR, ETH/EUR, SOL/EUR, plus CASH/EUR. Toutes les 7 ou 14 bougies
 D1, le laboratoire classe les actifs par moyenne des rendements 30 D1 et 60 D1.
-Il alloue 100 % au plus fort **si** sa clôture est au-dessus de son EMA200 D1 et
-si sa force relative est positive ; sinon il reste en cash.
+Le filtre absolu décide ensuite si le leader reçoit l'allocation : ``none``
+(relatif pur), ``ema200`` (clôture au-dessus de l'EMA200 D1), ``roc60`` (ROC60
+positif) ou ``dual`` (les deux). Si le filtre échoue, 100 % cash.
 
 Le D1 est agrégé depuis le H4 en base : une journée incomplète est ignorée,
 jamais interpolée. Les frais sont appliqués à chaque rotation (vente puis
@@ -27,7 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.backtest.rotation import CASH, run_rotation_backtest  # noqa: E402
+from app.backtest.rotation import ABS_FILTERS, CASH, run_rotation_backtest  # noqa: E402
 from app.core.settings import load_settings  # noqa: E402
 from app.market.history import aggregate, load_candles  # noqa: E402
 
@@ -83,12 +84,13 @@ async def _load(args) -> tuple[dict[str, list[list]], datetime | None, datetime]
     return candles, start, now
 
 
-def _print_result(result, *, fee_bps: Decimal, cadence: int, slippage: int,
-                  verbose: bool) -> None:
+def _print_result(result, *, abs_filter: str, fee_bps: Decimal, cadence: int,
+                  slippage: int, verbose: bool) -> None:
     print()
     print(
-        f"cadence {cadence:2d} j · frais {fee_bps} pb/côté · "
-        f"slippage {slippage} pb · {result.candles} bougies D1"
+        f"filtre {abs_filter:6s} · cadence {cadence:2d} j · "
+        f"frais {fee_bps} pb/côté · slippage {slippage} pb · "
+        f"{result.candles} bougies D1"
     )
     print(
         f"  équité {result.equity_start:.2f} → {result.equity_end:.2f} EUR "
@@ -99,7 +101,9 @@ def _print_result(result, *, fee_bps: Decimal, cadence: int, slippage: int,
         f"  rotations {len(result.rotations)} "
         f"({result.rotations_per_year:.1f}/an) · "
         f"exposition {result.exposure_pct:.1%} · "
-        f"frais {result.fees_quote:.2f} EUR · "
+        f"cash {result.cash_pct:.1%} · "
+        f"vers cash {result.rotations_to_cash} / crypto "
+        f"{result.rotations_to_crypto} · frais {result.fees_quote:.2f} EUR · "
         f"position finale {result.final_symbol}"
     )
     holdings = " · ".join(
@@ -107,6 +111,13 @@ def _print_result(result, *, fee_bps: Decimal, cadence: int, slippage: int,
         for symbol, value in result.buy_and_hold
     )
     print(f"  buy & hold (même fenêtre) : {holdings} · cash 0.0%")
+    yearly = " · ".join(
+        f"{year} {cash_days / (market_days + cash_days):.0%} cash"
+        for year, market_days, cash_days in result.yearly
+        if market_days + cash_days
+    )
+    if yearly:
+        print(f"  cash par année : {yearly}")
 
     if verbose:
         print()
@@ -115,13 +126,19 @@ def _print_result(result, *, fee_bps: Decimal, cadence: int, slippage: int,
             f"{'équité avant':>13s} {'équité après':>12s} {'frais':>8s}  motif"
         )
         for rotation in result.rotations:
-            eligible = [item for item in rotation.scores if item.eligible]
-            best = max(eligible, key=lambda item: item.score) if eligible else None
-            reason = (
-                f"score {best.score:+.2%} (30d {best.ret_short:+.2%}, "
-                f"60d {best.ret_long:+.2%})"
-                if best else "aucun actif au-dessus de l'EMA200 / momentum positif"
-            )
+            leader = max(rotation.scores, key=lambda item: item.score)
+            if rotation.to_symbol == CASH and abs_filter != "none":
+                reason = (
+                    f"{leader.symbol} rejeté par {abs_filter} "
+                    f"(EMA200 {'oui' if leader.above_ema else 'non'}, "
+                    f"ROC60 {leader.ret_long:+.2%})"
+                )
+            else:
+                reason = (
+                    f"score {leader.score:+.2%} "
+                    f"(30d {leader.ret_short:+.2%}, "
+                    f"60d {leader.ret_long:+.2%})"
+                )
             print(
                 f"  {rotation.at:%Y-%m-%d} "
                 f"{rotation.from_symbol.replace('/EUR', ''):>9s} → "
@@ -149,9 +166,11 @@ async def _run(args) -> int:
     print(
         "Rotation momentum D1 · univers "
         f"{', '.join(symbol_list)} + {CASH} · "
-        f"momentum {args.momentum_short}/{args.momentum_long} D1 · EMA200 D1"
+        f"momentum {args.momentum_short}/{args.momentum_long} D1 · "
+        f"filtre absolu {args.abs_filter}"
     )
     payload = []
+    summary = []
     for fee_bps in fees:
         for cadence in cadences:
             result = run_rotation_backtest(
@@ -163,13 +182,16 @@ async def _run(args) -> int:
                 cadence_days=cadence,
                 momentum_short=args.momentum_short,
                 momentum_long=args.momentum_long,
+                abs_filter=args.abs_filter,
                 start_at=start,
             )
             _print_result(
-                result, fee_bps=fee_bps, cadence=cadence,
-                slippage=slippage, verbose=args.verbose,
+                result, abs_filter=args.abs_filter, fee_bps=fee_bps,
+                cadence=cadence, slippage=slippage, verbose=args.verbose,
             )
+            summary.append((fee_bps, cadence, result))
             payload.append({
+                "abs_filter": args.abs_filter,
                 "fee_bps": str(fee_bps),
                 "cadence_days": cadence,
                 "period_start": result.period_start.isoformat(),
@@ -182,16 +204,48 @@ async def _run(args) -> int:
                 "rotations": len(result.rotations),
                 "rotations_per_year": str(result.rotations_per_year),
                 "exposure_pct": str(result.exposure_pct),
+                "cash_pct": str(result.cash_pct),
+                "rotations_to_cash": result.rotations_to_cash,
+                "rotations_to_crypto": result.rotations_to_crypto,
                 "fees_quote": str(result.fees_quote),
                 "final_symbol": result.final_symbol,
+                "yearly": [
+                    {"year": year, "market_days": market_days,
+                     "cash_days": cash_days}
+                    for year, market_days, cash_days in result.yearly
+                ],
                 "buy_and_hold": {
                     symbol: str(value) for symbol, value in result.buy_and_hold
                 },
             })
 
+    if args.summary_table:
+        _print_summary(args.abs_filter, summary)
     if args.json:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
+
+
+def _print_summary(abs_filter: str, rows) -> None:
+    """Tableau Markdown des scénarios cadence × frais d'un filtre."""
+    print()
+    print(f"### Récapitulatif — filtre `{abs_filter}`")
+    print()
+    print(
+        "| cadence | frais | équité finale | retour | DD max | rotations | "
+        "N/an | cash | frais payés | position finale |"
+    )
+    print(
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|"
+    )
+    for fee_bps, cadence, result in rows:
+        print(
+            f"| {cadence} j | {fee_bps} pb | {result.equity_end:.2f} | "
+            f"{result.return_pct:+.2%} | {result.max_drawdown_pct:.2%} | "
+            f"{len(result.rotations)} | {result.rotations_per_year:.1f} | "
+            f"{result.cash_pct:.1%} | {result.fees_quote:.2f} | "
+            f"{result.final_symbol} |"
+        )
 
 
 def main() -> int:
@@ -204,17 +258,25 @@ def main() -> int:
                         help="fenêtre mesurée en mois (0 = tout l'historique)")
     parser.add_argument("--equity", type=float, default=1000.0,
                         help="équité virtuelle de départ (défaut 1000 EUR)")
-    parser.add_argument("--fee-bps", default="25,80",
+    parser.add_argument("--fees-bps", "--fee-bps", dest="fee_bps",
+                        default="25,80",
                         help="frais par côté en points de base (défaut 25,80 : "
                              "maker puis taker Kraken)")
     parser.add_argument("--slippage-bps", type=int, default=None,
                         help="slippage par côté (défaut : PAPER_SLIPPAGE_BPS)")
-    parser.add_argument("--cadence-days", default="7,14",
+    parser.add_argument("--cadences", "--cadence-days", dest="cadence_days",
+                        default="7,14",
                         help="cadences testées en jours D1 (défaut 7,14)")
     parser.add_argument("--momentum-short", type=int, default=30,
                         help="fenêtre du momentum court, en D1 (défaut 30)")
     parser.add_argument("--momentum-long", type=int, default=60,
                         help="fenêtre du momentum long, en D1 (défaut 60)")
+    parser.add_argument("--abs-filter", choices=ABS_FILTERS, default="none",
+                        help="filtre absolu du leader : none (relatif pur), "
+                             "ema200, roc60 ou dual (défaut none)")
+    parser.add_argument("--summary-table", action="store_true",
+                        help="affiche un récapitulatif Markdown des scénarios "
+                             "cadence × frais")
     parser.add_argument("--verbose", action="store_true",
                         help="affiche chaque rotation avec son motif")
     parser.add_argument("--json", action="store_true",

@@ -473,13 +473,32 @@ Objectif : mesurer, pas espérer.
   *Conclusion* : la rotation bat le buy & hold et tient la cadence visée, mais des
   drawdowns de 55–62 % sont hors du critère de 20 %, et les minimums d'ordre ne sont
   pas modélisés. Laboratoire prometteur, **non activé**. Prochain levier : risque ou
-  ciblage de volatilité, pas un déploiement.
+  ciblage de volatilité, pas un déploiement. *Note* : ces chiffres proviennent du
+  filtre historique « EMA200 + score > 0 » ; voir 2.15 pour les modes absolus et la
+  nouvelle référence `none`.
+
+- ✅ **2.15 — Dual momentum, filtre absolu (laboratoire, D-067)** *(2026-11-05)*
+  *Hypothèse* : le relatif pur reste investi dans l'actif le moins baissier pendant
+  les purges ; un filtre absolu sur le leader doit couper vers le cash et ramener le
+  drawdown sous 25 %, tout en gardant plus de +70 % de rendement.
+  *Fait* : `--abs-filter none|ema200|roc60|dual` dans `app/backtest/rotation.py` et
+  `scripts/lab_rotation.py`. Le leader est choisi avant le filtre ; s'il échoue, 100 %
+  cash, jamais le deuxième. Frais par transaction (0, 1 ou 2 côtés), `--summary-table`,
+  temps en cash, rotations cash/crypto et ventilation annuelle. 12 tests unitaires.
+  *Validé par* : 16 scénarios (4 filtres × 2 cadences × 2 frais), 2021-11 → 2026-11,
+  1 762 D1. Meilleur : `dual` 14 j/25 pb → **+125,56 %**, DD **54,46 %**, 32 rotations
+  (6,6/an), 56,4 % de cash. `dual` 7 j/25 pb → +86,00 %, DD 64,55 %. `none` → −1,22 %
+  à −56,50 %, DD 77–84 %. En 2022, `dual` 14 j/25 pb est 96,1 % en cash ; le DD vient
+  de 2024 (pic 4 674,34 EUR le 2024-04-01 → creux 2 128,82 EUR le 2024-08-06).
+  *Conclusion* : rendement cible atteint, **drawdown cible non atteint** (54,46 % contre
+  25 %). Lab-only, non activé. Prochain levier : sortie de risque plus rapide ou
+  ciblage de volatilité, pas un filtre d'entrée de plus.
 
 **Critère de passage en phase 3** : au moins **100 trades simulés**, drawdown maximal
 sous le seuil configuré, espérance positive. En dessous, on corrige ou on abandonne —
 les deux sont des résultats utiles. **Non atteint** : 2.9 plafonne à 39 trades par
 paire, 2.11 est négatif sur la fenêtre récente, 2.12 est rejeté, 2.13 ne crée pas
-d'arête et 2.14 reste au-dessus du drawdown maximal.
+d'arête, 2.14 reste au-dessus du drawdown maximal et 2.15 échoue la cible de 25 %.
 
 ---
 
