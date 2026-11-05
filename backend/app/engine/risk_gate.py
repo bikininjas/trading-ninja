@@ -232,6 +232,10 @@ class RiskConfig:
     # creux lointain ne réduise la taille sous le minimum de l'exchange.
     stop_mode: StopMode = StopMode.ATR
     max_stop_distance_pct: Decimal = Decimal("0.05")
+    # Laboratoire uniquement : neutralise le filtre « prix au-dessus de l'EMA200 »
+    # pour mesurer une hypothèse moyenne-réversion brute. Jamais lu depuis l'env,
+    # jamais posé par le runtime : un backtest peut le passer, la production non.
+    allow_counter_trend: bool = False
 
     # --- Petit portefeuille -------------------------------------------------
     # Autorise 100 % de l'équité en exposition quand elle est sous le seuil, pour
@@ -624,13 +628,17 @@ def _evaluate(
     passed.append("volatility_band")
 
     # -- 8. Contexte de tendance ---------------------------------------------
-    trend_floor = market.ema_200_h4 * (Decimal(1) + config.trend_buffer_pct)
-    if market.price <= trend_floor:
-        return _reject(
-            RejectionCode.REJECTED_COUNTER_TREND_EMA200,
-            f"prix {market.price} <= EMA200 H4 + marge ({trend_floor:.4f})",
-            passed,
-        )
+    # `allow_counter_trend` n'existe que pour le laboratoire : il permet de
+    # mesurer une hypothèse moyenne-réversion hors tendance haussière, sans
+    # jamais l'exposer au runtime (aucun chemin de configuration ne le pose).
+    if not config.allow_counter_trend:
+        trend_floor = market.ema_200_h4 * (Decimal(1) + config.trend_buffer_pct)
+        if market.price <= trend_floor:
+            return _reject(
+                RejectionCode.REJECTED_COUNTER_TREND_EMA200,
+                f"prix {market.price} <= EMA200 H4 + marge ({trend_floor:.4f})",
+                passed,
+            )
     passed.append("long_term_trend")
 
     if market.last_closed_h1_return_atr <= -config.falling_knife_atr_multiple:

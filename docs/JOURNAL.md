@@ -6,6 +6,122 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-05 · 06:45 — Panic-sell réel, clé kill-switch dédiée, sonde 3.1 et mean reversion rejetée (D-063, D-064)
+
+**Fait — plomberie d'urgence.**
+
+- `app/execution/live.py` : `panic_sell()` annule **tous** les ordres ouverts, puis
+  vend au marché chaque solde de base réellement détenu — y compris hors univers
+  configuré. Chaque vente est vérifiée (résidu > 0,1 % = erreur), et `emergency_exit`
+  ré-annule les ordres du symbole avant de vendre pour qu'un stop ne double pas la
+  sortie. `PanicReport` expose les ventes, les annulations et les erreurs sans lever.
+- `app/runtime/recovery.py` : `record_panic_exits()` écrit les **fills réels** au
+  ledger (prix, frais, slippage), y compris pour un solde sans position en base
+  (`EMERGENCY_EXIT` sans `position_id`), puis force `EMERGENCY_HALT`. Un échec partiel
+  lève `PanicLiquidationError` **après** la halte.
+- `app/api/main.py` : le `409` « panic réel non câblé » a disparu. Le mode `LIVE`
+  passe par `panic_sell` + `record_panic_exits`, et une vente manquée répond `502`
+  avec la liste de ce qui reste exposé.
+- `app/core/settings.py` + `scripts/kill_switch.py` : paire secondaire optionnelle
+  `KILL_SWITCH_API_KEY` / `KILL_SWITCH_SECRET`, utilisée en priorité par le
+  kill-switch. Sans elle, repli averti sur la clé du bot (collision de nonce possible).
+  Une paire incomplète refuse le démarrage.
+- `scripts/live_probe.py` : sonde 3.1, ordre réel volontairement sous le minimum du
+  marché, plafonné à 0,05 EUR, avec revente immédiate si l'ordre était accepté.
+
+**Vérifié — sonde 3.1 sur Kraken.**
+```
+cd backend && .venv/bin/python scripts/live_probe.py --confirm-live --symbol BTC/EUR
+→ mode paper (inchangé) · solde libre 9.37 EUR
+→ ordre volontairement invalide : BUY market 7E-7 BTC/EUR (≈ 0,0500 EUR)
+→ InvalidOrder: kraken {"error":["EGeneral:Invalid arguments:volume minimum not met"]}
+→ ordres ouverts après le test : 0 · aucun ordre créé, aucun plantage
+```
+Le compte principal a servi de sonde : aucun sous-compte dédié n'existe encore. Aucun
+ordre réel n'a été exécuté.
+
+**Fait — laboratoire Mean Reversion Bollinger.** `app/backtest/mean_reversion.py` et
+`backtest.py meanrev` implémentent l'hypothèse demandée : clôture sous la bande basse
+(20 ; 2), RSI(14) < 32, volume > SMA(volume, 20), sortie au contact de la bande médiane
+ou stop structurel sous le creux des 10 bougies. Le pare-feu reste l'autorité ; la
+variante `raw` neutralise uniquement le filtre EMA200 via `allow_counter_trend`
+(laboratoire, jamais lu depuis l'environnement) pour distinguer l'hypothèse de l'effet
+du filtre de tendance.
+
+**Mesuré — 2021-2026, BTC/ETH/SOL, H4 et D1, 144 scénarios.**
+```
+cd backend && .venv/bin/python scripts/backtest.py meanrev --months 60 \
+  --symbols BTC/EUR,ETH/EUR,SOL/EUR --timeframes 4h,1d \
+  --mr-rsi 30,32,35 --mr-exit touch,close --mr-variants gated,raw \
+  --fee-bps 80,100
+→ 144 scénarios · 18 nets positifs · 5 PF ≥ 1,30 (tous N = 2 à 6)
+→ variante gated : PF max 1,95 (SOL H4, RSI 30, N = 2), net cumulé −1 730 EUR
+→ variante raw   : PF max 0,85, net cumulé −4 804 EUR
+```
+Scénario principal demandé (RSI 32, `touch`, 80 pb) : BTC H4 4 trades PF 0,00
+(−53,25 EUR), ETH H4 4 trades PF 0,00 (−54,00), SOL H4 6 trades PF 1,28 (+15,53),
+BTC D1 2 trades PF 0,00 (−46,48), ETH D1 1 trade +47,31, SOL D1 0 trade.
+**Hypothèse rejetée** : l'arête n'existe pas hors tendance haussière, et les rares
+scénarios positifs tiennent sur un échantillon non interprétable.
+
+**Vérifié — suite complète.**
+```
+cd backend && .venv/bin/python -m pytest -q -o addopts=""   → 581 passed
+bash scripts/check.sh                                       → TOUT EST VERT
+```
+581 tests = 570 précédents + 7 plomberie d'urgence + 4 mean reversion. Le golden a été
+rebéni après l'ajout de `allow_counter_trend` : seules `created_at` et
+`risk_fingerprint` changent, les métriques sont identiques.
+
+**Décidé** — Rien n'est activé : `TRADING_MODE=paper`, aucun ordre réel, chemin live
+toujours fermé. Le seuil d'activation (PF ≥ 1,30 **et** N ≥ 100 sur 2021-2026) reste
+gelé et non atteint. Pas de quatrième filtre : le prochain levier reste la cadence de
+décision (H1) ou la couverture multi-paires. La seconde clé Kraken reste à créer côté
+exchange ; le code est prêt.
+
+---
+
+## 2026-11-05 · 06:30 — LLM D1 mesuré : il filtre les perdants, mais coupe 70 % des gagnants (D-061)
+
+**Fait** — Le blocage Ollama de l'entrée du 2026-11-04 19:30 est levé. L'installation
+système reste cassée (`/usr/local/lib/ollama` vide), mais le paquet officiel 0.40.14 a
+été installé **sans sudo** dans `~/.local/opt/ollama-0.40.14`, et un second serveur
+écoute sur `127.0.0.1:11435` avec `OLLAMA_MODELS=/mnt/e/models/ollama`. Le GPU
+RTX 5070 Ti est utilisé ; premier chargement à froid 88 s, appels suivants 0,2–0,3 s.
+L'archive (1,5 Go) est dans `/tmp/opencode/ollama-dl/`.
+
+**Mesuré — `eval_llm_swing.py`, tout l'historique, 80 pb/côté, sortie Chandelier**
+144 trades, **144 appels non dégradés** (30 BUY, 114 HOLD) :
+
+| paire | trades | gagnants | approuvés | rétention | filtration |
+|---|---|---|---|---|---|
+| BTC/EUR | 71 | 14 | 16 | 42,9 % | 82,5 % |
+| ETH/EUR | 62 | 8 | 12 | 12,5 % | 79,6 % |
+| SOL/EUR | 11 | 1 | 2 | 0,0 % | 80,0 % |
+| **global** | **144** | **23** | **30** | **30,4 %** | **81,0 %** |
+
+Le modèle **filtre 81 % des perdants** (98/121), au-delà des 25 % demandés, mais il
+**rejette 69,6 % des gagnants** (16/23) : rétention 30,4 %, verdict
+`KO rétention<90%`. Il est trop sélectif. La confiance ne discrimine pas : 0,65 en
+moyenne chez les gagnants, 0,62 chez les perdants ; le seuil de confiance n'est pas le
+levier.
+
+**Vérifié**
+```
+cd backend && LLM_BASE_URL=http://127.0.0.1:11435/v1 .venv/bin/python \
+  scripts/eval_llm_swing.py --symbols BTC/EUR,ETH/EUR,SOL/EUR --months 0 \
+  --fee-bps 80 --triggers both --exit-mode chandelier --out /tmp/eval_llm_swing.json
+→ 144 trades, 144/144 non dégradés, rétention 30,4 %, filtration 81,0 %
+```
+Aucun ordre passé, aucune écriture en base.
+
+**Décidé** — Le critère LLM D1 n'est **pas** satisfait. Le mode swing reste **non
+activé**, `SWING_EXIT_MODE=ema20` par défaut, le chemin live reste fermé, aucun
+changement de `.env`, aucun commit. Le prochain levier est le prompt D1 ou la définition
+du signal d'entrée, pas le seuil de confiance ni un quatrième filtre.
+
+---
+
 ## 2026-11-04 · 19:45 — Dashboard : jauges de risque, activité et refus du pare-feu (D-062)
 
 **Fait** — Le dashboard devient un poste de supervision complet, toujours en client
@@ -79,7 +195,9 @@ trades, PF 0,19 → 0,14. BTC et ETH passent PF/payoff/MDD/N, SOL non.
 **144/144 repli dégradé HOLD**, 0 approbation, rétention 0 %, filtration 100 %. Ollama
 0.40.14 répond HTTP 500 `error starting llama-server: llama-server binary not found`.
 Ce n'est pas un verdict du modèle. Aucune réparation système tentée ; rejouer après
-réparation avant toute conclusion.
+réparation avant toute conclusion. **Levée le 2026-11-05** : voir l'entrée du 06:30 —
+144 appels non dégradés, rétention 30,4 %, filtration 81,0 %, critère de rétention
+non satisfait.
 
 **Vérifié** — `pytest -q -o addopts=""` → **570 passed** (1 warning Starlette) ;
 `db_migrate.py status` → 9 migrations appliquées, 0 en attente ; golden re-béni après

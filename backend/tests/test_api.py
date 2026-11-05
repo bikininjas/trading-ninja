@@ -421,3 +421,41 @@ def test_position_payload_shows_the_net_risk_at_the_stop():
 
 def test_position_payload_without_a_position_is_none():
     assert _position_payload(None) is None
+
+
+def test_panic_is_wired_in_live_mode(tmp_path):
+    """Le 409 « non câblé » a disparu : le panic réel passe par la liquidation."""
+    calls: list[str] = []
+
+    async def liquidate(repo, config):
+        calls.append(config.mode)
+        return []
+
+    settings = load_settings(
+        env_file=tmp_path / "absent.env",
+        overrides={
+            "TRADING_MODE": "live",
+            "EXCHANGE_SANDBOX_MODE": "false",
+            "I_UNDERSTAND_REAL_MONEY": "true",
+            "EXCHANGE_API_KEY": "test-key",
+            "EXCHANGE_SECRET": "test-secret",
+            "TRADING_SYMBOL": "BTC/EUR",
+            "RISK_PROFILE": "prudent",
+            "PAPER_START_EQUITY": "9.37",
+            "RUNTIME_CONFIG_PATH": str(tmp_path / "runtime.json"),
+            "JWT_SECRET_KEY": JWT_SECRET,
+            "TOTP_SECRET": SECRET,
+            "ADMIN_PASSWORD_HASH": PASSWORD_HASH,
+        },
+    )
+    app = create_app(settings, repo=FakeRepo(), liquidate=liquidate)
+    with TestClient(app) as client:
+        headers = {"Authorization": f"Bearer {token_of(client)}"}
+        # Le login a consommé le code courant : le panic exige un code frais.
+        code = pyotp.TOTP(SECRET).at(
+            datetime.now(timezone.utc) + timedelta(seconds=30)
+        )
+        response = client.post("/api/control/panic", json={"totp": code}, headers=headers)
+
+    assert response.status_code == 200, response.text
+    assert calls == ["live"]

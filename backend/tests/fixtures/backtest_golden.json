@@ -1,5 +1,5 @@
 {
- "created_at": "2026-11-04T16:14:14.380675+00:00",
+ "created_at": "2026-11-05T05:25:49.449948+00:00",
  "decisions": [
   {
    "action": "HOLD",
@@ -12956,7 +12956,7 @@
  },
  "model": "qwen3.5:9b",
  "prompt_fingerprint": "5bb0d655b5d72965dc3e5bb3574d5da7153e1453be29b6512abe3241ce7d8890",
- "risk_fingerprint": "98d65fbb559ba5c52d1b9d91752362c106392da1c0a6ddd39d0617cc664b5c6c",
+ "risk_fingerprint": "0a5597a7aa9df4afe0087adba6b34287169c32a883026f2ce0e6b3fc81a1929a",
  "start_index": 569,
  "symbol": "BTC/EUR",
  "version": 1

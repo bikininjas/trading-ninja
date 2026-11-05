@@ -29,7 +29,7 @@ système découle de là.
 
 ## 2. Ce qui existe, ce qui n'existe pas
 
-**570 tests** Python et **26 tests** Node (596 au total), répartis ci-dessous.
+**581 tests** Python et **26 tests** Node (607 au total), répartis ci-dessous.
 
 | Composant | Fichier | État |
 |---|---|---|

@@ -228,6 +228,11 @@ class ExchangeSettings:
     exchange_id: str = "binance"
     api_key: str = field(default="", repr=False)
     secret: str = field(default="", repr=False)
+    # Clé dédiée au kill-switch : Kraken exige des nonces strictement croissants
+    # par clé. Sans seconde paire, le kill-switch ne peut pas signer pendant que
+    # le bot tourne avec la même clé.
+    kill_api_key: str = field(default="", repr=False)
+    kill_secret: str = field(default="", repr=False)
     sandbox: bool = True
     symbol: str = "BTC/USDT"
     quote_currency: str = "USDT"
@@ -469,10 +474,19 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
         raise RuntimeError(f"TAKER_FEE_PCT doit être dans ]0, 5%], reçu {taker_fee}")
     if not (Decimal("0") <= maker_fee <= Decimal("0.05")):
         raise RuntimeError(f"MAKER_FEE_PCT doit être dans [0, 5%], reçu {maker_fee}")
+    kill_api_key = _env(merged, "KILL_SWITCH_API_KEY", "")
+    kill_secret = _env(merged, "KILL_SWITCH_SECRET", "")
+    if bool(kill_api_key) != bool(kill_secret):
+        raise RuntimeError(
+            "KILL_SWITCH_API_KEY et KILL_SWITCH_SECRET vont ensemble : "
+            "une clé secondaire incomplète ne peut pas signer."
+        )
     exchange = ExchangeSettings(
         exchange_id=exchange_id,
         api_key=_first(merged, "EXCHANGE_API_KEY", *key_names),
         secret=_first(merged, "EXCHANGE_SECRET", "EXCHANGE_SECRET_KEY", *secret_names),
+        kill_api_key=kill_api_key,
+        kill_secret=kill_secret,
         sandbox=sandbox,
         symbol=symbol,
         quote_currency=quote_currency,

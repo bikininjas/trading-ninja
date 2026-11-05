@@ -1331,12 +1331,27 @@ retourne pas la fenêtre récente : BTC reste négatif (−4,81 %), ETH et SOL s
 Il ne satisfait pas les nouveaux critères sur la fenêtre demandée. BTC et ETH passent
 PF/payoff/MDD/N sur l'historique complet, SOL non.
 
-**Blocage — mesure LLM invalide.** `scripts/eval_llm_swing.py` a exécuté 144 appels,
-tous en repli dégradé HOLD : Ollama 0.40.14 répond HTTP 500
-`error starting llama-server: llama-server binary not found`. Rétention 0 %, filtration
-100 % : ce n'est **pas** un verdict du modèle, c'est une panne d'infrastructure. Aucune
-réparation du système Ollama n'a été tentée. La mesure devra être rejouée après
-réparation, avant toute conclusion sur le LLM D1.
+**Mesure LLM D1 — réelle mais négative.** Après réparation du runner Ollama
+(installation locale 0.40.14 dans `~/.local/opt/ollama-0.40.14`, second serveur sur
+`127.0.0.1:11435`, `OLLAMA_MODELS=/mnt/e/models/ollama`), `scripts/eval_llm_swing.py`
+a rejoué les **144 trades** du mode Chandelier sur tout l'historique. Les 144 appels sont
+**non dégradés** :
+
+| paire | trades | gagnants | approuvés | rétention | filtration |
+|---|---|---|---|---|---|
+| BTC/EUR | 71 | 14 | 16 | 42,9 % | 82,5 % |
+| ETH/EUR | 62 | 8 | 12 | 12,5 % | 79,6 % |
+| SOL/EUR | 11 | 1 | 2 | 0,0 % | 80,0 % |
+| **global** | **144** | **23** | **30** | **30,4 %** | **81,0 %** |
+
+Le modèle **filtre 81 % des perdants** (98/121), bien au-delà des 25 % demandés, mais il
+**rejette 69,6 % des gagnants** (16/23) : rétention 30,4 %, très en dessous des 90 %
+exigés. Verdict `KO rétention<90%`. Il est donc trop sélectif, pas assez discriminant :
+la confiance moyenne des BUY (0,62) ne sépare pas gagnants (0,65) et perdants (0,62), et
+le seuil de confiance n'est pas le levier. La mesure est reproductible avec la commande
+du `HANDOFF_SWING_D1.md` §4. Ollama système reste cassé (`llama-server` absent de
+`/usr/local/lib/ollama`) ; le serveur local est un contournement documenté, pas une
+réparation de l'installation système.
 
 **Conséquence** : les quatre chantiers sont **implémentés et testés**, mais aucun ne
 produit de mesure positive nette qui justifierait d'activer le mode swing ou le réel.
@@ -1344,7 +1359,7 @@ Le mode reste **non activé**, `SWING_EXIT_MODE` reste `ema20` par défaut, et l
 live reste fermé. Le prochain levier reste l'entrée ou un filtre de régime, pas un
 quatrième filtre ni l'exécution.
 
-**Validé par** : 570 tests Python (dont `test_exit_rule.py`, `test_llm_eval.py` et les
+**Validé par** : 581 tests Python (dont `test_exit_rule.py`, `test_llm_eval.py` et les
 extensions scheduler/settings/risk-gate/feed/swing/live/LLM/schéma) ; migration 0009
 appliquée sur Supabase (`db_migrate.py status` → 9 appliquées, 0 en attente) ; golden
 re-béni après vérification que les métriques sont identiques (seuls `created_at` et
@@ -1379,5 +1394,86 @@ opérateur qui veut modifier les plafonds passe par la configuration, ce qui lai
 trace et évite le clic réflexe.
 
 **Validé par** : 26 tests Node (dont liste blanche, limite bornée, refus sans appel
-API et session requise), 570 tests Python, `scripts/check.sh`, et un smoke test
+API et session requise), 581 tests Python, `scripts/check.sh`, et un smoke test
 Chromium headless (rendu, quatre périodes, infobulle, onglets, aucune erreur JS).
+
+---
+
+## D-063 — Le panic-sell réel constate chez l'exchange, puis écrit au ledger
+
+**Contexte** : le panic-sell de l'API répondait `409` en mode live (« non câblé »).
+Le seul bouton rouge n'existait donc qu'en papier, au moment précis où une position
+réelle pouvait rester sans protection. La liquidation `paper` part des positions en
+base ; en réel, la base peut être en retard sur l'exchange (stop déjà déclenché,
+solde manuel oublié, ordre resté ouvert).
+
+**Décision** :
+
+1. `LiveBroker.panic_sell()` annule **tous** les ordres ouverts (liste globale, repli
+   par symbole si l'exchange l'exige), puis vend au marché **tout solde de base**
+   réellement détenu, y compris hors univers configuré. `emergency_exit` annule de
+   nouveau les ordres du symbole avant la vente : un stop ne peut pas vendre pendant
+   la liquidation.
+2. Chaque vente est vérifiée après coup : un solde résiduel supérieur à 0,1 % de la
+   quantité vendue est une erreur explicite, pas un succès silencieux.
+3. `record_panic_exits()` écrit les **fills réels** au ledger, y compris pour un solde
+   sans position en base (ligne `EMERGENCY_EXIT` sans `position_id`), puis force
+   `EMERGENCY_HALT`. Un échec partiel lève `PanicLiquidationError` **après** la halte
+   et l'API répond `502` avec la liste de ce qui reste exposé.
+4. `KILL_SWITCH_API_KEY` / `KILL_SWITCH_SECRET` portent une seconde paire de clés
+   dédiée au kill-switch : Kraken impose des nonces croissants **par clé**, donc le
+   script ne peut pas signer pendant que le bot tourne avec la même clé. La paire est
+   optionnelle ; son absence produit un avertissement, jamais un démarrage muet.
+5. `scripts/live_probe.py` exécute le test 3.1 : un ordre **sous le minimum**, plafonné
+   à 0,05 EUR, pour lire le rejet réel de l'exchange. Si l'ordre était accepté, il est
+   revendu immédiatement et le script sort en erreur.
+
+**Conséquence** : le panic-sell réel ne dépend plus de la fraîcheur de la base ; il
+solde l'exchange d'abord, raconte ensuite. Une erreur de vente est visible (502) au
+lieu d'un `200` rassurant. Le test 3.1 a été exécuté sur le compte principal
+(0,0000007 BTC ≈ 0,05 EUR) : Kraken a répondu
+`EGeneral:Invalid arguments:volume minimum not met`, aucun ordre créé.
+
+**Validé par** : 7 tests de plomberie (panic complet, échec partiel, solde hors
+univers, ledger suivi/non suivi, absence de solde), `test_panic_is_wired_in_live_mode`,
+`live_probe.py --confirm-live` sur Kraken.
+
+---
+
+## D-064 — Mean Reversion Bollinger : hypothèse mesurée, rejetée
+
+> **Note de numérotation** : le brief de session du 2026-11-05 demande de consigner
+> cette décision sous « D-060 ». D-060 est déjà pris par le moteur swing Daily ; la
+> présente décision porte donc **D-064**, sans réattribuer l'ancien numéro.
+
+**Contexte** : après l'échec du trend-following sur 2021-2026 (2.9, 2.11), la
+directive de session demande d'explorer une famille opposée : acheter la peur
+(clôture sous la bande basse, RSI < 32, volume en hausse) et vendre le retour à la
+moyenne. Le risque évident est de confondre l'hypothèse avec l'effet du filtre de
+tendance déjà présent dans le pare-feu.
+
+**Décision** :
+
+1. `app/backtest/mean_reversion.py` implémente la règle demandée, avec sortie au
+   contact de la bande médiane (`touch`) ou à sa clôture (`close`), et stop structurel
+   sous le creux des 10 bougies.
+2. Le pare-feu reste l'autorité : chaque intention passe par `evaluate()`. Un champ
+   `RiskConfig.allow_counter_trend` (défaut `False`, **jamais lu depuis l'env**) permet
+   au seul laboratoire de neutraliser le filtre EMA200 pour mesurer l'hypothèse brute.
+   La variante est étiquetée `raw` et n'est pas activable.
+3. Mesure 2021-2026 sur BTC/ETH/SOL, H4 et D1, RSI 30/32/35, `touch`/`close`,
+   80/100 pb : 144 scénarios. **Hypothèse rejetée** : 18 nets positifs, 5 PF ≥ 1,30,
+   tous avec 2 à 6 trades. La variante `raw` plafonne à PF 0,85 et perd 4 804 EUR
+   cumulés. Le filtre de tendance explique les rares cas positifs, pas la règle
+   moyenne-réversion.
+4. Ne pas figer de seuil sur ces échantillons, ne pas ajouter de quatrième filtre.
+   Le seuil d'activation réel (PF ≥ 1,30 et N ≥ 100 sur la fenêtre) reste inchangé et
+   **non atteint**.
+
+**Conséquence** : deux familles testées (suivi de tendance et retour à la moyenne),
+aucune ne produit d'espérance positive robuste sur la fenêtre récente. Le prochain
+levier reste la cadence de décision ou la couverture multi-paires, pas l'exécution.
+
+**Validé par** : `backtest.py meanrev --months 60 …` → 144 scénarios, sortie conservée
+dans `docs/BACKTEST.md` § « Mean Reversion » ; 4 tests unitaires (déclenchement,
+refus du pare-feu, variante brute, deux modes de sortie).

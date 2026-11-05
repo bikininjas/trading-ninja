@@ -70,9 +70,19 @@ async def _run(dry_run: bool, confirm_live: bool) -> int:
             print("→ rien n'a été modifié (--dry-run)")
             return 0
 
-        exchange = build_exchange(
-            api_key=settings.exchange.api_key, secret=settings.exchange.secret
-        )
+        # Kraken impose des nonces croissants par clé : une seconde paire dédiée
+        # permet au kill-switch de signer pendant que le bot tourne.
+        if settings.exchange.kill_api_key:
+            api_key, secret = settings.exchange.kill_api_key, settings.exchange.kill_secret
+            print("clé : kill-switch dédiée (KILL_SWITCH_API_KEY)")
+        else:
+            api_key, secret = settings.exchange.api_key, settings.exchange.secret
+            print(
+                "AVERTISSEMENT : KILL_SWITCH_API_KEY absent — la clé du bot est "
+                "réutilisée ; une collision de nonce est possible si le bot tourne.",
+                file=sys.stderr,
+            )
+        exchange = build_exchange(api_key=api_key, secret=secret)
         exchange.load_markets()
         broker = make_broker(settings, exchange, settings.exchange.allowed_symbols)
 

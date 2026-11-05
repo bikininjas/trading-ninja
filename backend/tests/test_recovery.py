@@ -176,3 +176,63 @@ def test_apply_reconciliation_refuses_paper_mode():
             broker=PaperBroker(Decimal("0.0026"), 5),
             starting_equity=Decimal("9.37"), now=NOW,
         ))
+
+
+@pytest.mark.asyncio
+async def test_panic_exits_write_the_real_fill_to_the_ledger():
+    from types import SimpleNamespace
+
+    from app.execution.paper import Fill
+    from app.runtime.recovery import PanicLiquidationError, record_panic_exits
+
+    pos = position()
+    repo = FakeRepo(pos)
+    fill = Fill(
+        price=Decimal("90"), amount=Decimal("0.046"),
+        notional_quote=Decimal("4.14"), fee_quote=Decimal("0.03312"),
+        slippage_quote=Decimal("0.0046"), order_id="panic-1",
+    )
+    exits = [SimpleNamespace(symbol="BTC/EUR", amount=Decimal("0.046"), fill=fill)]
+
+    records = await record_panic_exits(
+        repo, exits, "LIVE", quote_currency="EUR",
+        starting_equity=Decimal("9.37"), free_quote_after=Decimal("5.00"),
+        taker_fee=Decimal("0.008"), now=NOW,
+    )
+
+    assert len(records) == 1
+    assert records[0].tracked is True
+    assert records[0].exit_price == Decimal("90")
+    assert repo.closed["status"] == "EMERGENCY_LIQUIDATED"
+    assert repo.inserted[0]["purpose"] == "EMERGENCY_EXIT"
+    assert repo.inserted[0]["position_id"] == pos.id
+    assert repo.snapshots[0]["source"] == "PANIC_SELL"
+    assert repo.halted is not None
+
+
+@pytest.mark.asyncio
+async def test_panic_exits_record_an_untracked_balance_and_surface_errors():
+    from types import SimpleNamespace
+
+    from app.execution.paper import Fill
+    from app.runtime.recovery import PanicLiquidationError, record_panic_exits
+
+    repo = FakeRepo(None)
+    fill = Fill(
+        price=Decimal("90"), amount=Decimal("0.010"),
+        notional_quote=Decimal("0.90"), fee_quote=Decimal("0.0072"),
+        slippage_quote=Decimal("0"), order_id="panic-2",
+    )
+    exits = [SimpleNamespace(symbol="BTC/EUR", amount=Decimal("0.010"), fill=fill)]
+
+    with pytest.raises(PanicLiquidationError) as caught:
+        await record_panic_exits(
+            repo, exits, "LIVE", quote_currency="EUR",
+            starting_equity=Decimal("9.37"), free_quote_after=Decimal("5.00"),
+            taker_fee=Decimal("0.008"), errors=["ETH/EUR : vente refusée"], now=NOW,
+        )
+
+    assert caught.value.liquidated[0].tracked is False
+    assert repo.inserted[0]["position_id"] is None
+    assert repo.closed is None
+    assert repo.halted is not None

@@ -2,13 +2,14 @@
 
 À lire avant de reprendre. Ce document dit ce qui est fait, ce qui est vérifié, et ce
 qui reste à analyser. Les sources d'autorité restent `docs/DECISIONS.md` (D-060 et
-D-061), `docs/ROADMAP.md` (2.11) et `docs/JOURNAL.md` (entrées du 2026-11-04).
+D-061), `docs/ROADMAP.md` (2.11) et `docs/JOURNAL.md` (entrées des 2026-11-04 et
+2026-11-05).
 
 ## 1. État vérifié
 
-- `bash scripts/check.sh` → **TOUT EST VERT** (570 tests Python, 26 tests Node,
+- `bash scripts/check.sh` → **TOUT EST VERT** (581 tests Python, 26 tests Node,
   9 migrations appliquées, index à jour).
-- `pytest -o addopts=""` → **570 passed**, 1 warning Starlette.
+- `pytest -o addopts=""` → **581 passed**, 1 warning Starlette.
 - Golden de régression : `replay --bless` après ajout des champs `RiskConfig` ;
   `replay` a montré des **métriques identiques**, seul le `risk_fingerprint` et
   `created_at` changent. Relire le diff de `backend/tests/fixtures/backtest_golden.json`
@@ -74,29 +75,51 @@ BTC et ETH passent les critères D-061 sur l'historique complet (PF ≥ 1,35, pa
 - Petit compte : `--equity 20 --small-account` → 17 trades sur 60 mois, −3,53 %.
   9,37 EUR reste sous le minimum notionnel : refus correct.
 
-## 4. Mesure LLM D1 — bloquée, donc invalide
+## 4. Mesure LLM D1 — réelle, négative
 
 ```bash
-cd backend && .venv/bin/python scripts/eval_llm_swing.py \
-  --symbols BTC/EUR,ETH/EUR,SOL/EUR --months 0 --fee-bps 80 \
-  --triggers both --exit-mode chandelier --out /tmp/eval_llm_swing.json
+cd backend && LLM_BASE_URL=http://127.0.0.1:11435/v1 .venv/bin/python \
+  scripts/eval_llm_swing.py --symbols BTC/EUR,ETH/EUR,SOL/EUR --months 0 \
+  --fee-bps 80 --triggers both --exit-mode chandelier --out /tmp/eval_llm_swing.json
 ```
 
-Résultat brut : 144 trades, 144/144 appels en **repli dégradé HOLD**, 0 approbation,
-rétention 0 %, filtration 100 %.
+Résultat : 144 trades, **144/144 appels non dégradés** (30 BUY, 114 HOLD).
 
-Cause : Ollama 0.40.14 répond HTTP 500
-`error starting llama-server: llama-server binary not found (checked:
-/usr/local/lib/ollama/llama-server, …)`. Le runner du modèle est cassé au niveau
-système. **Ce n'est pas un verdict du modèle.** Aucune réparation de l'installation
-Ollama n'a été tentée. Rejouer la commande après réparation, puis lire la rétention et
-la filtration réelles.
+| paire | trades | gagnants | approuvés | rétention | filtration |
+|---|---|---|---|---|---|
+| BTC/EUR | 71 | 14 | 16 | 42,9 % | 82,5 % |
+| ETH/EUR | 62 | 8 | 12 | 12,5 % | 79,6 % |
+| SOL/EUR | 11 | 1 | 2 | 0,0 % | 80,0 % |
+| **global** | **144** | **23** | **30** | **30,4 %** | **81,0 %** |
+
+Verdict `KO rétention<90%`. Le modèle filtre bien les perdants (98/121) mais rejette
+**16 des 23 gagnants (69,6 %)** ; la confiance ne les sépare pas (0,65 en moyenne chez
+les gagnants, 0,62 chez les perdants). Le critère du brief n'est pas satisfait.
+
+**Infrastructure Ollama.** L'installation système reste cassée : `/usr/local/lib/ollama`
+est vide et tout `POST /api/chat` sur `11434` renvoie HTTP 500
+`llama-server binary not found`. Un runner officiel 0.40.14 a été extrait **sans sudo**
+dans `~/.local/opt/ollama-0.40.14` (2,4 Go) et un second serveur tourne sur
+`127.0.0.1:11435` :
+
+```bash
+OLLAMA_HOST=127.0.0.1:11435 OLLAMA_MODELS=/mnt/e/models/ollama \
+  ~/.local/opt/ollama-0.40.14/bin/ollama serve
+```
+
+Le GPU RTX 5070 Ti est utilisé ; premier chargement 88 s, appels suivants 0,2–0,3 s.
+Ne pas lancer ce serveur avec `OLLAMA_MODELS=/mnt/e/models` : il ne voit alors aucun
+modèle (le vrai dossier est `/mnt/e/models/ollama`). `LLM_BASE_URL` doit pointer sur
+`http://127.0.0.1:11435/v1` pour l'évaluation. Ce serveur local est un contournement
+documenté, pas une réparation de l'installation système.
 
 ## 5. Ce qui reste à analyser (par ordre d'importance)
 
-1. **Réparer Ollama puis rejouer l'évaluation LLM D1.** Tant que 100 % des appels sont
-   dégradés, on ne sait pas si le modèle garde les gagnants ni s'il filtre les perdants.
-   Le critère : filtration ≥ 25 % des perdants, rétention ≥ 90 % des gagnants.
+1. **Revoir le prompt D1 ou la définition du signal d'entrée.** Le LLM filtre 81 % des
+   perdants mais rejette 69,6 % des gagnants (rétention 30,4 %) ; le seuil de confiance
+   ne sépare pas les deux populations. Tester un prompt qui distingue explicitement
+   cassure valide et faux départ, ou un signal d'entrée qui laisse moins de bruit au
+   modèle. Le critère reste filtration ≥ 25 %, rétention ≥ 90 %.
 2. **La fenêtre récente est négative.** Tester un filtre de régime (BTC au-dessus de son
    EMA200 D1, breadth multi-paires, force relative) ou une sortie moins whipsaw que
    l'EMA20 (EMA50, Chandelier ATR, sortie partielle Bollinger). Ne pas ajouter un
@@ -124,8 +147,9 @@ cd backend && .venv/bin/python scripts/backtest.py swing --symbols BTC/EUR --mon
   --fee-bps 80 --swing-triggers both --exit-mode ema20,chandelier \
   --max-consecutive-losses 9999 --max-hwm-drawdown 1.0
 cd backend && .venv/bin/python scripts/backtest.py replay
-cd backend && .venv/bin/python scripts/eval_llm_swing.py --symbols BTC/EUR \
-  --months 0 --fee-bps 80 --triggers both --exit-mode chandelier
+cd backend && LLM_BASE_URL=http://127.0.0.1:11435/v1 .venv/bin/python \
+  scripts/eval_llm_swing.py --symbols BTC/EUR,ETH/EUR,SOL/EUR --months 0 \
+  --fee-bps 80 --triggers both --exit-mode chandelier
 ```
 
 ## 7. Règles à ne pas contourner

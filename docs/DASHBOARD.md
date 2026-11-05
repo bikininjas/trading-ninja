@@ -16,8 +16,9 @@ aucun stop : tout cela reste dans le moteur et dans la Risk Gateway.
   refus passent par `textContent`. Un texte hostile ne peut pas injecter de balise.
 - **Lecture seule par défaut.** Le dashboard observe ; les seules écritures sont les
   commandes explicites (`pause`, `resume`, `panic`) et le formulaire de réglages.
-- **Pas d'argent réel sans les verrous du bot.** Le panic-sell est refusé hors mode
-  papier par l'API ; le dashboard ne peut pas activer `LIVE` à lui seul.
+- **Pas d'argent réel sans les verrous du bot.** Le panic-sell fonctionne aussi en
+  `LIVE` (annulation globale puis vente au marché), mais uniquement derrière les trois
+  verrous du bot ; le dashboard ne peut pas activer `LIVE` à lui seul.
 
 ## 2. Architecture
 
@@ -163,7 +164,7 @@ Les modifications sont appliquées au **cycle suivant** : le bot relit
 | En-têtes | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`. |
 | POST | Vérification de l'origine (`Origin` same-origin) sur les réglages et les commandes. |
 | Panic | Code TOTP à 6 chiffres **frais** ; une session volée ne suffit pas. |
-| Mode | Panic refusé hors papier par l'API. Le dashboard ne peut pas passer en `LIVE`. |
+| Mode | En `LIVE`, le panic passe par l'exchange (annulation globale + vente) et répond `502` si une vente échoue. Le dashboard ne peut pas passer en `LIVE`. |
 | Réseau | Écoute sur `127.0.0.1` par défaut. `0.0.0.0` exige `DASHBOARD_ALLOW_REMOTE=true`. |
 
 **Ne jamais exposer le port 8081 directement sur Internet.** Sans TLS, le mot de passe
@@ -192,7 +193,7 @@ Tests :
 
 ```bash
 cd dashboard && node --test test/       # 26 tests Node
-cd backend && .venv/bin/python -m pytest  # 570 tests Python
+cd backend && .venv/bin/python -m pytest  # 581 tests Python
 bash scripts/check.sh                   # vérification globale
 ```
 

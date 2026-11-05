@@ -430,3 +430,74 @@ async def test_a_terminated_old_stop_is_not_replaced():
         )
 
     assert exchange.cancel_calls == []
+
+
+class PanicExchange(FakeExchange):
+    """Exchange avec soldes mutables : une vente au marché les consomme."""
+
+    def __init__(self, balances: dict[str, str], markets: dict | None = None,
+                 sell_raises: bool = False) -> None:
+        super().__init__(sell_raises=sell_raises)
+        self.balances = {key: Decimal(value) for key, value in balances.items()}
+        self.markets = markets or {}
+
+    def fetch_balance(self):
+        raw = {key: str(value) for key, value in self.balances.items()}
+        return {"free": dict(raw), "total": dict(raw)}
+
+    def create_order(self, symbol, type, side, amount, price=None, params=None):
+        order = super().create_order(symbol, type, side, amount, price, params)
+        if side == "sell" and type == "market":
+            base = symbol.split("/")[0]
+            self.balances[base] = max(
+                Decimal(0), self.balances.get(base, Decimal(0)) - Decimal(str(amount))
+            )
+        return order
+
+
+@pytest.mark.asyncio
+async def test_panic_sell_cancels_every_order_and_flattens_every_balance():
+    exchange = PanicExchange(
+        {"EUR": "1.00", "BTC": "0.05", "ETH": "0.02"},
+        markets={
+            "BTC/EUR": {"base": "BTC", "quote": "EUR", "spot": True},
+            "ETH/EUR": {"base": "ETH", "quote": "EUR", "spot": True},
+        },
+    )
+    exchange.open_orders = [
+        {"id": "stop-1", "symbol": "BTC/EUR", "side": "sell", "type": "stop-loss",
+         "amount": "0.05", "status": "open", "stopLossPrice": "95"},
+        {"id": "limit-1", "symbol": "ETH/EUR", "side": "sell", "type": "limit",
+         "amount": "0.02", "status": "open"},
+    ]
+    report = await broker(exchange).panic_sell(["BTC/EUR"])
+
+    assert report.complete
+    assert report.canceled_orders == 2
+    assert {item.symbol for item in report.exits} == {"BTC/EUR", "ETH/EUR"}
+    assert all(item.fill is not None for item in report.exits)
+    assert exchange.balances["BTC"] == 0
+    assert exchange.balances["ETH"] == 0
+    assert exchange.open_orders == []
+
+
+@pytest.mark.asyncio
+async def test_panic_sell_reports_a_failed_sale_without_raising():
+    exchange = PanicExchange({"EUR": "1.00", "BTC": "0.05"},
+                             sell_raises=True)
+    report = await broker(exchange).panic_sell(["BTC/EUR"])
+
+    assert not report.complete
+    assert report.exits[0].fill is None
+    assert report.exits[0].error is not None
+    assert any("BTC/EUR" in error for error in report.errors)
+
+
+@pytest.mark.asyncio
+async def test_panic_sell_without_balance_is_a_clean_noop():
+    exchange = PanicExchange({"EUR": "9.37"})
+    report = await broker(exchange).panic_sell(["BTC/EUR"])
+
+    assert report.complete
+    assert report.exits == ()
+    assert exchange.create_calls == []

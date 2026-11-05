@@ -27,7 +27,7 @@ uv pip install -r requirements.txt -r requirements-dev.txt
 ## Commandes
 
 ```bash
-.venv/bin/python -m pytest                     # 570 tests du moteur, du schéma, des sondes et du backtest
+.venv/bin/python -m pytest                     # 581 tests du moteur, du schéma, des sondes et du backtest
 .venv/bin/python -m app.main --once            # un cycle papier complet (données réelles)
 .venv/bin/python -m app.main --serve           # une évaluation par bougie H4 clôturée
 .venv/bin/python -m app.main --status          # état + 3 dernières lignes par table
@@ -45,6 +45,9 @@ uv pip install -r requirements.txt -r requirements-dev.txt
 .venv/bin/python scripts/backtest.py replay        # régression déterministe (< 1 s)
 .venv/bin/python scripts/backtest.py watch         # veille de dérive
 .venv/bin/python scripts/backtest.py measure       # règle + LLM sur les 7 paires (réseau + LLM)
+.venv/bin/python scripts/backtest.py swing --months 60   # swing macro D1, sans LLM
+.venv/bin/python scripts/backtest.py meanrev --months 60 # mean reversion BB, laboratoire sans LLM
+.venv/bin/python scripts/live_probe.py --confirm-live    # sonde 3.1 : ordre réel volontairement rejeté
 .venv/bin/python -m uvicorn app.api.main:create_app --factory \
     --host 127.0.0.1 --port 8080                   # API d'administration
 .venv/bin/python scripts/db_migrate.py status  # état des migrations

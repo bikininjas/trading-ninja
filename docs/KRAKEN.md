@@ -147,6 +147,12 @@ processes. »
 Conséquence directe : le bot et le kill-switch (étape 1.11) ne peuvent pas partager la
 même clé. Il faut deux clés, ou un seul processus signataire.
 
+Le code lit désormais une paire **optionnelle** dédiée : `KILL_SWITCH_API_KEY` et
+`KILL_SWITCH_SECRET`. `scripts/kill_switch.py` l'utilise en priorité ; si elle manque,
+il retombe sur la clé du bot avec un avertissement explicite (collision de nonce
+possible si le bot tourne). Une paire incomplète refuse le démarrage. La paire Kraken
+elle-même reste à créer côté exchange.
+
 ### 4.6 Un seul `close` par ordre : pas de TP dans le bracket
 
 Kraken accepte **une** protection conditionnelle attachée à l'entrée. Le take-profit
@@ -234,8 +240,11 @@ permissions de retrait — précisément ce qu'on refuse. Elle est écartée.
 ## 7. Ce qui bloque la suite
 
 1. ✅ **Clé Kraken corrigée** (2026-11-04) : `withdraw-funds`, `add-funds` et
-   `earn-funds` retirés, allowlist d'IP active. Le garde-fou passe. Reste à créer une
-   **seconde clé** si le kill-switch doit tourner en parallèle (nonces).
+   `earn-funds` retirés, allowlist d'IP active. Le garde-fou passe.
+   ✅ **Support de la seconde clé** (2026-11-05) : `KILL_SWITCH_API_KEY` /
+   `KILL_SWITCH_SECRET` sont lus par `settings.py` et utilisés par `kill_switch.py`,
+   avec repli averti sur la clé du bot. Reste à créer la paire côté Kraken pour que le
+   kill-switch puisse signer en parallèle sans collision de nonce.
 2. L'exécuteur réel et la réconciliation (étapes 1.2, 1.6, 1.7).
 3. Le sweep virtuel (1.9) et le TP frère.
 4. **Univers retenu : 7 paires.** Le scan de tout l'univers EUR montre que 10 paires

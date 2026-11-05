@@ -24,21 +24,62 @@ import asyncio
 import time
 from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Sequence
 
 from app.engine.risk_gate import RiskDecision
 from app.exchange.kraken import build_bracket_entry, to_exchange_amount
 from app.execution.paper import Fill, PaperBroker
 
-__all__ = ["LiveBroker", "LiveExecutionError", "RemotePositionState"]
+__all__ = [
+    "LiveBroker",
+    "LiveExecutionError",
+    "PanicExit",
+    "PanicReport",
+    "RemotePositionState",
+]
 
 # Tolérance sur la quantité couverte par le stop : Kraken arrondit au pas du
 # marché, et un stop à 0,00000001 sous la position n'est pas une position nue.
 _AMOUNT_TOLERANCE = Decimal("0.999")
 
+# Un solde résiduel sous 0,1 % de la quantité vendue est de la poussière
+# d'arrondi, pas une position nue.
+_DUST_RATIO = Decimal("0.001")
+
 
 class LiveExecutionError(RuntimeError):
     """L'ordre réel n'a pas abouti dans un état sûr. Le bot doit s'arrêter."""
+
+
+@dataclass(frozen=True, slots=True)
+class PanicExit:
+    """Résultat d'une liquidation d'urgence sur un symbole.
+
+    ``fill`` est renseigné quand la vente est confirmée par l'exchange ;
+    ``error`` quand elle a échoué (la position peut alors être encore ouverte).
+    """
+
+    symbol: str
+    amount: Decimal
+    fill: Fill | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PanicReport:
+    """Vue complète d'un panic-sell : ventes, annulations et erreurs.
+
+    Le rapport ne lève pas : une urgence doit tout tenter, puis dire exactement
+    ce qui a réussi et ce qui reste exposé.
+    """
+
+    exits: tuple[PanicExit, ...]
+    canceled_orders: int
+    errors: tuple[str, ...]
+
+    @property
+    def complete(self) -> bool:
+        return not self.errors
 
 
 @dataclass(frozen=True, slots=True)
@@ -319,6 +360,109 @@ class LiveBroker:
                     f"annulation de {order_id} impossible : {type(exc).__name__}: {exc}"
                 ) from exc
         return canceled
+
+    async def cancel_all_orders(self, symbols: Sequence[str]) -> int:
+        """Annule **tous** les ordres ouverts, pas seulement ceux d'un symbole.
+
+        C'est la première étape d'un panic-sell : un stop oublié peut se
+        déclencher pendant la vente au marché et vendre deux fois. On demande la
+        liste globale ; si l'exchange exige un symbole, on balaie l'univers connu.
+        """
+        orders: list[dict] = []
+        try:
+            orders = list(await self._call(self._exchange.fetch_open_orders) or [])
+        except Exception:  # noqa: BLE001 — repli par symbole, pas un abandon
+            for symbol in symbols:
+                orders.extend(await self._open_orders(symbol))
+
+        canceled = 0
+        for order in orders:
+            order_id = str(order.get("id") or "")
+            symbol = str(order.get("symbol") or "")
+            if not order_id or not symbol:
+                raise LiveExecutionError(
+                    f"ordre ouvert illisible ({order_id!r}, {symbol!r}) : "
+                    "annulation impossible"
+                )
+            try:
+                await self._call(self._exchange.cancel_order, order_id, symbol)
+                canceled += 1
+            except Exception as exc:  # noqa: BLE001 — un ordre peut avoir disparu
+                message = f"{type(exc).__name__}: {exc}".lower()
+                if "not found" in message or "unknown order" in message:
+                    continue
+                raise LiveExecutionError(
+                    f"annulation de {order_id} ({symbol}) impossible : "
+                    f"{type(exc).__name__}: {exc}"
+                ) from exc
+        return canceled
+
+    def _held_balances(self, balance: dict[str, dict[str, Decimal]],
+                       symbols: Sequence[str]) -> list[tuple[str, Decimal]]:
+        """Symboles réellement détenus, y compris hors univers configuré.
+
+        Le panic-sell ne doit pas laisser derrière lui un solde manuel oublié :
+        un sous-compte dédié n'en a pas, mais une urgence ne suppose rien.
+        """
+        targets: dict[str, Decimal] = {}
+        for symbol in symbols:
+            base = symbol.split("/")[0]
+            amount = balance.get(base, {}).get("total", Decimal(0))
+            if amount > 0:
+                targets[symbol] = amount
+
+        markets = getattr(self._exchange, "markets", {}) or {}
+        for symbol, market in markets.items():
+            if not isinstance(market, dict):
+                continue
+            if str(market.get("quote") or "").upper() != self._quote.upper():
+                continue
+            if market.get("spot") is False:
+                continue
+            base = str(market.get("base") or "")
+            amount = balance.get(base, {}).get("total", Decimal(0))
+            if amount > 0 and symbol not in targets:
+                targets[symbol] = amount
+        return list(targets.items())
+
+    async def panic_sell(self, symbols: Sequence[str]) -> PanicReport:
+        """Liquidation d'urgence : annule tout, vend tout, vérifie le solde.
+
+        Ne lève pas : chaque échec est consigné pour que l'appelant puisse
+        halter le bot et afficher ce qui reste exposé. ``emergency_exit`` annule
+        de nouveau les ordres du symbole avant de vendre, donc un échec de
+        l'annulation globale ne laisse pas un stop actif pendant la vente.
+        """
+        errors: list[str] = []
+        canceled = 0
+        try:
+            canceled = await self.cancel_all_orders(symbols)
+        except LiveExecutionError as exc:
+            errors.append(str(exc))
+
+        try:
+            balance = await self.balance()
+        except Exception as exc:  # noqa: BLE001 — sans solde, on ne peut rien vendre
+            message = f"solde illisible : {type(exc).__name__}: {exc}"
+            return PanicReport((), canceled, (*errors, message))
+
+        exits: list[PanicExit] = []
+        for symbol, amount in self._held_balances(balance, symbols):
+            try:
+                fill = await self.emergency_exit(amount, symbol=symbol)
+                residual = await self.total_base(symbol)
+                if residual > amount * _DUST_RATIO:
+                    raise LiveExecutionError(
+                        f"reste {residual} après la vente de {amount} : "
+                        "position partiellement soldée"
+                    )
+            except LiveExecutionError as exc:
+                message = f"{symbol} : {exc}"
+                errors.append(message)
+                exits.append(PanicExit(symbol, amount, None, str(exc)))
+                continue
+            exits.append(PanicExit(symbol, amount, fill, None))
+        return PanicReport(tuple(exits), canceled, tuple(errors))
 
     async def _rearm_stop(self, symbol: str, amount: Decimal,
                           stop_price: Decimal) -> str:

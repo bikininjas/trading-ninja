@@ -14,15 +14,16 @@ Principes :
 - sans `JWT_SECRET_KEY`, `TOTP_SECRET` et `ADMIN_PASSWORD_HASH`, l'application
   refuse de démarrer (fail-closed).
 
-Le panic-sell n'est câblé que pour le mode papier : le chemin réel passera par
-l'exécuteur Kraken quand il sera revu, pas par une option d'API.
+Le panic-sell est câblé dans les deux modes : en papier il liquide le ledger, en
+réel il annule tous les ordres de l'exchange puis vend au marché tout solde de
+base détenu, avant de halter le bot.
 """
 
 from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from decimal import Decimal
 from typing import Any
 
@@ -66,16 +67,41 @@ class SettingsUpdate(BaseModel):
 
 
 async def _default_liquidate(repo: PostgresRepository, config: Settings) -> list:
-    """Liquidation d'urgence : papier en mode papier, réelle en mode live."""
+    """Liquidation d'urgence : ledger en papier, exchange réel en live.
+
+    En live, l'exchange fait autorité : on annule tous les ordres, on vend tout
+    solde de base (même non suivi en base), puis on écrit au ledger ce qui a
+    réellement été exécuté.
+    """
     from app.exchange.kraken import build_exchange
     from app.execution.factory import make_broker
-    from app.runtime.recovery import liquidate_open_positions
+    from app.execution.live import LiveBroker
+    from app.runtime.recovery import liquidate_open_positions, record_panic_exits
 
     exchange = build_exchange(
         api_key=config.exchange.api_key, secret=config.exchange.secret
     )
     await asyncio.to_thread(exchange.load_markets)
     broker = make_broker(config, exchange, config.exchange.allowed_symbols)
+    if isinstance(broker, LiveBroker):
+        report = await broker.panic_sell(config.exchange.allowed_symbols)
+        try:
+            free_quote = await broker.free_quote()
+        except Exception as exc:  # noqa: BLE001 — la halte doit avoir lieu même sans solde
+            report = replace(
+                report,
+                errors=(*report.errors,
+                        f"solde libre illisible : {type(exc).__name__}: {exc}"),
+            )
+            free_quote = None
+        return await record_panic_exits(
+            repo, report.exits, config.execution_mode,
+            quote_currency=config.exchange.quote_currency,
+            starting_equity=config.paper_start_equity,
+            free_quote_after=free_quote,
+            taker_fee=broker.fee(Decimal(1)),
+            errors=list(report.errors),
+        )
     return await liquidate_open_positions(
         repo, exchange, broker, config.execution_mode,
         quote_currency=config.exchange.quote_currency,
@@ -222,14 +248,25 @@ def create_app(
     @app.post("/api/control/panic")
     async def control_panic(payload: TotpRequest, repo=Depends(get_repo),
                             _: dict = Depends(session)) -> dict:
-        if config.mode != "paper":
-            raise HTTPException(
-                status_code=409,
-                detail="panic-sell réel non câblé : utiliser l'interface de l'exchange",
-            )
         if not totp.verify(payload.totp):
             raise HTTPException(status_code=403, detail="code TOTP invalide ou déjà utilisé")
-        results = await liquidate_fn(repo, config)
+        from app.runtime.recovery import PanicLiquidationError
+
+        try:
+            results = await liquidate_fn(repo, config)
+        except PanicLiquidationError as exc:
+            # Les ventes réussies sont déjà en base et le bot est halte. On rend
+            # l'échec visible (502) avec ce qui reste exposé, sans le masquer.
+            state, _cooldown = await repo.state(config.execution_mode)
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "message": str(exc),
+                    "liquidated": [jsonable(asdict(item)) for item in exc.liquidated],
+                    "errors": exc.errors,
+                    "state": state,
+                },
+            ) from exc
         state, _cooldown = await repo.state(config.execution_mode)
         return {
             "liquidated": [jsonable(asdict(item)) for item in results],

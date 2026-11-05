@@ -444,6 +444,63 @@ PF 4,23) mais perd sur les cinq dernières années. La réussite de 40 % n'est j
 atteinte : le système gagne rarement, gros. Durée moyenne 9,4 j (BTC) / 5,8 j (ETH),
 dans la cible 3–15 j. Ce n'est pas une arête actuelle, et ce n'est pas activé.
 
+## Mean Reversion Bollinger — mesure 2021-2026 (2026-11-05)
+
+Hypothèse opposée au trend-following : acheter la peur. Entrée à la clôture sous la
+bande de Bollinger basse (20 ; 2), RSI(14) < 32 et volume de la bougie supérieur à la
+moyenne des 20 volumes précédents ; sortie au contact de la bande médiane (`touch`) ou
+à sa clôture (`close`), avec stop structurel d'urgence sous le creux des 10 bougies.
+Le pare-feu reste l'autorité : chaque intention passe par `evaluate()`.
+
+Deux variantes sont mesurées :
+
+- **`gated`** : la configuration exécutable, filtre « prix au-dessus de l'EMA200 H4 »
+  compris ;
+- **`raw`** : le même filtre neutralisé (`RiskConfig.allow_counter_trend`, laboratoire
+  uniquement, jamais lu depuis l'environnement) pour mesurer l'hypothèse elle-même.
+  **Cette variante n'est pas activable en production.**
+
+Commande :
+
+```bash
+cd backend && .venv/bin/python scripts/backtest.py meanrev --months 60 \
+  --symbols BTC/EUR,ETH/EUR,SOL/EUR --timeframes 4h,1d \
+  --mr-rsi 30,32,35 --mr-exit touch,close --mr-variants gated,raw \
+  --fee-bps 80,100
+```
+
+### Scénario principal demandé (RSI 32, sortie `touch`, 80 pb)
+
+| paire | tf | trades | N/an | réussite | PF | net | DD max | B&H |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| BTC | H4 | 4 | 0,8 | 0,0 % | 0,00 | −53,25 | 5,32 % | +67,63 % |
+| ETH | H4 | 4 | 0,8 | 0,0 % | 0,00 | −54,00 | 5,40 % | −41,18 % |
+| SOL | H4 | 6 | 1,2 | 50,0 % | 1,28 | +15,53 | 3,12 % | −48,68 % |
+| BTC | D1 | 2 | 0,5 | 0,0 % | 0,00 | −46,48 | 4,65 % | +211,60 % |
+| ETH | D1 | 1 | 0,2 | 100,0 % | n/a | +47,31 | 0,00 % | +29,52 % |
+| SOL | D1 | 0 | 0,0 | — | n/a | 0,00 | 0,00 % | +106,46 % |
+
+### Les 144 scénarios
+
+| mesure | résultat |
+|---|---|
+| scénarios (3 paires × 2 tf × 3 RSI × 2 sorties × 2 variantes × 2 frais) | 144 |
+| net positif | 18 |
+| PF ≥ 1,30 | 5 — tous avec **2 à 6 trades** |
+| PF maximum, variante `gated` | 1,95 (SOL H4, RSI 30, `close`, 80 pb, N = 2) |
+| PF maximum, variante `raw` | 0,85 |
+| net cumulé, variante `gated` | −1 730 EUR |
+| net cumulé, variante `raw` | −4 804 EUR |
+| trades médians par scénario | 3 (`gated`) / 4 (`raw`) |
+
+**Verdict : hypothèse rejetée.** Les rares scénarios PF ≥ 1,30 tiennent sur 2 à 6
+trades et ne sont pas interprétables ; la variante `raw`, qui mesure la règle sans le
+filtre de tendance, plafonne à PF 0,85 et perd 4 804 EUR cumulés. L'arête n'existe pas
+hors tendance haussière, et la cadence (0,2 à 1,2 trade/an par paire) reste le plafond.
+Aucun seuil n'est figé sur ces échantillons, aucun filtre supplémentaire n'est empilé,
+et le mode n'est pas activé. Le seuil d'activation live (PF ≥ 1,30 **et** N ≥ 100 sur
+2021-2026) reste inchangé et non atteint. D-064.
+
 ## Tests récurrents
 
 Le backtest tourne à trois moments, avec des coûts différents :

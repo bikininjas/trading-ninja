@@ -26,6 +26,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.backtest.engine import DECISION_MS, H1_WARMUP, ReplayExchange, run_backtest
+from app.backtest.mean_reversion import WARMUP as MR_WARMUP
+from app.backtest.mean_reversion import run_mean_reversion_backtest
 from app.backtest.swing import run_swing_backtest
 from app.backtest.golden import (
     GoldenBundle,
@@ -928,9 +930,199 @@ def _print_sweep(rows: list[dict]) -> None:
           "le filtre, pas la qualité des décisions du modèle.")
 
 
+async def mean_reversion_sweep(args) -> int:
+    """Mesure MEAN_REVERSION_BB, sans LLM, sur H4 et D1 agrégé.
+
+    Deux variantes par scénario :
+
+    - ``gated`` : la configuration exécutable (filtre EMA200 du pare-feu inclus) ;
+    - ``raw``   : le même filtre neutralisé, pour mesurer l'hypothèse elle-même.
+      **Cette variante n'est pas activable en production.**
+    """
+    import asyncpg
+
+    from app.execution.paper import PaperBroker
+
+    settings = with_overrides(load_settings(), args)
+    equity = Decimal(str(args.equity))
+    settings = replace(settings, paper_start_equity=equity)
+    symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
+    fees = [Decimal(f.strip()) for f in args.fee_bps.split(",") if f.strip()]
+    timeframes = [t.strip().lower() for t in args.timeframes.split(",") if t.strip()]
+    for timeframe in timeframes:
+        if timeframe not in {"4h", "1d"}:
+            raise SystemExit(f"--timeframes invalide : {timeframe!r} (connus : 4h, 1d)")
+    exit_modes = [m.strip().lower() for m in args.mr_exit.split(",") if m.strip()]
+    for mode in exit_modes:
+        if mode not in {"touch", "close"}:
+            raise SystemExit(f"--mr-exit invalide : {mode!r} (connus : touch, close)")
+    variants = [v.strip().lower() for v in args.mr_variants.split(",") if v.strip()]
+    for variant in variants:
+        if variant not in {"gated", "raw"}:
+            raise SystemExit(f"--mr-variants invalide : {variant!r} (connus : gated, raw)")
+    rsi_values = [Decimal(v.strip()) for v in args.mr_rsi.split(",") if v.strip()]
+    if not (timeframes and exit_modes and variants and rsi_values and fees):
+        raise SystemExit("balayage mean-reversion vide : vérifier les listes")
+
+    exchange = build_exchange(
+        api_key=settings.exchange.api_key, secret=settings.exchange.secret
+    )
+    exchange.load_markets()
+
+    conn = await asyncpg.connect(**settings.database().asyncpg_kwargs())
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=int(args.months * 30.44)) if args.months > 0 else None
+    print(f"Fenêtre : {start:%Y-%m-%d} → {now:%Y-%m-%d}" if start else "Fenêtre : tout l'historique")
+    print(f"Équité initiale {equity} EUR · frais par côté : "
+          f"{', '.join(str(f) + ' pb' for f in fees)} · "
+          f"timeframes : {', '.join(timeframes)} · sorties : {', '.join(exit_modes)} · "
+          f"RSI max : {', '.join(str(v) for v in rsi_values)}")
+    print("Variantes : gated (exécutable) · raw (filtre EMA200 neutralisé, laboratoire)")
+    print()
+
+    rows: list[dict] = []
+    try:
+        for symbol in symbols:
+            h4 = await load_candles(conn, symbol, "4h", start=start, end=now)
+            if not h4:
+                print(f"{symbol} : aucun H4 en base — ignoré")
+                continue
+            series_by_timeframe = {
+                "4h": h4,
+                "1d": aggregate(h4, "4h", "1d"),
+            }
+            info = market_info(
+                exchange, symbol,
+                taker_fee=resolve_taker_fee(exchange, symbol, settings.exchange.taker_fee),
+                maker_fee=settings.exchange.maker_fee,
+            )
+            for timeframe in timeframes:
+                candles = series_by_timeframe[timeframe]
+                if len(candles) < MR_WARMUP + 30:
+                    print(f"{symbol} {timeframe} : {len(candles)} bougies seulement — ignoré")
+                    continue
+                print(
+                    f"{symbol} {timeframe} : {len(candles)} bougies "
+                    f"({datetime.fromtimestamp(candles[0][0]/1000, tz=timezone.utc):%Y-%m-%d} → "
+                    f"{datetime.fromtimestamp(candles[-1][0]/1000, tz=timezone.utc):%Y-%m-%d})"
+                )
+                for variant in variants:
+                    for rsi_max in rsi_values:
+                        for exit_mode in exit_modes:
+                            for fee_bps in fees:
+                                broker = PaperBroker(
+                                    fee_bps / Decimal(10_000),
+                                    settings.paper_slippage_bps,
+                                )
+                                result = run_mean_reversion_backtest(
+                                    symbol=symbol, info=info, candles=candles,
+                                    settings=settings, broker=broker,
+                                    rsi_max=rsi_max, exit_mode=exit_mode,
+                                    allow_counter_trend=variant == "raw",
+                                )
+                                rows.append({
+                                    "symbol": symbol,
+                                    "timeframe": timeframe,
+                                    "variant": variant,
+                                    "rsi_max": str(rsi_max),
+                                    "exit_mode": exit_mode,
+                                    "fee_bps": str(fee_bps),
+                                    "candles": len(candles),
+                                    "trades": len(result.trades),
+                                    "per_year": str(result.trades_per_year),
+                                    "win_rate": str(result.win_rate),
+                                    "payoff": (
+                                        str(result.payoff_ratio)
+                                        if result.payoff_ratio is not None else None
+                                    ),
+                                    "profit_factor": (
+                                        str(result.profit_factor)
+                                        if result.profit_factor is not None else None
+                                    ),
+                                    "expectancy": str(result.expectancy_quote),
+                                    "net_pnl": str(result.net_pnl),
+                                    "return_pct": str(result.return_pct),
+                                    "max_drawdown_pct": str(result.max_drawdown_pct),
+                                    "buy_and_hold_pct": str(result.buy_and_hold_pct),
+                                    "rejections": dict(result.rejections),
+                                    "counter_trend": result.rejections.get(
+                                        "REJECTED_COUNTER_TREND_EMA200", 0
+                                    ),
+                                    "last_exit": (
+                                        result.trades[-1].exit_at.strftime("%Y-%m-%d")
+                                        if result.trades else "—"
+                                    ),
+                                    "result": result,
+                                })
+    finally:
+        await conn.close()
+
+    _print_mean_reversion(rows)
+    if args.json:
+        payload = [
+            {key: value for key, value in row.items() if key != "result"}
+            for row in rows
+        ]
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    return 0
+
+
+def _meanrev_verdict(row: dict) -> str:
+    """Verdict de laboratoire : PF ≥ 1,30, N ≥ 30, net > 0, DD ≤ 20 %.
+
+    Le seuil d'activation réel reste PF ≥ 1,30 **et** N ≥ 100 sur la fenêtre :
+    un scénario « OK » ici est un candidat à mesurer davantage, pas un feu vert.
+    """
+    reasons = []
+    if int(row["trades"]) < 30:
+        reasons.append("N<30")
+    pf = row["profit_factor"]
+    if pf is None or Decimal(pf) < Decimal("1.30"):
+        reasons.append("PF<1.30")
+    if Decimal(row["net_pnl"]) <= 0:
+        reasons.append("net≤0")
+    if Decimal(row["max_drawdown_pct"]) > Decimal("0.20"):
+        reasons.append("DD>20%")
+    return "OK" if not reasons else "KO " + ",".join(reasons)
+
+
+def _print_mean_reversion(rows: list[dict]) -> None:
+    if not rows:
+        print("Aucun scénario mesuré.")
+        return
+    header = (
+        f"{'paire':10s} {'tf':>3s} {'variante':>8s} {'rsi':>4s} {'sortie':>6s} "
+        f"{'frais':>7s} {'bougies':>7s} {'trades':>7s} {'N/an':>6s} {'réussite':>9s} "
+        f"{'payoff':>7s} {'PF':>6s} {'net':>10s} {'retour':>9s} {'dd max':>8s} "
+        f"{'rejets':>7s} {'B&H':>9s}  verdict"
+    )
+    print(header)
+    print("-" * len(header))
+    for row in rows:
+        payoff = "n/a" if row["payoff"] is None else f"{Decimal(row['payoff']):.2f}"
+        pf = "n/a" if row["profit_factor"] is None else f"{Decimal(row['profit_factor']):.2f}"
+        print(
+            f"{row['symbol']:10s} {row['timeframe']:>3s} {row['variant']:>8s} "
+            f"{row['rsi_max']:>4s} {row['exit_mode']:>6s} {row['fee_bps'] + 'pb':>7s} "
+            f"{row['candles']:7d} {row['trades']:7d} {Decimal(row['per_year']):6.1f} "
+            f"{Decimal(row['win_rate']):9.1%} {payoff:>7s} {pf:>6s} "
+            f"{Decimal(row['net_pnl']):+10.4f} {Decimal(row['return_pct']):+9.2%} "
+            f"{Decimal(row['max_drawdown_pct']):8.2%} {row['counter_trend']:7d} "
+            f"{Decimal(row['buy_and_hold_pct']):+9.2%}  {_meanrev_verdict(row)}"
+        )
+    print()
+    print("Variante `raw` : filtre EMA200 neutralisé — mesure de l'hypothèse, "
+          "jamais exécutable. `gated` : configuration réelle du pare-feu.")
+    print("Critères de laboratoire : N ≥ 30 · PF ≥ 1,30 · net > 0 · DD ≤ 20 %. "
+          "L'activation réelle exige en plus N ≥ 100 sur 2021-2026.")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Backtest historique Trading Ninja")
-    parser.add_argument("command", choices=("record", "replay", "scenario", "watch", "measure", "sweep", "swing"))
+    parser.add_argument("command", choices=(
+        "record", "replay", "scenario", "watch", "measure", "sweep", "swing",
+        "meanrev",
+    ))
     parser.add_argument("--golden", default=FIXTURE)
     parser.add_argument("--symbol", default="BTC/EUR")
     parser.add_argument(
@@ -975,6 +1167,16 @@ def main() -> int:
                              "séparées par des virgules")
     parser.add_argument("--small-account", action="store_true",
                         help="swing : autoriser 100 %% de l'équité sous le seuil petit compte")
+    parser.add_argument("--timeframes", default="4h,1d",
+                        help="meanrev : timeframes testés (4h, 1d)")
+    parser.add_argument("--mr-rsi", default="30,32,35",
+                        help="meanrev : seuils RSI max testés (défaut 30,32,35)")
+    parser.add_argument("--mr-exit", default="touch,close",
+                        help="meanrev : sorties testées (touch = bande médiane touchée, "
+                             "close = clôture au-dessus)")
+    parser.add_argument("--mr-variants", default="gated,raw",
+                        help="meanrev : variantes (gated = pare-feu complet, "
+                             "raw = filtre EMA200 neutralisé)")
     parser.add_argument("--json", action="store_true",
                         help="sweep : sortie JSON en plus du tableau")
     args = parser.parse_args()
@@ -990,6 +1192,8 @@ def main() -> int:
         return asyncio.run(sweep(args))
     if args.command == "swing":
         return asyncio.run(swing_sweep(args))
+    if args.command == "meanrev":
+        return asyncio.run(mean_reversion_sweep(args))
     return asyncio.run(watch(args))
 
 

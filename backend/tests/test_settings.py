@@ -372,3 +372,18 @@ def test_unknown_swing_exit_mode_is_refused_at_startup(tmp_path: Path):
             env_file=tmp_path / "absent.env",
             overrides={"RISK_PROFILE": "swing", "SWING_EXIT_MODE": "supertrend"},
         )
+
+
+def test_kill_switch_keys_are_a_separate_optional_pair(tmp_path: Path):
+    s = load_settings(
+        env_file=tmp_path / "absent.env",
+        overrides={"KILL_SWITCH_API_KEY": "kill-key", "KILL_SWITCH_SECRET": "kill-secret"},
+    )
+    assert s.exchange.kill_api_key == "kill-key"
+    assert s.exchange.kill_secret == "kill-secret"
+
+    with pytest.raises(RuntimeError, match="KILL_SWITCH_API_KEY"):
+        load_settings(
+            env_file=tmp_path / "absent.env",
+            overrides={"KILL_SWITCH_API_KEY": "kill-key"},
+        )

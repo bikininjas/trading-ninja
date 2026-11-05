@@ -401,7 +401,7 @@ Objectif : mesurer, pas espérer.
   ordre, sortie **Chandelier** optionnelle (`SWING_EXIT_MODE=ema20` par défaut),
   migration **0009** (`1d` en base), scheduler **00:05 UTC**, breakeven live avec
   remplacement de stop sûr (création avant annulation).
-  *Validé par* : **570 tests Python** (dont 21 swing/stop structurel, Chandelier,
+  *Validé par* : **581 tests Python** (dont 21 swing/stop structurel, Chandelier,
   scheduler D1, breakeven live) ; `db_migrate.py status` → 9 migrations appliquées ;
   `backtest.py swing` sur BTC/ETH/SOL, 60 mois puis tout l'historique, sorties
   `ema20,chandelier`.
@@ -411,20 +411,47 @@ Objectif : mesurer, pas espérer.
   62 trades, PF 1,93, +68,29 % (EMA20 : PF 1,10) ; SOL reste KO (11 trades, PF 0,14).
   BTC et ETH passent PF/payoff/MDD/N, pas SOL, et aucun ne passe sur la fenêtre
   récente.
-  *Mesure LLM D1 invalide* : 144/144 appels en repli dégradé, Ollama 0.40.14 répond
-  HTTP 500 `llama-server binary not found`. Ce n'est pas un verdict du modèle ; rejouer
-  après réparation.
+  *Mesure LLM D1 — réelle, négative* : 144 trades Chandelier rejoués sur tout
+  l'historique, **144/144 appels non dégradés** (30 BUY, 114 HOLD). Rétention
+  **30,4 %** (7/23 gagnants), filtration **81,0 %** (98/121 perdants), verdict
+  `KO rétention<90%`. Le modèle filtre bien les perdants mais rejette 69,6 % des
+  gagnants ; la confiance ne les sépare pas (0,65 contre 0,62). Runner Ollama
+  réinstallé localement (`~/.local/opt/ollama-0.40.14`, port 11435) car
+  `/usr/local/lib/ollama` est vide.
   *Conclusion* : le trend-following D1 à faible taux de réussite est réel sur les cycles
   2014–2021, pas une arête actuelle. Ne pas activer, ne pas figer les seuils. Critères
   révisés : PF ≥ 1,35 net, payoff ≥ 3,5, MDD ≤ 20 %, N ≥ 50 ; le winrate ≥ 40 % est
   abandonné.
-  *Reste* : mesurer un filtre de régime (BTC vs ETH, breadth) ou une sortie moins
-  whipsaw ; réparer Ollama puis rejouer l'évaluation LLM ; ne pas empiler un quatrième
-  filtre d'entrée.
+  *Reste* : revoir le prompt D1 ou la définition du signal d'entrée (le seuil de
+  confiance ne discrimine pas), mesurer un filtre de régime (BTC vs ETH, breadth) ou
+  une sortie moins whipsaw ; ne pas empiler un quatrième filtre d'entrée.
+
+- ✅ **2.12 — Mean Reversion Bollinger (laboratoire, D-064)** *(2026-11-05)*
+  *Hypothèse* : clôture sous la bande de Bollinger basse (20 ; 2), RSI(14) < 32 et
+  volume > SMA(volume, 20) ; sortie au contact de la bande médiane ou stop structurel
+  sous le creux des 10 bougies.
+  *Fait* : `app/backtest/mean_reversion.py` + `backtest.py meanrev`. Le pare-feu reste
+  l'autorité ; une variante `raw` neutralise **uniquement** le filtre EMA200
+  (`allow_counter_trend`, laboratoire) pour distinguer l'hypothèse de l'effet du
+  filtre de tendance. Aucun chemin de configuration runtime ne pose ce drapeau.
+  *Validé par* : **581 tests Python** (dont 4 mean-reversion et 7 plomberie
+  d'urgence) ; `backtest.py meanrev --months 60` sur BTC/ETH/SOL, H4 et D1,
+  RSI 30/32/35, sorties `touch`/`close`, frais 80/100 pb → **144 scénarios**.
+  *Résultat* : **hypothèse rejetée**. 18 scénarios sur 144 ont un net positif, mais
+  seulement 5 atteignent PF ≥ 1,30 — tous avec **2 à 6 trades**, donc non
+  interprétables. La variante `raw` (sans filtre de tendance) plafonne à **PF 0,85**
+  et perd 4 804 EUR cumulés sur l'ensemble : l'arête n'existe pas hors tendance
+  haussière. Scénario principal demandé (RSI 32, touche, 80 pb) : BTC H4 4 trades
+  PF 0,00, ETH H4 4 trades PF 0,00, SOL H4 6 trades PF 1,28, BTC D1 2 trades,
+  ETH D1 1 trade, SOL D1 0 trade. La cadence reste le plafond : 0,2 à 1,2 trade/an
+  et par paire.
+  *Conclusion* : ne pas activer, ne pas empiler un filtre de plus. Le levier reste
+  la cadence (H1) ou la couverture multi-paires, déjà identifié en 2.9.
 
 **Critère de passage en phase 3** : au moins **100 trades simulés**, drawdown maximal
 sous le seuil configuré, espérance positive. En dessous, on corrige ou on abandonne —
-les deux sont des résultats utiles.
+les deux sont des résultats utiles. **Non atteint** : 2.9 plafonne à 39 trades par
+paire, 2.11 est négatif sur la fenêtre récente, 2.12 est rejeté.
 
 ---
 
@@ -434,13 +461,21 @@ Objectif : prouver la mécanique avec un vrai exchange et un capital minuscule. 
 spot n'a pas de testnet dans CCXT 4.5.91 : le « testnet » est remplacé par un canary
 réel, sous-compte dédié, après validation à blanc.
 
-- 🟨 **3.1 — Exécuteur réel validé à blanc** *(2026-11-04)*
+- ✅ **3.1 — Exécuteur réel validé à blanc** *(2026-11-05)*
   `app/execution/live.py` : achat marché + stop bracket, fill réel, stop relu après le
   fill, revente si le stop manque ; monitoring exchange-first pour ne jamais vendre
   deux fois ; `scripts/reconcile.py --apply --confirm` ; `kill_switch.py
-  --confirm-live`. *Validé par* : 442 tests Python, aucun réseau, aucun ordre réel.
-  *Reste* : un essai sur le sous-compte Kraken avec un ordre volontairement rejeté
-  (montant sous le minimum) pour vérifier les erreurs réelles.
+  --confirm-live`. S'y ajoutent le **panic-sell réel** (annulation globale + vente de
+  tout solde de base, écriture des fills réels au ledger) et la **clé API secondaire**
+  du kill-switch (`KILL_SWITCH_API_KEY` / `KILL_SWITCH_SECRET`) pour éviter la
+  collision de nonces. D-063.
+  *Validé par* : 581 tests Python, aucun ordre réel exécuté ; puis
+  `scripts/live_probe.py --confirm-live` sur le compte Kraken → ordre volontairement
+  invalide `0.0000007 BTC` (≈ 0,05 EUR) rejeté par l'exchange
+  (`EGeneral:Invalid arguments:volume minimum not met`), **0 ordre créé**, aucun
+  plantage. Le compte principal a servi de sonde : aucun sous-compte n'existe encore.
+  *Reste* : refaire la sonde sur le sous-compte dédié le jour de son ouverture, puis
+  3.2.
 - ⬜ **3.2 — Premier aller-retour réel minuscule** : sous-compte dédié, montant décidé
   par Seb, achat → stop visible chez Kraken → sortie → sweep. Aucun solde manuel sur
   la paire.
@@ -490,4 +525,4 @@ Seb. Le risque par trade (0,5 %) reste inchangé quel que soit le capital.
 | 2 | Quel montant acceptes-tu de perdre **entièrement** ? | Détermine la taille de tout le reste (phase 4) |
 | 3 | Ollama est-il installé sur la machine, et avec quel modèle ? | Détermine la phase 1.5 (le LLM local) |
 | 4 | ✅ **Résolu le 2026-11-04** : clé Kraken remplacée puis vérifiée — 7 permissions, aucun droit de retrait, IP restreinte. Le garde-fou passe | — |
-| 5 | Créer une **seconde paire de clés Kraken** pour le kill-switch, ou accepter que le kill-switch ne puisse pas signer en parallèle du bot (nonces strictement croissants par clé) | Sans elle, le kill-switch réel ne peut pas tourner pendant que le bot tourne |
+| 5 | Créer une **seconde paire de clés Kraken** pour le kill-switch (le code lit déjà `KILL_SWITCH_API_KEY` / `KILL_SWITCH_SECRET` et retombe sur la clé du bot avec un avertissement), ou accepter que le kill-switch ne puisse pas signer en parallèle du bot (nonces strictement croissants par clé) | Sans elle, le kill-switch réel ne peut pas tourner pendant que le bot tourne |

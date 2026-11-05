@@ -21,9 +21,29 @@ from typing import Any
 from app.db.repository import PostgresRepository
 from app.market.feed import last_price
 
-__all__ = ["Liquidation", "liquidate_open_positions"]
+__all__ = [
+    "Liquidation",
+    "PanicLiquidationError",
+    "PanicRecord",
+    "liquidate_open_positions",
+    "record_panic_exits",
+]
 
 EMERGENCY_REASON = "EMERGENCY_KILL"
+
+
+class PanicLiquidationError(RuntimeError):
+    """Une liquidation d'urgence a laissé une exposition ou une erreur.
+
+    Les ventes réussies ont déjà été écrites en base et le bot est halte : cette
+    exception ne sert qu'à rendre l'échec visible à l'appelant (API, dashboard).
+    """
+
+    def __init__(self, message: str, *, liquidated: list["PanicRecord"],
+                 errors: list[str]) -> None:
+        super().__init__(message)
+        self.liquidated = liquidated
+        self.errors = errors
 
 
 async def _maybe_await(value: Any) -> Any:
@@ -40,6 +60,23 @@ class Liquidation:
     net_pnl_quote: Decimal
     fees_quote: Decimal
     orders_canceled: int
+
+
+@dataclass(frozen=True, slots=True)
+class PanicRecord:
+    """Vente d'urgence constatée chez l'exchange, écrite au ledger.
+
+    ``tracked`` est faux quand le solde vendu n'avait pas de position en base :
+    une urgence solde l'exchange d'abord, la comptabilité ensuite.
+    """
+
+    symbol: str
+    amount: Decimal
+    exit_price: Decimal
+    net_pnl_quote: Decimal
+    fees_quote: Decimal
+    orders_canceled: int
+    tracked: bool
 
 
 async def liquidate_open_positions(
@@ -129,3 +166,108 @@ async def liquidate_open_positions(
     # rester arrêté jusqu'à une intervention humaine.
     await repo.force_halt(mode, f"{reason} à {moment:%Y-%m-%d %H:%M:%S} UTC")
     return results
+
+
+async def record_panic_exits(
+    repo: PostgresRepository,
+    exits: Any,
+    mode: str,
+    *,
+    quote_currency: str,
+    starting_equity: Decimal,
+    free_quote_after: Decimal | None,
+    taker_fee: Decimal,
+    errors: list[str] | None = None,
+    reason: str = EMERGENCY_REASON,
+    now: datetime | None = None,
+) -> list[PanicRecord]:
+    """Écrit au ledger les ventes réelles d'un panic-sell, puis halte le bot.
+
+    Contrairement à ``liquidate_open_positions``, la vente a **déjà eu lieu**
+    chez l'exchange : le prix et les frais viennent du fill, jamais d'une
+    estimation. Un solde vendu sans position en base produit quand même une
+    ligne d'ordre, sinon l'argent apparaîtrait de nulle part dans le ledger.
+    """
+    ensure = getattr(repo, "ensure_mode", None)
+    if ensure is not None:
+        await ensure(mode)
+    moment = now or datetime.now(timezone.utc)
+    account = await repo.account(mode, starting_equity)
+    reserve = account.reserve_quote
+    consecutive = account.consecutive_losses
+    open_positions = await repo.open_positions(mode)
+    by_symbol = {position.symbol: position for position in open_positions}
+    records: list[PanicRecord] = []
+
+    for item in exits:
+        fill = getattr(item, "fill", None)
+        if fill is None:
+            continue
+        symbol = str(item.symbol)
+        position = by_symbol.pop(symbol, None)
+        closed_amount = min(fill.amount, position.amount) if position else Decimal(0)
+        net = Decimal(0)
+        fees = fill.fee_quote
+        canceled = 0
+        position_id = None
+
+        if position is not None:
+            position_id = position.id
+            getter = getattr(repo, "entry_fee", None)
+            entry_fee = await _maybe_await(getter(position.id)) if getter else None
+            if entry_fee is None or entry_fee <= 0:
+                entry_fee = position.entry_price * position.amount * taker_fee
+            gross = (fill.price - position.entry_price) * closed_amount
+            fees = entry_fee + fill.fee_quote
+            net = gross - fees
+            for order in await repo.open_orders(mode):
+                if order["position_id"] == position.id or order["symbol"] == position.symbol:
+                    await repo.update_order_status(
+                        order["id"], "CANCELED", f"{reason} : panic-sell"
+                    )
+                    canceled += 1
+            await repo.close_position(
+                position.id, exit_price=fill.price, closed_amount=closed_amount,
+                gross_pnl_quote=gross, total_fees_quote=fees, net_pnl_quote=net,
+                exit_reason=reason, status="EMERGENCY_LIQUIDATED",
+            )
+            consecutive = consecutive + 1 if net < 0 else 0
+
+        await repo.insert_order(
+            mode, client_order_id=f"{mode}-{symbol.replace('/', '')}-PANIC-"
+                                  f"{uuid.uuid4().hex[:8]}",
+            symbol=symbol, side="SELL", order_type="MARKET",
+            purpose="EMERGENCY_EXIT", status="FILLED",
+            requested_amount=item.amount, filled_amount=fill.amount,
+            requested_price=None, stop_price=None, average_fill_price=fill.price,
+            fee_amount=fill.fee_quote, fee_currency=quote_currency,
+            slippage_quote=fill.slippage_quote, position_id=position_id,
+        )
+        records.append(PanicRecord(
+            symbol=symbol, amount=fill.amount, exit_price=fill.price,
+            net_pnl_quote=net, fees_quote=fees, orders_canceled=canceled,
+            tracked=position is not None,
+        ))
+
+    # Un solde illisible ne doit pas écrire une équité fausse (0 EUR) : on halte
+    # et on signale, mais on laisse la dernière valeur connue intacte.
+    if free_quote_after is not None:
+        equity = free_quote_after + reserve
+        await repo.update_after_close(
+            mode, consecutive_losses=consecutive, equity=equity
+        )
+        await repo.snapshot_equity(
+            mode, equity=equity, free_quote=free_quote_after,
+            position_value_quote=Decimal(0), symbol=None, source="PANIC_SELL",
+        )
+
+    # Un panic-sell est un arrêt : le bot ne repart pas sans un humain.
+    await repo.force_halt(mode, f"{reason} (panic-sell) à {moment:%Y-%m-%d %H:%M:%S} UTC")
+
+    failures = list(errors or ())
+    if failures:
+        raise PanicLiquidationError(
+            "panic-sell incomplet : " + " | ".join(failures),
+            liquidated=records, errors=failures,
+        )
+    return records
