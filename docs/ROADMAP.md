@@ -448,10 +448,38 @@ Objectif : mesurer, pas espérer.
   *Conclusion* : ne pas activer, ne pas empiler un filtre de plus. Le levier reste
   la cadence (H1) ou la couverture multi-paires, déjà identifié en 2.9.
 
+- ✅ **2.13 — Sensibilité aux frais maker (laboratoire, D-065)** *(2026-11-05)*
+  *Hypothèse* : une partie de l'échec vient du tarif taker réel (80 pb/côté) ; à
+  25 pb maker, une arête apparaît-elle ?
+  *Fait* : `--maker-fees [valeur]` (défaut 25) dans `backtest.py`, cumulable avec
+  `--fee-bps` et appliqué aux trois balayages. C'est une sensibilité au coût, pas un
+  modèle d'exécution maker : le fill reste clôture + slippage.
+  *Validé par* : swing D1 60 mois, 36 scénarios → 80 pb : 3 PF ≥ 1,30, PF max 2,31,
+  net cumulé −665,68 EUR ; 25 pb : 3 PF ≥ 1,30, PF max 2,92, net cumulé **−64,98
+  EUR**. Mean reversion 144 scénarios → 80 pb : 3 PF ≥ 1,30, PF max 1,95 ; 25 pb :
+  7 PF ≥ 1,30, PF max 2,85, aucune poche > 15 trades.
+  *Conclusion* : les frais n'expliquent pas l'absence d'arête. Même à 25 pb, le
+  trend-following reste négatif en cumulé et le mean reversion ne produit que des
+  poches à 2–15 trades. Ne pas activer.
+
+- ✅ **2.14 — Rotation momentum BTC/ETH/SOL/CASH (laboratoire, D-066)** *(2026-11-05)*
+  *Hypothèse* : abandonner le choix d'entrée et allouer 100 % au actif le plus fort
+  (momentum 30/60 j, filtre EMA200 D1), sinon 100 % cash.
+  *Fait* : `app/backtest/rotation.py` + `scripts/lab_rotation.py`, cadence 7 ou 14
+  jours, frais et slippage par côté, mark-to-market quotidien ; 6 tests unitaires.
+  *Validé par* : 2021-11 → 2026-11, 1 762 D1. 7 j/25 pb : +163,74 %, DD 54,57 %,
+  9,9 rotations/an ; 14 j/25 pb : +238,13 %, DD 60,13 %, 7,0 rotations/an. À 80 pb :
+  +77,49 % et +151,25 %. Buy & hold : BTC +69,7 %, ETH −39,6 %, SOL −44,4 %.
+  *Conclusion* : la rotation bat le buy & hold et tient la cadence visée, mais des
+  drawdowns de 55–62 % sont hors du critère de 20 %, et les minimums d'ordre ne sont
+  pas modélisés. Laboratoire prometteur, **non activé**. Prochain levier : risque ou
+  ciblage de volatilité, pas un déploiement.
+
 **Critère de passage en phase 3** : au moins **100 trades simulés**, drawdown maximal
 sous le seuil configuré, espérance positive. En dessous, on corrige ou on abandonne —
 les deux sont des résultats utiles. **Non atteint** : 2.9 plafonne à 39 trades par
-paire, 2.11 est négatif sur la fenêtre récente, 2.12 est rejeté.
+paire, 2.11 est négatif sur la fenêtre récente, 2.12 est rejeté, 2.13 ne crée pas
+d'arête et 2.14 reste au-dessus du drawdown maximal.
 
 ---
 

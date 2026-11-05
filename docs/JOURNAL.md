@@ -6,6 +6,67 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-05 · 07:30 — Frais maker : pas d'arête cachée ; rotation momentum mesurée (D-065, D-066)
+
+**Fait — sensibilité aux frais maker.** `scripts/backtest.py` accepte `--maker-fees
+[valeur]` (défaut 25), cumulable avec `--fee-bps` ; les trois balayages (`sweep`,
+`swing`, `meanrev`) utilisent la même grille dédupliquée. C'est une **sensibilité au
+coût**, pas un modèle d'exécution maker : le fill reste la clôture plus le slippage.
+
+**Mesuré — swing D1, 60 mois, 36 scénarios.**
+```
+cd backend && .venv/bin/python scripts/backtest.py swing --months 60 \
+  --symbols BTC/EUR,ETH/EUR,SOL/EUR --fee-bps 80 --maker-fees 25 \
+  --swing-triggers both,donchian,value --exit-mode ema20,chandelier \
+  --max-consecutive-losses 9999 --max-hwm-drawdown 1.0
+```
+→ 80 pb : 3 PF ≥ 1, 3 PF ≥ 1,30, PF max 2,31, net cumulé **−665,68 EUR**.
+→ 25 pb : 8 PF ≥ 1, 3 PF ≥ 1,30, PF max 2,92, net cumulé encore **−64,98 EUR**.
+Les seuls PF ≥ 1,30 restent des poches Donchian de 5 à 7 trades.
+
+**Mesuré — mean reversion, 144 scénarios.**
+→ 80 pb : 10 nets positifs, 3 PF ≥ 1,30, PF max 1,95, N médian 4.
+→ 25 pb : 13 nets positifs, 7 PF ≥ 1,30, PF max 2,85, N médian 4 ; aucune poche
+au-delà de 15 trades n'atteint PF 1,30. Scénario RSI 32/touch à 25 pb : SOL H4
+6 trades PF 2,26 (+49,80 EUR), BTC H4 4 trades (−32,06), BTC D1 2 trades (−35,87),
+ETH H4 4 trades (−32,83), ETH D1 1 trade (+53,12), SOL D1 0.
+**Verdict** : les frais expliquent une partie des pertes, pas l'absence d'arête.
+D-065.
+
+**Fait — laboratoire de rotation.** `app/backtest/rotation.py` et
+`scripts/lab_rotation.py` : univers BTC/ETH/SOL/CASH, score = moyenne des rendements
+30 et 60 jours, 100 % sur le meilleur actif seulement s'il clôture au-dessus de son
+EMA200 D1 et si le score est positif, sinon 100 % cash. Cadence 7 ou 14 jours, frais
+et slippage par côté, mark-to-market quotidien. 6 tests unitaires.
+
+**Mesuré — 2021-11 → 2026-11, 1 762 bougies D1 communes.**
+```
+cd backend && .venv/bin/python scripts/lab_rotation.py --months 60 \
+  --fee-bps 25,80 --cadence-days 7,14 --verbose
+```
+| cadence | frais | équité finale | retour | DD max | rotations | frais |
+|---|---:|---:|---:|---:|---:|---:|
+| 7 j | 25 pb | 2 637,37 | +163,74 % | 54,57 % | 48 (9,9/an) | 391,12 |
+| 14 j | 25 pb | 3 381,33 | +238,13 % | 60,13 % | 34 (7,0/an) | 443,16 |
+| 7 j | 80 pb | 1 774,94 | +77,49 % | 58,80 % | 48 | 994,12 |
+| 14 j | 80 pb | 2 512,46 | +151,25 % | 61,84 % | 34 | 1 200,24 |
+
+Buy & hold même fenêtre : BTC +69,7 %, ETH −39,6 %, SOL −44,4 %. Petit compte
+9,37 EUR → 24,71 EUR (mêmes proportions), mais les minimums d'ordre de l'exchange ne
+sont pas modélisés par le laboratoire. **Verdict** : la rotation bat le buy & hold et
+tient la cadence visée, mais des drawdowns de 55–62 % sont hors du critère de 20 %.
+Laboratoire prometteur, **non activé**. D-066.
+
+**Vérifié**
+```
+cd backend && .venv/bin/python -m pytest -q -o addopts=""   → 587 passed
+bash scripts/check.sh                                       → TOUT EST VERT
+```
+587 tests = 581 + 6 rotation. `TRADING_MODE=paper`, aucun ordre réel, chemin live
+toujours fermé. Aucun quatrième filtre d'entrée ajouté aux stratégies existantes.
+
+---
+
 ## 2026-11-05 · 06:45 — Panic-sell réel, clé kill-switch dédiée, sonde 3.1 et mean reversion rejetée (D-063, D-064)
 
 **Fait — plomberie d'urgence.**

@@ -3,18 +3,18 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `044361b263b78cfa`
+Empreinte des sources : `f1a7b3f426420e0c`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
-| Modules Python | 99 |
-| Lignes Python | 22392 |
-| Classes | 119 |
-| Fonctions et méthodes | 786 |
-| Cas de test collectés par pytest | 581 |
-| Fonctions de test (comptage statique) | 458 |
+| Modules Python | 102 |
+| Lignes Python | 23084 |
+| Classes | 122 |
+| Fonctions et méthodes | 806 |
+| Cas de test collectés par pytest | 587 |
+| Fonctions de test (comptage statique) | 464 |
 | Migrations SQL | 9 |
 | Scripts shell | 3 |
 
@@ -34,6 +34,7 @@ Empreinte des sources : `044361b263b78cfa`
 | `backend/app/backtest/golden.py` | 213 | Golden de backtest : décisions enregistrées + métriques attendues. |
 | `backend/app/backtest/llm_eval.py` | 92 | Métriques pures pour l'évaluation du LLM sur les signaux swing D1. |
 | `backend/app/backtest/mean_reversion.py` | 349 | Laboratoire Mean Reversion — hypothèse mesurée, jamais activée. |
+| `backend/app/backtest/rotation.py` | 305 | Laboratoire de rotation momentum — BTC/ETH/SOL contre cash, sans I/O. |
 | `backend/app/backtest/short_lab.py` | 260 | Laboratoire du mandat short — mesure hors production. |
 | `backend/app/backtest/swing.py` | 488 | Rejeu du moteur swing Daily — le vrai pare-feu, le vrai broker, aucune I/O. |
 | `backend/app/core/__init__.py` | 1 |  |
@@ -70,7 +71,7 @@ Empreinte des sources : `044361b263b78cfa`
 | `backend/app/runtime/recovery.py` | 273 | Liquidation d'urgence — le seul chemin qui ferme une position sans pare-feu. |
 | `backend/app/runtime/scheduler.py` | 62 | Cadence d'évaluation : une décision par bougie clôturée, pas par minute. |
 | `backend/app/runtime/shadow.py` | 178 | Mesure des achats que le bot n'a pas pris. |
-| `backend/scripts/backtest.py` | 1201 | Backtest historique — enregistrement, rejeu de régression, veille de dérive. |
+| `backend/scripts/backtest.py` | 1229 | Backtest historique — enregistrement, rejeu de régression, veille de dérive. |
 | `backend/scripts/check_exchange.py` | 280 | Sonde **lecture seule** de la clé Binance — étape 1.1 de la feuille de route. |
 | `backend/scripts/check_kraken.py` | 288 | Inspection Kraken spot — lecture seule. |
 | `backend/scripts/db_migrate.py` | 265 | Application des migrations SQL sur la base cible. |
@@ -79,6 +80,7 @@ Empreinte des sources : `044361b263b78cfa`
 | `backend/scripts/hash_password.py` | 35 | Génère un hash de mot de passe administrateur (scrypt). |
 | `backend/scripts/ingest_history.py` | 471 | Ingestion de l'historique OHLCVT multi-années de Kraken. |
 | `backend/scripts/kill_switch.py` | 121 | Kill-switch autonome — solde la position et halte le bot, backend arrêté ou non. |
+| `backend/scripts/lab_rotation.py` | 232 | Laboratoire de rotation momentum D1 — aucun ordre, aucune écriture. |
 | `backend/scripts/lessons.py` | 168 | Mémoire de leçons — relecture des résultats, affichage, purge. |
 | `backend/scripts/live_probe.py` | 172 | Sonde 3.1 — vérifier qu'un ordre réel rejeté ne fait pas planter le bot. |
 | `backend/scripts/probe_backtest.py` | 92 | Sonde : combien de décisions LLM un backtest coûterait-il sur BTC/EUR ? |
@@ -115,6 +117,7 @@ Empreinte des sources : `044361b263b78cfa`
 | `backend/tests/test_reconciliation.py` | 268 | Tests de la réconciliation base ↔ exchange, sans réseau ni base réelle. |
 | `backend/tests/test_recovery.py` | 238 | Tests du kill-switch : liquidation, annulation des ordres, halte forcée. |
 | `backend/tests/test_risk_gate.py` | 582 | Tests du pare-feu transactionnel. |
+| `backend/tests/test_rotation.py` | 127 | Tests du laboratoire de rotation — aucun réseau, aucun ordre. |
 | `backend/tests/test_scheduler.py` | 83 | Tests de la cadence : prochaine clôture de bougie, alignée sur l'époque Unix. |
 | `backend/tests/test_schema_contract.py` | 173 | Contrat entre le schéma SQL et le code Python. |
 | `backend/tests/test_settings.py` | 389 | Tests du chargement de configuration : presets, écrasements, verrous d'armement. |
@@ -287,6 +290,25 @@ le code, pas une copie de celui-ci.
 - `def evaluate_mean_reversion(series: MeanReversionSeries, index: int, *, rsi_max: Decimal=RSI_MAX) -> str | None` (l.139) — Rend le motif d'entrée, ou ``None``. Aucun accès au futur.
 - `def snapshot_at(series: MeanReversionSeries, index: int, symbol: str) -> tuple[MarketSnapshot, MarketContext]` (l.161)
 - `def run_mean_reversion_backtest(*, symbol: str, info: Any, candles: list[list], settings: Any, broker: PaperBroker | None=None, start_index: int | None=None, end_index: int | None=None, rsi_max: Decimal=RSI_MAX, exit_mode: str='touch', allow_counter_trend: bool=False) -> BacktestResult` (l.192) — Rejoue l'hypothèse moyenne-réversion sur des bougies clôturées.
+
+### `backend/app/backtest/rotation.py`
+
+*Laboratoire de rotation momentum — BTC/ETH/SOL contre cash, sans I/O.*
+
+- **class Momentum** (l.60) — Force relative d'un actif à une date de réévaluation.
+  - `def eligible(self) -> bool` (l.70)
+- **class Rotation** (l.75) — Un changement d'allocation, frais et slippage compris.
+- **class RotationResult** (l.88) — Résultat complet d'un rejeu de rotation.
+  - `def net_pnl(self) -> Decimal` (l.106)
+  - `def return_pct(self) -> Decimal` (l.110)
+  - `def years(self) -> Decimal` (l.116)
+  - `def rotations_per_year(self) -> Decimal` (l.121)
+  - `def exposure_pct(self) -> Decimal` (l.125)
+- `def _d(value: Any) -> Decimal` (l.51)
+- `def _close_time(open_ms: int) -> datetime` (l.55)
+- `def evaluate_momentum(closes: Sequence[Decimal], ema: Sequence[Decimal], index: int, *, symbol: str, short: int=MOMENTUM_SHORT, long: int=MOMENTUM_LONG) -> Momentum` (l.130) — Rendements 30/60 D1 et position relative à l'EMA200, sans futur.
+- `def _series(candles: Sequence[Sequence[Any]]) -> tuple[dict[int, list], list[Decimal], list[Decimal]]` (l.155)
+- `def run_rotation_backtest(*, candles_by_symbol: dict[str, Sequence[Sequence[Any]]], equity_start: Decimal, universe: Sequence[str]=DEFAULT_UNIVERSE, fee_bps: Decimal=Decimal('25'), slippage_bps: int=5, cadence_days: int=7, momentum_short: int=MOMENTUM_SHORT, momentum_long: int=MOMENTUM_LONG, start_at: datetime | None=None) -> RotationResult` (l.165) — Rejoue la rotation sur des bougies D1 alignées par date d'ouverture.
 
 ### `backend/app/backtest/short_lab.py`
 
@@ -798,28 +820,29 @@ le code, pas une copie de celui-ci.
 
 *Backtest historique — enregistrement, rejeu de régression, veille de dérive.*
 
-- **class _MechanicalSignal** (l.488) — Réponse fixe qui remplace le LLM dans le balayage.
+- **class _MechanicalSignal** (l.510) — Réponse fixe qui remplace le LLM dans le balayage.
 - `def fetch_recent(exchange, symbol: str, timeframe: str) -> list[list]` (l.53) — Les 720 bougies les plus récentes, clôturées uniquement.
 - `def first_index(h4: list[list], h1: list[list]) -> int` (l.66) — Premier indice où l'EMA200 et les 120 H1 nécessaires existent.
 - `def with_overrides(settings, args)` (l.77) — Scénario de backtest : ne modifie jamais `.env`, seulement cette exécution.
-- `async def record(args) -> int` (l.93)
-- `async def replay(args) -> int` (l.183)
-- `async def scenario(args) -> int` (l.233) — Rejoue le golden avec un autre stop/take-profit, sans le modifier.
-- `def _snapshot_at(bundle: GoldenBundle, info, index: int)` (l.278)
-- `async def watch(args) -> int` (l.290)
-- `def read_lessons(path: str | None) -> list[str] | None` (l.397) — Lit un fichier de leçons (une par ligne) pour un scénario A/B.
-- `async def measure(args) -> int` (l.410) — Mesure la politique règle + LLM sur plusieurs paires, sans golden.
-- `async def _always_buy(snapshot, context, has_position: bool=False)` (l.508)
-- `async def sweep(args) -> int` (l.512) — Balaye le filtre de pente EMA200 sur l'historique multi-années, sans LLM.
-- `async def swing_sweep(args) -> int` (l.661) — Mesure SWING_MACRO_D1 sur l'historique multi-années, sans LLM.
-- `def _swing_verdict(row: dict) -> str` (l.823) — Critères swing D-061 : N, payoff, PF et drawdown, jamais le winrate.
-- `def _print_swing(rows: list[dict]) -> None` (l.845)
-- `def _verdict(row: dict, *, min_trades: int, min_pf: Decimal, max_dd: Decimal) -> str` (l.879) — Verdict par scénario, critères du brief : N, PF, espérance, drawdown.
-- `def _print_sweep(rows: list[dict]) -> None` (l.897)
-- `async def mean_reversion_sweep(args) -> int` (l.933) — Mesure MEAN_REVERSION_BB, sans LLM, sur H4 et D1 agrégé.
-- `def _meanrev_verdict(row: dict) -> str` (l.1070) — Verdict de laboratoire : PF ≥ 1,30, N ≥ 30, net > 0, DD ≤ 20 %.
-- `def _print_mean_reversion(rows: list[dict]) -> None` (l.1089)
-- `def main() -> int` (l.1120)
+- `def fee_grid(args) -> list[Decimal]` (l.93) — Grille de frais par côté, en points de base.
+- `async def record(args) -> int` (l.115)
+- `async def replay(args) -> int` (l.205)
+- `async def scenario(args) -> int` (l.255) — Rejoue le golden avec un autre stop/take-profit, sans le modifier.
+- `def _snapshot_at(bundle: GoldenBundle, info, index: int)` (l.300)
+- `async def watch(args) -> int` (l.312)
+- `def read_lessons(path: str | None) -> list[str] | None` (l.419) — Lit un fichier de leçons (une par ligne) pour un scénario A/B.
+- `async def measure(args) -> int` (l.432) — Mesure la politique règle + LLM sur plusieurs paires, sans golden.
+- `async def _always_buy(snapshot, context, has_position: bool=False)` (l.530)
+- `async def sweep(args) -> int` (l.534) — Balaye le filtre de pente EMA200 sur l'historique multi-années, sans LLM.
+- `async def swing_sweep(args) -> int` (l.683) — Mesure SWING_MACRO_D1 sur l'historique multi-années, sans LLM.
+- `def _swing_verdict(row: dict) -> str` (l.845) — Critères swing D-061 : N, payoff, PF et drawdown, jamais le winrate.
+- `def _print_swing(rows: list[dict]) -> None` (l.867)
+- `def _verdict(row: dict, *, min_trades: int, min_pf: Decimal, max_dd: Decimal) -> str` (l.901) — Verdict par scénario, critères du brief : N, PF, espérance, drawdown.
+- `def _print_sweep(rows: list[dict]) -> None` (l.919)
+- `async def mean_reversion_sweep(args) -> int` (l.955) — Mesure MEAN_REVERSION_BB, sans LLM, sur H4 et D1 agrégé.
+- `def _meanrev_verdict(row: dict) -> str` (l.1092) — Verdict de laboratoire : PF ≥ 1,30, N ≥ 30, net > 0, DD ≤ 20 %.
+- `def _print_mean_reversion(rows: list[dict]) -> None` (l.1111)
+- `def main() -> int` (l.1142)
 
 ### `backend/scripts/check_exchange.py`
 
@@ -907,6 +930,17 @@ le code, pas une copie de celui-ci.
 
 - `async def _run(dry_run: bool, confirm_live: bool) -> int` (l.37)
 - `def main() -> int` (l.107)
+
+### `backend/scripts/lab_rotation.py`
+
+*Laboratoire de rotation momentum D1 — aucun ordre, aucune écriture.*
+
+- `def _decimal_list(raw: str) -> list[Decimal]` (l.38)
+- `def _int_list(raw: str) -> list[int]` (l.45)
+- `async def _load(args) -> tuple[dict[str, list[list]], datetime | None, datetime]` (l.52)
+- `def _print_result(result, *, fee_bps: Decimal, cadence: int, slippage: int, verbose: bool) -> None` (l.86)
+- `async def _run(args) -> int` (l.134)
+- `def main() -> int` (l.197)
 
 ### `backend/scripts/lessons.py`
 
@@ -1665,6 +1699,19 @@ le code, pas une copie de celui-ci.
 - `def test_chandelier_period_must_stay_in_bounds(period)` (l.574)
 - `def test_chandelier_multiple_must_be_positive_and_finite(multiple)` (l.580)
 
+### `backend/tests/test_rotation.py`
+
+*Tests du laboratoire de rotation — aucun réseau, aucun ordre.*
+
+- `def candles(price, count: int=320) -> list[list]` (l.16)
+- `def universe(btc, eth, sol) -> dict[str, list[list]]` (l.24)
+- `def test_all_assets_below_their_ema_stay_in_cash()` (l.28)
+- `def test_the_strongest_asset_above_its_ema_takes_the_whole_allocation()` (l.42)
+- `def test_fees_reduce_the_final_equity()` (l.61)
+- `def test_a_crash_below_the_ema_sends_the_book_to_cash()` (l.81)
+- `def test_momentum_is_a_plain_average_of_the_two_windows()` (l.104)
+- `def test_an_invalid_window_is_refused()` (l.117)
+
 ### `backend/tests/test_scheduler.py`
 
 *Tests de la cadence : prochaine clôture de bougie, alignée sur l'époque Unix.*
@@ -1822,13 +1869,14 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_reconciliation.py` | 15 |
 | `backend/tests/test_recovery.py` | 8 |
 | `backend/tests/test_risk_gate.py` | 147 |
+| `backend/tests/test_rotation.py` | 6 |
 | `backend/tests/test_scheduler.py` | 13 |
 | `backend/tests/test_schema_contract.py` | 18 |
 | `backend/tests/test_settings.py` | 41 |
 | `backend/tests/test_shadow.py` | 5 |
 | `backend/tests/test_sweep.py` | 13 |
 | `backend/tests/test_swing_backtest.py` | 7 |
-| **Total** | **581** |
+| **Total** | **587** |
 
 ## 5. Schéma SQL
 

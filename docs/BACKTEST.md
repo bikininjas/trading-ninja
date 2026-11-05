@@ -501,6 +501,101 @@ Aucun seuil n'est figé sur ces échantillons, aucun filtre supplémentaire n'es
 et le mode n'est pas activé. Le seuil d'activation live (PF ≥ 1,30 **et** N ≥ 100 sur
 2021-2026) reste inchangé et non atteint. D-064.
 
+## Sensibilité aux frais maker (25 pb vs 80 pb) — 2026-11-05
+
+`--maker-fees` est une **sensibilité au coût**, pas un modèle d'exécution maker : le
+fill reste la clôture + slippage, et les 25 pb remplacent seulement les 80 pb de frais.
+Aucun ordre limite, aucune file d'attente, aucun statut maker n'est simulé.
+
+```bash
+cd backend && .venv/bin/python scripts/backtest.py swing --months 60 \
+  --symbols BTC/EUR,ETH/EUR,SOL/EUR --fee-bps 80 --maker-fees 25 \
+  --swing-triggers both,donchian,value --exit-mode ema20,chandelier \
+  --max-consecutive-losses 9999 --max-hwm-drawdown 1.0
+
+cd backend && .venv/bin/python scripts/backtest.py meanrev --months 60 \
+  --symbols BTC/EUR,ETH/EUR,SOL/EUR --timeframes 4h,1d \
+  --mr-rsi 30,32,35 --mr-exit touch,close --mr-variants gated,raw \
+  --fee-bps 80 --maker-fees 25
+```
+
+### Swing D1 — 36 scénarios
+
+| frais | scénarios PF ≥ 1 | PF ≥ 1,30 | PF max | net cumulé |
+|---|---:|---:|---:|---:|
+| 80 pb | 3 | 3 | 2,31 | −665,68 EUR |
+| 25 pb | 8 | 3 | 2,92 | **−64,98 EUR** |
+
+| scénario | N | PF 80 | net 80 | PF 25 | net 25 |
+|---|---:|---:|---:|---:|---:|
+| BTC Donchian Chandelier | 7 | 2,31 | +86,46 | 2,92 | +107,89 |
+| ETH Donchian EMA20 | 5 | 2,11 | +68,86 | 2,60 | +83,59 |
+| BTC both Chandelier | 23 | 0,77 | −48,08 | 1,00 | +0,18 |
+| BTC both EMA20 | 31 | 0,44 | −126,94 | 0,63 | −61,86 |
+| ETH both EMA20 | 19 | 0,57 | −55,45 | 0,78 | −21,89 |
+| SOL both EMA20 | 13 | 0,19 | −55,46 | 0,53 | −21,36 |
+
+Les frais maker améliorent chaque ligne, mais le net cumulé reste **négatif** et les
+seuls PF ≥ 1,30 demeurent des poches Donchian de 5 à 7 trades. Aucun scénario large
+n'atteint le seuil.
+
+### Mean Reversion — 144 scénarios
+
+| frais | nets positifs | PF ≥ 1,30 | PF max | N médian |
+|---|---:|---:|---:|---:|
+| 80 pb | 10 | 3 | 1,95 | 4 |
+| 25 pb | 13 | 7 | 2,85 | 4 |
+
+Meilleures lignes à 25 pb : SOL H4 RSI 32 `close` N = 6 PF 2,61 (+64,26 EUR) ;
+SOL H4 RSI 32 `touch` N = 6 PF 2,26 (+49,80) ; SOL H4 RSI 30 `close` N = 2 PF 2,85
+(+34,34) ; SOL H4 RSI 35 `touch` N = 15 PF 1,36 (+41,35) ; ETH D1 `raw` RSI 32
+`close` N = 15 PF 1,29 (+41,44).
+
+Scénario principal demandé (RSI 32, `touch`) à 25 pb : BTC H4 4 trades −32,06 EUR ;
+ETH H4 4 trades −32,83 ; SOL H4 6 trades PF 2,26 +49,80 ; BTC D1 2 trades −35,87 ;
+ETH D1 1 trade +53,12 ; SOL D1 0 trade. Aucune poche ne dépasse 15 trades avec
+PF ≥ 1,30.
+
+**Verdict** : les frais ne sont pas l'arête manquante. Même à 25 pb, le trend-following
+D1 reste négatif en cumulé et la mean reversion ne produit que des poches à petit N.
+Le seuil d'activation (PF ≥ 1,30 **et** N ≥ 100) reste non atteint. D-065.
+
+## Rotation momentum multi-paires — laboratoire (2026-11-05)
+
+Hypothèse : ne pas choisir un actif, mais **le meilleur des trois à chaque instant**,
+avec une porte de sortie vers le cash. Univers `BTC/EUR`, `ETH/EUR`, `SOL/EUR`,
+`CASH/EUR`. Toutes les 7 ou 14 bougies D1, on calcule pour chaque crypto le momentum
+moyen 30 j / 60 j ; on alloue 100 % au score le plus élevé **si** sa clôture est
+au-dessus de son EMA200 D1 et que son score est positif. Sinon, 100 % cash. Aucun
+stop, aucun levier, aucun ordre réel : `app/backtest/rotation.py` est pur et
+`scripts/lab_rotation.py` ne fait que charger les D1 depuis la base.
+
+```bash
+cd backend && .venv/bin/python scripts/lab_rotation.py --months 60 \
+  --symbols BTC/EUR,ETH/EUR,SOL/EUR --fee-bps 25,80 --cadence-days 7,14
+```
+
+Fenêtre commune mesurée : 1 762 bougies D1 (2021-11 → 2026-11). Buy & hold sur la
+même fenêtre : BTC +69,7 %, ETH −39,6 %, SOL −44,4 %.
+
+| cadence | frais | équité finale | retour | DD max | rotations | N/an | frais payés |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 7 j | 25 pb | 2 637,37 | +163,74 % | 54,57 % | 48 | 9,9 | 391,12 |
+| 14 j | 25 pb | 3 381,33 | +238,13 % | 60,13 % | 34 | 7,0 | 443,16 |
+| 7 j | 80 pb | 1 774,94 | +77,49 % | 58,80 % | 48 | 9,9 | 994,12 |
+| 14 j | 80 pb | 2 512,46 | +151,25 % | 61,84 % | 34 | 7,0 | 1 200,24 |
+
+Petit compte : `--equity 9.37 --fee-bps 25 --cadence-days 7` → 9,37 → 24,71 EUR
+(+163,74 %), mêmes 54,57 % de drawdown, 3,66 EUR de frais. Le calcul tient à 9,37 EUR,
+mais **les minimums d'ordre de l'exchange ne sont pas modélisés** par ce laboratoire :
+rien ne garantit qu'une rotation soit exécutable à ce capital.
+
+**Lecture** : la rotation bat le buy & hold de chaque actif sur la fenêtre et produit
+7 à 10 rotations par an, dans la cible. Mais le drawdown de 55 à 62 % est très au-dessus
+du critère projet de 20 %, et les frais taker (80 pb) divisent le gain par deux. Sans
+stop ni ciblage de volatilité, le laboratoire montre une **direction**, pas une
+stratégie activable. Il n'est pas branché sur le runtime. D-066.
+
 ## Tests récurrents
 
 Le backtest tourne à trois moments, avec des coûts différents :

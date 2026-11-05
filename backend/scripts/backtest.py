@@ -90,6 +90,28 @@ def with_overrides(settings, args):
     return replace(settings, risk=replace(settings.risk, **overrides))
 
 
+def fee_grid(args) -> list[Decimal]:
+    """Grille de frais par côté, en points de base.
+
+    ``--maker-fees`` seul remplace la grille par 25 pb (frais maker Kraken) ;
+    combiné à ``--fee-bps``, il ajoute des points de comparaison. C'est une
+    **sensibilité de coût**, pas un modèle d'exécution maker : le fill reste
+    celui du marché au prix de clôture + slippage.
+    """
+    parts: list[str] = []
+    raw = getattr(args, "fee_bps", None)
+    maker = getattr(args, "maker_fees", None)
+    if raw:
+        parts.extend(raw.split(","))
+    if maker:
+        parts.extend(maker.split(","))
+    if not parts:
+        parts = ["80", "100"]
+    values = [Decimal(part.strip()) for part in parts if part.strip()]
+    # Dédupliquer en conservant l'ordre demandé.
+    return list(dict.fromkeys(values))
+
+
 async def record(args) -> int:
     settings = with_overrides(load_settings(), args)
     exchange = build_exchange(
@@ -530,7 +552,7 @@ async def sweep(args) -> int:
     settings = replace(settings, paper_start_equity=equity)
     symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
     slopes = [Decimal(s.strip()) for s in args.slopes.split(",") if s.strip()]
-    fees = [Decimal(f.strip()) for f in args.fee_bps.split(",") if f.strip()]
+    fees = fee_grid(args)
     try:
         modes = [EntryMode(m.strip()) for m in args.entry_modes.split(",") if m.strip()]
     except ValueError as exc:
@@ -674,7 +696,7 @@ async def swing_sweep(args) -> int:
     equity = Decimal(str(args.equity))
     settings = replace(settings, paper_start_equity=equity)
     symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
-    fees = [Decimal(f.strip()) for f in args.fee_bps.split(",") if f.strip()]
+    fees = fee_grid(args)
     triggers = [t.strip().lower() for t in args.swing_triggers.split(",") if t.strip()]
     valid = {"both", "donchian", "value"}
     if not triggers or set(triggers) - valid:
@@ -947,7 +969,7 @@ async def mean_reversion_sweep(args) -> int:
     equity = Decimal(str(args.equity))
     settings = replace(settings, paper_start_equity=equity)
     symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
-    fees = [Decimal(f.strip()) for f in args.fee_bps.split(",") if f.strip()]
+    fees = fee_grid(args)
     timeframes = [t.strip().lower() for t in args.timeframes.split(",") if t.strip()]
     for timeframe in timeframes:
         if timeframe not in {"4h", "1d"}:
@@ -1158,8 +1180,14 @@ def main() -> int:
     parser.add_argument("--max-hwm-drawdown", type=float, default=None,
                         help="sweep : drawdown max depuis le plus haut, en fraction "
                              "(1.0 lève le coupe-circuit)")
-    parser.add_argument("--fee-bps", default="80,100",
-                        help="sweep : frais par côté en points de base (80 = taker Kraken réel)")
+    parser.add_argument("--fee-bps", default=None,
+                        help="sweep : frais par côté en points de base "
+                             "(défaut 80,100 = taker Kraken réel)")
+    parser.add_argument("--maker-fees", nargs="?", const="25", default=None,
+                        help="sweep/swing/meanrev : frais maker par côté en points de base "
+                             "(25 si l'option est passée sans valeur). Seul, remplace la "
+                             "grille ; avec --fee-bps, l'ajoute. Sensibilité de coût, pas "
+                             "un modèle d'exécution maker.")
     parser.add_argument("--swing-triggers", default="both,donchian,value",
                         help="swing : déclencheurs testés (both, donchian, value)")
     parser.add_argument("--exit-mode", default="ema20",

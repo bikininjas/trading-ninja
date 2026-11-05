@@ -1477,3 +1477,75 @@ levier reste la cadence de décision ou la couverture multi-paires, pas l'exécu
 **Validé par** : `backtest.py meanrev --months 60 …` → 144 scénarios, sortie conservée
 dans `docs/BACKTEST.md` § « Mean Reversion » ; 4 tests unitaires (déclenchement,
 refus du pare-feu, variante brute, deux modes de sortie).
+
+---
+
+## D-065 — Les frais maker ne créent pas l'arête manquante
+
+**Contexte** : les mesures 2.9, 2.11 et 2.12 étaient toutes négatives avec 80 pb par
+côté, le tarif taker réel du compte. Une hypothèse restait ouverte : si les entrées
+étaient bonnes mais exécutées au prix taker, un tarif maker de 25 pb pouvait-il
+retourner la conclusion ? Le brief demande une comparaison chiffrée.
+
+**Décision** :
+
+1. `scripts/backtest.py` accepte `--maker-fees [valeur]` (défaut 25) en plus de
+   `--fee-bps`. Les deux grilles sont concaténées et dédupliquées ; `--maker-fees`
+   seul remplace la grille par 25 pb. Le paramètre s'applique aux trois balayages
+   (`sweep`, `swing`, `meanrev`).
+2. C'est une **sensibilité au coût**, pas un modèle d'exécution maker : le fill reste
+   la clôture plus le slippage configuré, et aucun ordre limite n'est simulé.
+3. Mesure swing D1 sur 60 mois, 36 scénarios : à 80 pb, 3 PF ≥ 1, 3 PF ≥ 1,30, PF max
+   2,31, net cumulé **−665,68 EUR**. À 25 pb, 8 PF ≥ 1, 3 PF ≥ 1,30, PF max 2,92, net
+   cumulé encore **−64,98 EUR**. Les seuls PF ≥ 1,30 restent des poches Donchian de
+   5 à 7 trades.
+4. Mesure mean reversion, 144 scénarios : à 80 pb, 10 nets positifs, 3 PF ≥ 1,30, PF
+   max 1,95 ; à 25 pb, 13 nets positifs, 7 PF ≥ 1,30, PF max 2,85. Aucune poche
+   au-delà de 15 trades n'atteint PF 1,30.
+
+**Conséquence** : les frais expliquent une partie des pertes, pas l'absence d'arête.
+Même à 25 pb, le trend-following D1 reste négatif en cumulé et le mean reversion ne
+produit que des poches à 2–15 trades. Le seuil d'activation (PF ≥ 1,30 **et** N ≥ 100)
+reste inchangé et non atteint. Aucun mode n'est activé.
+
+**Validé par** : `backtest.py swing --months 60 … --fee-bps 80 --maker-fees 25` →
+`/tmp/opencode/swing_fee_compare.txt` ; `backtest.py meanrev --months 60 … --fee-bps
+80 --maker-fees 25` → `/tmp/opencode/meanrev_fee_compare.txt`. Chiffres repris dans
+`docs/BACKTEST.md` § « Sensibilité aux frais maker ».
+
+---
+
+## D-066 — Rotation momentum : laboratoire prometteur, drawdowns hors critère
+
+**Contexte** : après deux familles directionnelles négatives, le brief demande un
+laboratoire de rotation 100 % BTC/ETH/SOL/CASH, évalué chaque semaine ou toutes les
+deux semaines, avec momentum 30/60 jours et filtre EMA200 D1. L'objectif est de sortir
+du choix d'entrée et de mesurer une allocation relative simple, compatible petit
+capital et faible attrition de frais.
+
+**Décision** :
+
+1. `app/backtest/rotation.py` (module pur) et `scripts/lab_rotation.py` implémentent :
+   univers `BTC/EUR`, `ETH/EUR`, `SOL/EUR`, `CASH/EUR` ; score = moyenne des rendements
+   30 et 60 jours ; 100 % sur le meilleur actif **uniquement** s'il clôture au-dessus
+   de son EMA200 D1 et si son score est positif ; sinon 100 % CASH. Frais et slippage
+   par côté, mark-to-market quotidien, liquidation finale.
+2. Première mesure 2021-11 → 2026-11, 1 762 bougies D1 communes. Buy & hold : BTC
+   +69,7 %, ETH −39,6 %, SOL −44,4 %.
+3. Résultats : 7 jours / 25 pb → +163,74 %, DD 54,57 %, 9,9 rotations/an, frais
+   391 EUR ; 14 jours / 25 pb → +238,13 %, DD 60,13 %, 7,0 rotations/an ; 80 pb
+   divise environ le gain (+77,49 % et +151,25 %). Petit compte 9,37 EUR → 24,71 EUR,
+   mêmes proportions.
+4. **Ce n'est pas activable** : les drawdowns de 55 à 62 % dépassent largement le
+   critère de 20 %, et le laboratoire ne modélise pas les minimums d'ordre de
+   l'exchange. Le résultat est une piste (la rotation bat le buy & hold), pas un feu
+   vert. Prochain levier : superposition de risque ou ciblage de volatilité, pas un
+   déploiement.
+
+**Conséquence** : aucun ordre, aucun changement de mode. La rotation rejoint les
+laboratoires mesurés mais non activés. Le seuil live reste gelé.
+
+**Validé par** : `scripts/lab_rotation.py --months 60 --fee-bps 25,80 --cadence-days
+7,14 --verbose` → `/tmp/opencode/rotation_2021_2026.txt` ; 6 tests unitaires dans
+`backend/tests/test_rotation.py`. Chiffres repris dans `docs/BACKTEST.md` § « Rotation
+momentum multi-paires ».
