@@ -9,13 +9,18 @@ Statuts : ⬜ à faire · 🟨 en cours · ✅ fait et vérifié · ⛔ bloqué 
 
 ---
 
+**Décision au 9 novembre 2026 : NO-GO.** La revue de `master` 39db447 a
+reproduit des défauts bloquants, dont un appel d’annulation exchange en PAPER.
+Le schéma cible est encore en 0009. Voir
+[AUDIT_PRE_GO_LIVE_2026-11-09.md](AUDIT_PRE_GO_LIVE_2026-11-09.md) et ses portes G0–G6.
+
 ## Vue d'ensemble
 
 | Phase | Objectif | Statut | Avancement |
 |---|---|---|---|
 | **0. Fondations** | Le socle sur lequel rien ne peut perdre d'argent par accident | ✅ | 9 / 9 |
 | **1. Moteur** | Le bot existe et tourne, mais sans argent | 🟨 | 6 / 12 |
-| **2. Simulation** | Prouver la mécanique sur des centaines de trades fictifs | 🟨 | 12 / 20 |
+| **2. Simulation** | Prouver la mécanique sur des centaines de trades fictifs | 🟨 | 13 / 21 |
 | **3. Pré-live** | Prouver l'exécution réelle avec un canary minuscule (Kraken n'a pas de testnet) | 🟨 | 1 / 3 |
 | **4. Argent réel** | Engager le minimum, profil prudent, sous surveillance | ⬜ | 0 / 3 |
 
@@ -91,9 +96,10 @@ le réel reste désactivé et sa validation sur un compte dédié reste à faire
   interroge `GetApiKeyInfo` et refuse les droits de retrait, les permissions de
   trading manquantes et les réponses illisibles. `scripts/check_kraken.py` expose
   cette sonde en lecture seule ; détails dans `docs/KRAKEN.md`.
-  *Reste* : appeler ce contrôle depuis `app.main` avant toute exécution live.
-  Le point d'entrée existe et exige une réconciliation propre, mais ne vérifie pas
-  encore les permissions avec `verify_key_permissions()`.
+  *Fait dans le code* : `app.main` appelle déjà `verify_key_permissions()` avant
+  la réconciliation live (confirmé par la revue de 39db447).
+  *Reste* : qualifier le comportement avec la clé de la machine cible ; le contrôle
+  n’est pas une autorisation d’activation et ne ferme pas les défauts de l’audit.
   *Critère* : retrait autorisé, permission manquante ou erreur de lecture → refus
   de démarrer ; clé lecture+trade sans retrait → démarrage autorisé si les autres
   verrous sont satisfaits.
@@ -538,6 +544,17 @@ Objectif : mesurer, pas espérer.
   *Reste hors livraison* : déploiement cible, canal réel du surveillant, rétention,
   mesures multi-années et hors calibration. Aucun armement live.
 
+- ✅ **2.21 — Revue technique indépendante et analyse pré go live** *(2026-11-09)*
+  Relecture de `master` 39db447, comparaison avec les correctifs locaux non intégrés,
+  suite complète et scénarios de panne sans transport réel.
+  *Vérifié* : 695 Python dont 24 SQL, 31 Node, golden et navigateur ; huit
+  reproductions mémoire et deux SQL confirment des défauts hors suite existante.
+  Lecture seule Supabase : 0001–0009 concordantes, 0010/0011 absentes et fonction
+  privilégiée encore exécutable par anon. Aucun correctif ni ordre réel.
+  *Conclusion* : **NO-GO**, rapport et portes G0–G6 dans
+  [AUDIT_PRE_GO_LIVE_2026-11-09.md](AUDIT_PRE_GO_LIVE_2026-11-09.md). L’audit est
+  terminé ; les défauts qu’il identifie restent ouverts.
+
 **Critère de passage en phase 3** : au moins **100 trades simulés**, drawdown maximal
 sous le seuil configuré, espérance positive. En dessous, on corrige ou on abandonne —
 les deux sont des résultats utiles. **Non atteint** : 2.9 plafonne à 39 trades par
@@ -590,37 +607,19 @@ Seb. Le risque par trade (0,5 %) reste inchangé quel que soit le capital.
 
 ---
 
-## Portes de passage après D-073
+## Plan de passage en réel — référence unique
 
-| Ordre | Preuve requise avant go live | État |
-|---|---|---|
-| 1 | Fermer B-03/B-04/B-05 et qualifier B-06 : intention d’achat durable, urgences, fills partiels/incertains, remplacements de stops ; tests d’interruption et concurrence | ⬜ bloquant, voir l’audit actif |
-| 2 | Brancher la vérification de permissions au démarrage live (1.1), sauvegarder puis vérifier 0010/0011 sur la base cible, versions homogènes des services et revue des positions historiques | ⬜ cible non modifiée par D-073 |
-| 3 | Recette PAPER sur le déploiement : suspension pendant inférence, stop toujours géré, révisions appliquées, export/rejeu, panne et quota explicites | ⬜ preuves locales obtenues, déploiement à qualifier |
-| 4 | Installer le surveillant séparé, clé de lecture, notification réelle et sonde de disponibilité externe ; simuler perte de protection/timeout/redémarrage | ⬜ code testé localement, exploitation non installée |
-| 5 | Politique entière et coûts défavorables sur plusieurs régimes et période hors calibration ; au moins 100 trades simulés, espérance nette positive, drawdown sous plafond | ⛔ aucune preuve de rentabilité robuste |
-| 6 | Sous-compte, montant et autorisation explicites de Seb ; canary minuscule, stop distant, réconciliation et survie au redémarrage (3.2/3.3) | ⬜ aucun ordre réel dans D-073 |
+La roadmap opérationnelle complète est désormais [GO_LIVE.md](GO_LIVE.md).
+Elle remplace les anciennes portes G0–G6 et la checklist d’activation de ce document :
+**R0 version unique → R1 isolation/droits → R2 contrats financiers → R3 exploitation
+PAPER → R4 économie/faisabilité → R5 recette cible → R6 canary autorisé → R7
+stabilisation et décision finale.**
 
-Le classement, les expériences et le rapport de confiance ne lèvent aucune de ces
-portes. Les critères non atteints restent visibles, même quand les tests logiciels
-passent. L’automatisation GitHub et la politique de rétention restent aussi à
-installer pour pérenniser les preuves locales.
-
-## Checklist d'activation réelle
-
-À faire **dans cet ordre**, et seulement quand la mesure sera positive nette :
-
-1. Créer un **sous-compte Kraken dédié** au bot ; aucun BTC/ETH/… manuel dessus.
-2. Vérifier la clé : lecture + trading, **retraits désactivés**, IP restreinte.
-3. Choisir le montant que Seb accepte de perdre **entièrement**.
-4. Poser `TRADING_MODE=live`, `EXCHANGE_SANDBOX_MODE=false`,
-   `I_UNDERSTAND_REAL_MONEY=true` — jamais une seule des trois.
-5. `scripts/reconcile.py --mode live` doit être propre ; sinon `--apply --confirm`.
-6. `python -m app.main --serve` ; vérifier dans Kraken que le stop est visible.
-7. Premier aller-retour **minuscule** ; comparer le fill réel au ledger, puis le
-   kill-switch (`kill_switch.py --dry-run`, puis `--confirm-live` seulement si
-   nécessaire).
-8. Surveiller le premier mois ; le panic-sell reste le bouton rouge humain.
+Chaque étape a ses travaux, preuves, responsabilités et règles d’arrêt. Les durées
+et effectifs de R5/R7 sont un protocole proposé à valider avant activation ; aucun
+n’est déjà acquis. Aucun passage au réel n’est autorisé par la rédaction du plan.
+Les phases historiques ci-dessus documentent les travaux passés et ne permettent
+pas de contourner les critères du plan actuel.
 
 ---
 

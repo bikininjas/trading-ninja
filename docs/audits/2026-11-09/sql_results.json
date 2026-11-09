@@ -1,0 +1,11 @@
+{
+  "A09_ANON_SECURITY_DEFINER": {
+    "anon_created_partitions": 2,
+    "rolled_back": true
+  },
+  "A10_DIAGNOSTICS_CANCELED_PARTIAL": {
+    "actual_filled_amount": ".4",
+    "diagnostic_order_count": 0,
+    "rolled_back": true
+  }
+}

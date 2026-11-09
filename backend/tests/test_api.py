@@ -34,6 +34,12 @@ class FakeRepo:
         self.runtime_updated_at = None
         self.runtime_updated_by = None
 
+    async def entry_control(self,mode):
+        return {'enabled':True,'revision':0}
+
+    async def set_entry_permission(self,*args,**kwargs):
+        return {'enabled':False,'revision':1}
+
     async def state(self, mode):
         return self.current_state, None
 

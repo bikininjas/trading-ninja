@@ -1,0 +1,88 @@
+[
+  {
+    "case": "A01_LIVE_BALANCE_REVALIDATION",
+    "evaluations": [
+      {
+        "equity": "600",
+        "free": "600",
+        "approved": true,
+        "amount": "1.194190",
+        "risk": "4.49999848489428853320"
+      },
+      {
+        "equity": "1000",
+        "free": "1000",
+        "approved": true,
+        "amount": "1.990317",
+        "risk": "7.49999873090491937676"
+      }
+    ],
+    "bug_reproduced": true
+  },
+  {
+    "case": "A02_KILL_REMOVES_PROTECTION",
+    "configured_mode": "paper",
+    "exchange_mutation": "cancel_order",
+    "result": {
+      "canceled_orders": [
+        "protective-stop"
+      ],
+      "errors": [],
+      "state": "EMERGENCY_HALT"
+    },
+    "held_amount": "1",
+    "bug_reproduced": true
+  },
+  {
+    "case": "A03_PARTIAL_EXIT_UNCOVERED",
+    "remaining": "0.6",
+    "attempts": [
+      {
+        "type": "market",
+        "amount": "1"
+      },
+      {
+        "type": "stop-loss",
+        "amount": "1"
+      }
+    ],
+    "protected": false,
+    "error": "réarmement du stop impossible pour BTC/EUR : RuntimeError: insufficient base for stop — la position peut être nue",
+    "bug_reproduced": true
+  },
+  {
+    "case": "A04_EXPERIMENT_HALT",
+    "memory_state": "EMERGENCY_HALT",
+    "reason_preserved_state": "IDLE",
+    "actions": [
+      "état EMERGENCY_HALT : aucune action automatique"
+    ],
+    "bug_reproduced": true
+  },
+  {
+    "case": "A06_SUSPEND_AFTER_CHECK",
+    "entries_enabled": false,
+    "position_open": true,
+    "bug_reproduced": true
+  },
+  {
+    "case": "A08_STALE_MARKET_ACCEPTED",
+    "data_age_days": 20,
+    "position_open": true,
+    "bug_reproduced": true
+  },
+  {
+    "case": "A07_PROBE_AMBIGUOUS_SUCCESS",
+    "exit_code": 0,
+    "result_unknown": true,
+    "false_success": true,
+    "bug_reproduced": true
+  },
+  {
+    "case": "A05_STALE_COST_RANKING",
+    "source_age_seconds": 60,
+    "book_max_age_seconds": 5,
+    "eligible": true,
+    "bug_reproduced": true
+  }
+]

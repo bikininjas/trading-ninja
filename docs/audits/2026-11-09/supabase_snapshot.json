@@ -1,0 +1,72 @@
+{
+  "project": "trninja",
+  "observed_date": "2026-11-09",
+  "migrations": [
+    {
+      "version": "0001_init.sql",
+      "checksum": "88819ddcfd553ef9f49353b59319c4211ec64cf88328de4e6b0e60872bbbb20e",
+      "applied_at": "2026-11-04 07:11:08.344824+00"
+    },
+    {
+      "version": "0002_lock_public_api.sql",
+      "checksum": "9d94e34132ed06ab1dc9382a84ce296340832c6e0a6923c44a5689225e121ecd",
+      "applied_at": "2026-11-04 07:14:17.262319+00"
+    },
+    {
+      "version": "0003_audit_fixes.sql",
+      "checksum": "b056f06b2f20524e1570fd9a47de2fd955c20ad43b1ae84011f64f5bf0d47b4e",
+      "applied_at": "2026-11-04 08:01:19.523062+00"
+    },
+    {
+      "version": "0004_llm_autonomy.sql",
+      "checksum": "f7db945414d01e8b34981f6a57c9faf5d59ac56b0029594e0f406ba20aed4074",
+      "applied_at": "2026-11-04 12:39:02.319628+00"
+    },
+    {
+      "version": "0005_runtime_settings.sql",
+      "checksum": "25635ab217d0fd176c61f0f88cc65c9203ad5a41c75d0f8a98b9a1d9dfcc869f",
+      "applied_at": "2026-11-04 12:49:49.972866+00"
+    },
+    {
+      "version": "0006_shadow_trades.sql",
+      "checksum": "1ed2b9d6ca12e17dbe4e8bd88f8a6629a0f16242ae1db9b75b3312866eb8c612",
+      "applied_at": "2026-11-04 13:10:10.360206+00"
+    },
+    {
+      "version": "0007_lessons.sql",
+      "checksum": "8d777948555dad77380a129b03ffeddd0212fe3c1a91365ed439a67fd9c7f8f0",
+      "applied_at": "2026-11-04 13:16:53.011924+00"
+    },
+    {
+      "version": "0008_market_candles_history.sql",
+      "checksum": "20741976e192a4e8c5c74fb65f4c0c4e65ae847b17df15fcbb9c22cf4f748b3b",
+      "applied_at": "2026-11-04 14:18:21.834903+00"
+    },
+    {
+      "version": "0009_allow_1d_timeframe.sql",
+      "checksum": "5a723f6bf4cebebc8e6269715f8c9d90cc6c596124fdd824a20ea5973687b8ac",
+      "applied_at": "2026-11-04 16:16:44.839012+00"
+    }
+  ],
+  "table_security": {
+    "count": 30,
+    "all_rls": true,
+    "no_public_table_access": true
+  },
+  "privileged_function": {
+    "signature": "public.ensure_partitions(integer)",
+    "security_definer": true,
+    "anon_execute": true,
+    "authenticated_execute": true,
+    "invoked_on_target": false
+  },
+  "heartbeat": "NULL_IN_ALL_THREE_MODE_ROWS",
+  "views": {
+    "count": 6,
+    "security_invoker_count": 5,
+    "default_options": [
+      "v_system_health"
+    ],
+    "no_public_select": true
+  }
+}

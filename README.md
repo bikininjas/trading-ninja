@@ -6,6 +6,10 @@ fail-closed.
 
 **État actuel : simulation ; le chemin réel existe mais n'est pas activé.**
 
+**Revue pré go live du 9 novembre : NO-GO.** Les défauts reproduits, l’écart de
+schéma Supabase et les portes de passage sont dans
+[l’audit technique](docs/AUDIT_PRE_GO_LIVE_2026-11-09.md).
+
 L'objectif est une progression modeste dans la durée, nette de frais, avec des
 pertes contenues. Le profil papier **`progressif`** inclut les coûts dans le risque
 et laisse courir les gagnants avec un stop suiveur. Budget d'exemple : **9,37 EUR
@@ -16,6 +20,8 @@ virtuels** ; un budget insuffisant peut empêcher tout achat. Règles et limites
 
 | Fichier | Contenu |
 |---|---|
+| [`docs/AUDIT_PRE_GO_LIVE_2026-11-09.md`](docs/AUDIT_PRE_GO_LIVE_2026-11-09.md) | Revue de master, défauts reproduits et décision NO-GO avant réel |
+| [`docs/GO_LIVE.md`](docs/GO_LIVE.md) | Plan unique R0–R7 jusqu’au go live définitif, critères et responsabilités |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Les étapes, leur statut, et le critère qui permet de passer à la suivante |
 | [`docs/JOURNAL.md`](docs/JOURNAL.md) | Ce qui a été fait, quand, et par quelle commande c'est vérifié |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Pourquoi c'est construit comme ça (une décision par numéro) |

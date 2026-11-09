@@ -3,6 +3,11 @@
 Date : 9 novembre 2026. **Statut : première version des dix briefs implémentée
 (D-073), vérification locale ; activation réelle et qualification économique séparées.**
 
+**Relecture après livraison :** l’[audit pré go live](AUDIT_PRE_GO_LIVE_2026-11-09.md)
+a reproduit des défauts du runtime et de plusieurs outils. Les fonctionnalités
+restent livrées en première version ; leurs tests actuels ne suffisent pas à les
+qualifier pour le réel ou pour une conclusion économique.
+
 Le [guide d’utilisation](OBSERVATION_ET_RECHERCHE.md) décrit le comportement livré,
 les formats, commandes et limites. Les sections détaillées ci-dessous conservent
 le problème initial, la conception et les critères de qualification ; leurs noms

@@ -281,3 +281,10 @@ async def test_parallel_api_reads_acquire_distinct_pool_connections(postgres_tes
                 ]
             )
     assert all(r.status_code == 200 for r in responses)
+
+async def test_public_cannot_execute_privileged_maintenance(pg):
+    repo,conn=pg
+    for role in ('anon','authenticated'):
+        assert not await conn.fetchval("SELECT has_function_privilege($1,'public.ensure_partitions(integer)','EXECUTE')",role)
+    with pytest.raises(asyncpg.RaiseError):
+        async with repo.transaction():await conn.fetchval('SELECT public.ensure_partitions(25)')

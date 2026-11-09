@@ -26,12 +26,18 @@ prix et stop sont toujours calculés par le code.
   de frais/glissement, un trailing et trois enveloppes : capital actif, réserve et
   cagnotte. Seul le capital actif dimensionne ; les pertes ne sont pas rechargées
   depuis la réserve ou la cagnotte. Voir `docs/PROGRESSION.md`, D-069 et D-070.
-- Onze migrations sont versionnées, dont `0010_capital_ledger.sql` et
+- Douze migrations sont versionnées, dont `0010_capital_ledger.sql` et
   `0011_insights_and_controls.sql`. Leur validation
   locale ne prouve pas leur déploiement sur Supabase ; vérifier la base cible avant
   exploitation. Les défauts ouverts restent dans `AMELIORATIONS_2026-11-09.md`.
-- 695 tests Python sont collectés, dont 24 contrats PostgreSQL locaux opt-in ;
+- 698 tests Python sont collectés, dont 25 contrats PostgreSQL locaux opt-in ;
   31 tests Node et un contrôle navigateur complètent les preuves.
+- La revue suivante de `master` 39db447 conclut **NO-GO** :
+  `docs/AUDIT_PRE_GO_LIVE_2026-11-09.md`. Des défauts sont reproduits malgré les
+  tests verts, dont une mutation exchange possible en PAPER par le kill-switch API.
+  Le plan de passage en réel de référence est `docs/GO_LIVE.md` (R0–R7).
+  La cible Supabase est relue en 0009 ; fonctions privilégiées et intentions
+  financières demandent des corrections. Lire l’audit avant toute activation.
 - Les dix briefs I-01 à I-10 ont une première version implémentée (D-073) :
   journal/rejeu, diagnostics, suspension, politiques, expériences, coûts/classement,
   parcours, surveillance et scores. Guide : `docs/OBSERVATION_ET_RECHERCHE.md`.

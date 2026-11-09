@@ -120,39 +120,15 @@ async def _default_liquidate(repo: PostgresRepository, config: Settings) -> list
 
 
 async def _default_kill_switch(repo: Any, config: Settings) -> dict:
-    """Arrêt brutal : annule les ordres ouverts puis force l'état EMERGENCY_HALT.
-
-    La clé dédiée est utilisée quand elle existe, pour éviter une collision de
-    nonces avec le bot. Même si l'annulation échoue, la halte a lieu : un
-    kill-switch qui refuserait de fonctionner serait inutile.
-    """
-    from app.exchange.kraken import build_exchange
-
-    canceled: list[str] = []
-    errors: list[str] = []
-    api_key = config.exchange.kill_api_key or config.exchange.api_key
-    secret = config.exchange.kill_secret or config.exchange.secret
-    try:
-        exchange = build_exchange(api_key=api_key, secret=secret)
-        await asyncio.to_thread(exchange.load_markets)
-        for order in await asyncio.to_thread(exchange.fetch_open_orders):
-            symbol = order.get("symbol")
-            if symbol not in set(config.exchange.allowed_symbols):
-                continue
-            try:
-                await asyncio.to_thread(exchange.cancel_order, order.get("id"), symbol)
-                canceled.append(str(order.get("id")))
-            except Exception as exc:  # noqa: BLE001 — on continue d'annuler
-                errors.append(f"{order.get('id')}: {type(exc).__name__}: {exc}")
-    except Exception as exc:  # noqa: BLE001 — la halte prime sur l'annulation
-        errors.append(f"exchange: {type(exc).__name__}: {exc}")
-
-    await repo.force_halt(
-        config.execution_mode, "kill-switch administrateur", code=None,
-        auto_resume_at=None,
-    )
-    state, _cooldown = await repo.state(config.execution_mode)
-    return {"canceled_orders": canceled, "errors": errors, "state": state}
+    """Suspend les entrées sans retirer les protections ni signer chez l’exchange."""
+    control=await repo.entry_control(config.execution_mode)
+    await repo.set_entry_permission(config.execution_mode,False,control['revision'],reason='kill-switch administrateur')
+    position=await repo.open_position(config.execution_mode)
+    if position is None:
+        await repo.force_halt(config.execution_mode,'kill-switch administrateur',auto_resume_at=None)
+    state,_=await repo.state(config.execution_mode)
+    return {'canceled_orders':[],'errors':[],'state':state,'entries_enabled':False,
+            'protection_management':'CONTINUED' if position else 'NO_POSITION'}
 
 
 async def _default_reconcile(repo: Any, config: Settings) -> dict:

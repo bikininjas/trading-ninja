@@ -7,6 +7,11 @@ Les comportements et limites précis de cette livraison sont décrits ici ; les
 [briefs](IDEES_ET_BRIEFS_TECHNIQUES.md) conservent les objectifs et critères de
 qualification à long terme.
 
+**État après relecture : NO-GO.** Consulter l’[audit du 9 novembre](AUDIT_PRE_GO_LIVE_2026-11-09.md)
+pour les défauts reproduits, notamment kill-switch API en PAPER, revalidation live,
+fills partiels, fraîcheur marché et fidélité de certaines simulations. Les limites
+découvertes par cette revue prennent le pas sur une lecture générale de ce guide.
+
 ## Installation et réglages
 
 Appliquer les migrations sur la base de déploiement après sauvegarde, puis

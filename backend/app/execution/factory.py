@@ -22,6 +22,8 @@ def make_broker(settings: Settings, exchange: Any,
                 symbols: Sequence[str] | None = None,
                 *, mode: str | None = None) -> Any:
     selected = (mode or settings.mode).lower()
+    if selected == "live" and settings.mode != "live":
+        raise RuntimeError("mode live refusé : configuration non armée")
     universe = tuple(symbols or settings.exchange.allowed_symbols)
     fees = [
         resolve_taker_fee(exchange, symbol, settings.exchange.taker_fee)

@@ -3,19 +3,19 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `d8a34491d1e32d21`
+Empreinte des sources : `c1f1ce47e7610189`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
-| Modules Python | 125 |
-| Lignes Python | 29959 |
+| Modules Python | 126 |
+| Lignes Python | 29982 |
 | Classes | 139 |
-| Fonctions et méthodes | 964 |
-| Cas de test collectés par pytest | 695 |
-| Fonctions de test (comptage statique) | 554 |
-| Migrations SQL | 11 |
+| Fonctions et méthodes | 967 |
+| Cas de test collectés par pytest | 698 |
+| Fonctions de test (comptage statique) | 557 |
+| Migrations SQL | 12 |
 | Scripts shell | 3 |
 
 ## 2. Carte des fichiers
@@ -25,7 +25,7 @@ Empreinte des sources : `d8a34491d1e32d21`
 | `backend/app/__init__.py` | 1 |  |
 | `backend/app/api/__init__.py` | 1 | API d'administration (lecture, pause, panic-sell). |
 | `backend/app/api/insights.py` | 393 | API privée des observations ; aucune route analytique n'envoie d'ordre. |
-| `backend/app/api/main.py` | 699 | API d'administration — observation, pause, reprise, panic-sell. |
+| `backend/app/api/main.py` | 675 | API d'administration — observation, pause, reprise, panic-sell. |
 | `backend/app/api/security.py` | 227 | Authentification de l'API d'administration. |
 | `backend/app/api/service.py` | 122 | Vue « administration » : lecture de l'état et actions de contrôle. |
 | `backend/app/api/settings_store.py` | 142 | Réglages pilotables depuis le dashboard, stockés en base. |
@@ -57,7 +57,7 @@ Empreinte des sources : `d8a34491d1e32d21`
 | `backend/app/exchange/__init__.py` | 1 | Package des passerelles exchange. Aucune I/O à l'import. |
 | `backend/app/exchange/kraken.py` | 356 | Passerelle Kraken spot — préparation de l'étape 1.6. |
 | `backend/app/execution/__init__.py` | 1 | app/execution |
-| `backend/app/execution/factory.py` | 43 | Choix du broker selon le mode — un seul endroit, pour ne pas se tromper. |
+| `backend/app/execution/factory.py` | 45 | Choix du broker selon le mode — un seul endroit, pour ne pas se tromper. |
 | `backend/app/execution/live.py` | 767 | Exécution réelle Kraken — un ordre ne part que d'une décision approuvée. |
 | `backend/app/execution/paper.py` | 95 | Exécution papier — un fill simulé, jamais un ordre réel. |
 | `backend/app/insights/__init__.py` | 1 | Observation, rejeu et recherche isolés de l’exécution financière. |
@@ -108,7 +108,7 @@ Empreinte des sources : `d8a34491d1e32d21`
 | `backend/tests/__init__.py` | 1 |  |
 | `backend/tests/conftest.py` | 74 | Les tests unitaires ne doivent jamais contacter un service externe. |
 | `backend/tests/test_affordability.py` | 149 | Tests de la faisabilité d'un ordre avec un petit capital. |
-| `backend/tests/test_api.py` | 587 | Tests de l'API d'administration : session, pause, panic-sell, WebSocket. |
+| `backend/tests/test_api.py` | 593 | Tests de l'API d'administration : session, pause, panic-sell, WebSocket. |
 | `backend/tests/test_api_security.py` | 105 | Tests de la couche d'authentification : scrypt, JWT, TOTP, anti-rejeu. |
 | `backend/tests/test_backtest.py` | 288 | Tests du moteur de backtest : absence de lookahead, stop prioritaire, frais. |
 | `backend/tests/test_backtest_golden.py` | 95 | Régression de backtest : le comportement doit rester celui du golden. |
@@ -125,7 +125,7 @@ Empreinte des sources : `d8a34491d1e32d21`
 | `backend/tests/test_history.py` | 255 | Historique OHLCVT : analyse pure du CSV Kraken, trous, agrégation, cohérence. |
 | `backend/tests/test_insights.py` | 807 | Contrats des dix briefs : calculs purs, frontières de rejeu et runtime réel. |
 | `backend/tests/test_insights_api.py` | 205 | Parcours administratifs privés : observation, révisions et aucune exécution. |
-| `backend/tests/test_insights_postgres.py` | 283 | Preuves SQL des contrôles, paquets, incidents et révisions ; cible locale stricte. |
+| `backend/tests/test_insights_postgres.py` | 290 | Preuves SQL des contrôles, paquets, incidents et révisions ; cible locale stricte. |
 | `backend/tests/test_kraken_adapter.py` | 307 | Tests de la passerelle Kraken, hors réseau. |
 | `backend/tests/test_kraken_archive.py` | 145 | Lecture ZIP par plages HTTP : le mécanisme qui évite 9,5 Go de téléchargement. |
 | `backend/tests/test_lessons.py` | 172 | Tests de la mémoire de leçons — purs, sans réseau ni base. |
@@ -136,6 +136,7 @@ Empreinte des sources : `d8a34491d1e32d21`
 | `backend/tests/test_mean_reversion.py` | 133 | Tests du laboratoire Mean Reversion — aucun réseau, aucun ordre. |
 | `backend/tests/test_orchestrator.py` | 791 | Tests de bout en bout de l'orchestrateur, avec des doubles. |
 | `backend/tests/test_paper.py` | 78 | Tests de l'exécution papier : frais, slippage, gaps, priorité du stop. |
+| `backend/tests/test_pre_live_fixes.py` | 32 | Contre-exemples pré live convertis en contrats à respecter. |
 | `backend/tests/test_progressif.py` | 172 | Le petit budget ne doit ni forcer un achat ni masquer ses coûts. |
 | `backend/tests/test_reconciliation.py` | 268 | Tests de la réconciliation base ↔ exchange, sans réseau ni base réelle. |
 | `backend/tests/test_recovery.py` | 238 | Tests du kill-switch : liquidation, annulation des ordres, halte forcée. |
@@ -161,6 +162,7 @@ Empreinte des sources : `d8a34491d1e32d21`
 | `backend/db/migrations/0009_allow_1d_timeframe.sql` | 96 | migration SQL |
 | `backend/db/migrations/0010_capital_ledger.sql` | 45 | migration SQL |
 | `backend/db/migrations/0011_insights_and_controls.sql` | 116 | migration SQL |
+| `backend/db/migrations/0012_private_maintenance.sql` | 54 | migration SQL |
 
 ## 3. API interne, module par module
 
@@ -185,12 +187,12 @@ le code, pas une copie de celui-ci.
 - **class OptionalTotpRequest(BaseModel)** (l.60)
 - **class SettingsUpdate(BaseModel)** (l.64)
 - `async def _default_liquidate(repo: PostgresRepository, config: Settings) -> list` (l.77) — Liquidation d'urgence : ledger en papier, exchange réel en live.
-- `async def _default_kill_switch(repo: Any, config: Settings) -> dict` (l.122) — Arrêt brutal : annule les ordres ouverts puis force l'état EMERGENCY_HALT.
-- `async def _default_reconcile(repo: Any, config: Settings) -> dict` (l.158) — Lecture seule : compare l'état distant et l'état local, renvoie un diff.
-- `async def _default_system_health(repo: Any, config: Settings) -> dict` (l.240) — Télémétrie best-effort : ne doit jamais faire planter l'API.
-- `async def _default_position(repo: Any, config: Settings) -> dict` (l.329)
-- `def _mask_sensitive(value: Any) -> Any` (l.373)
-- `def create_app(settings: Settings | None=None, *, repo: Any | None=None, liquidate: Any | None=None, kill_switch: Any | None=None, reconcile: Any | None=None, system_health: Any | None=None, position_provider: Any | None=None, settings_loader: Any | None=None) -> FastAPI` (l.387)
+- `async def _default_kill_switch(repo: Any, config: Settings) -> dict` (l.122) — Suspend les entrées sans retirer les protections ni signer chez l’exchange.
+- `async def _default_reconcile(repo: Any, config: Settings) -> dict` (l.134) — Lecture seule : compare l'état distant et l'état local, renvoie un diff.
+- `async def _default_system_health(repo: Any, config: Settings) -> dict` (l.216) — Télémétrie best-effort : ne doit jamais faire planter l'API.
+- `async def _default_position(repo: Any, config: Settings) -> dict` (l.305)
+- `def _mask_sensitive(value: Any) -> Any` (l.349)
+- `def create_app(settings: Settings | None=None, *, repo: Any | None=None, liquidate: Any | None=None, kill_switch: Any | None=None, reconcile: Any | None=None, system_health: Any | None=None, position_provider: Any | None=None, settings_loader: Any | None=None) -> FastAPI` (l.363)
 
 ### `backend/app/api/security.py`
 
@@ -1311,63 +1313,65 @@ le code, pas une copie de celui-ci.
 
 - **class FakeRepo** (l.27)
   - `def __init__(self) -> None` (l.28)
-  - `async def state(self, mode)` (l.37)
-  - `async def account(self, mode, starting_equity)` (l.40)
-  - `async def open_position(self, mode)` (l.48)
-  - `async def open_positions(self, mode)` (l.51)
-  - `async def reset_circuit_breaker(self, mode)` (l.54)
-  - `async def force_halt(self, mode, reason, code=None, auto_resume_at=None)` (l.61)
-  - `async def open_orders(self, mode)` (l.65)
-  - `async def storage_state(self)` (l.68)
-  - `async def stop_order_id(self, position_id)` (l.72)
-  - `async def llm_signal_prompt(self, mode, signal_id)` (l.75)
-  - `async def recent(self, table, mode, limit)` (l.80)
-  - `async def force_lock(self, mode, reason)` (l.85)
-  - `async def force_resume(self, mode, reason, who='admin')` (l.89)
-  - `async def halt_details(self, mode)` (l.95)
-  - `async def runtime_settings(self, mode)` (l.98)
-  - `async def update_runtime_settings(self, mode, payload, *, updated_by='dashboard')` (l.101)
-  - `async def equity_curve(self, mode, limit=200)` (l.107)
-  - `async def dashboard_metrics(self, mode)` (l.115)
-  - `async def daily_pnl(self, mode, days=14)` (l.122)
-  - `async def rejection_stats(self, mode)` (l.126)
-  - `async def llm_stats(self, mode, hours=24)` (l.129)
-  - `async def shadow_summary(self, mode)` (l.140)
-  - `async def active_lessons(self, mode)` (l.148)
-  - `async def recent_lessons(self, mode, limit=10)` (l.151)
-- `def api(tmp_path)` (l.160)
-- `def login(client, password: str=PASSWORD, code: str | None=None)` (l.199)
-- `def token_of(client) -> str` (l.206)
-- `def test_login_requires_both_factors(api)` (l.217)
-- `def test_login_returns_a_seven_day_token(api)` (l.224)
-- `def test_status_requires_a_valid_session(api)` (l.233)
-- `def test_status_describes_the_bot(api)` (l.242)
-- `def test_too_many_failed_logins_are_blocked(api)` (l.253)
-- `def test_pause_then_resume(api)` (l.265)
-- `def test_pause_is_refused_with_an_open_position(api)` (l.280)
-- `def test_resume_is_refused_when_the_bot_is_not_stopped(api)` (l.294)
-- `def test_panic_requires_a_fresh_totp(api)` (l.301)
-- `def test_history_rejects_unknown_tables(api)` (l.319)
-- `def test_websocket_refuses_a_bad_token(api)` (l.331)
-- `def test_websocket_streams_the_status(api)` (l.339)
-- `def test_stats_describes_pnl_model_and_equity(api)` (l.354)
-- `def test_stats_requires_a_session(api)` (l.375)
-- `def test_settings_are_exposed_without_jargon(api)` (l.380)
-- `def test_settings_update_writes_to_the_database(api, tmp_path)` (l.397)
-- `def test_settings_update_refuses_an_incoherent_daily_loss(api)` (l.424)
-- `def test_position_payload_shows_the_net_risk_at_the_stop()` (l.436)
-- `def test_position_payload_without_a_position_is_none()` (l.451)
-- `def test_panic_is_wired_in_live_mode(tmp_path)` (l.455) — Le 409 « non câblé » a disparu : le panic réel passe par la liquidation.
-- `def test_kill_switch_requires_totp(api)` (l.498)
-- `def test_kill_switch_halts_with_valid_totp(api)` (l.507)
-- `def test_circuit_breaker_reset_requires_locked_state(api)` (l.516)
-- `def test_circuit_breaker_reset_works_when_locked(api)` (l.525)
-- `def test_reconcile_returns_a_structured_diff(api)` (l.536)
-- `def test_system_health_requires_session(api)` (l.550)
-- `def test_system_health_returns_telemetry(api)` (l.555)
-- `def test_portfolio_position_empty(api)` (l.565)
-- `def test_llm_prompt_is_masked(api)` (l.573)
-- `def test_llm_prompt_missing_returns_404(api)` (l.583)
+  - `async def entry_control(self, mode)` (l.37)
+  - `async def set_entry_permission(self, *args, **kwargs)` (l.40)
+  - `async def state(self, mode)` (l.43)
+  - `async def account(self, mode, starting_equity)` (l.46)
+  - `async def open_position(self, mode)` (l.54)
+  - `async def open_positions(self, mode)` (l.57)
+  - `async def reset_circuit_breaker(self, mode)` (l.60)
+  - `async def force_halt(self, mode, reason, code=None, auto_resume_at=None)` (l.67)
+  - `async def open_orders(self, mode)` (l.71)
+  - `async def storage_state(self)` (l.74)
+  - `async def stop_order_id(self, position_id)` (l.78)
+  - `async def llm_signal_prompt(self, mode, signal_id)` (l.81)
+  - `async def recent(self, table, mode, limit)` (l.86)
+  - `async def force_lock(self, mode, reason)` (l.91)
+  - `async def force_resume(self, mode, reason, who='admin')` (l.95)
+  - `async def halt_details(self, mode)` (l.101)
+  - `async def runtime_settings(self, mode)` (l.104)
+  - `async def update_runtime_settings(self, mode, payload, *, updated_by='dashboard')` (l.107)
+  - `async def equity_curve(self, mode, limit=200)` (l.113)
+  - `async def dashboard_metrics(self, mode)` (l.121)
+  - `async def daily_pnl(self, mode, days=14)` (l.128)
+  - `async def rejection_stats(self, mode)` (l.132)
+  - `async def llm_stats(self, mode, hours=24)` (l.135)
+  - `async def shadow_summary(self, mode)` (l.146)
+  - `async def active_lessons(self, mode)` (l.154)
+  - `async def recent_lessons(self, mode, limit=10)` (l.157)
+- `def api(tmp_path)` (l.166)
+- `def login(client, password: str=PASSWORD, code: str | None=None)` (l.205)
+- `def token_of(client) -> str` (l.212)
+- `def test_login_requires_both_factors(api)` (l.223)
+- `def test_login_returns_a_seven_day_token(api)` (l.230)
+- `def test_status_requires_a_valid_session(api)` (l.239)
+- `def test_status_describes_the_bot(api)` (l.248)
+- `def test_too_many_failed_logins_are_blocked(api)` (l.259)
+- `def test_pause_then_resume(api)` (l.271)
+- `def test_pause_is_refused_with_an_open_position(api)` (l.286)
+- `def test_resume_is_refused_when_the_bot_is_not_stopped(api)` (l.300)
+- `def test_panic_requires_a_fresh_totp(api)` (l.307)
+- `def test_history_rejects_unknown_tables(api)` (l.325)
+- `def test_websocket_refuses_a_bad_token(api)` (l.337)
+- `def test_websocket_streams_the_status(api)` (l.345)
+- `def test_stats_describes_pnl_model_and_equity(api)` (l.360)
+- `def test_stats_requires_a_session(api)` (l.381)
+- `def test_settings_are_exposed_without_jargon(api)` (l.386)
+- `def test_settings_update_writes_to_the_database(api, tmp_path)` (l.403)
+- `def test_settings_update_refuses_an_incoherent_daily_loss(api)` (l.430)
+- `def test_position_payload_shows_the_net_risk_at_the_stop()` (l.442)
+- `def test_position_payload_without_a_position_is_none()` (l.457)
+- `def test_panic_is_wired_in_live_mode(tmp_path)` (l.461) — Le 409 « non câblé » a disparu : le panic réel passe par la liquidation.
+- `def test_kill_switch_requires_totp(api)` (l.504)
+- `def test_kill_switch_halts_with_valid_totp(api)` (l.513)
+- `def test_circuit_breaker_reset_requires_locked_state(api)` (l.522)
+- `def test_circuit_breaker_reset_works_when_locked(api)` (l.531)
+- `def test_reconcile_returns_a_structured_diff(api)` (l.542)
+- `def test_system_health_requires_session(api)` (l.556)
+- `def test_system_health_returns_telemetry(api)` (l.561)
+- `def test_portfolio_position_empty(api)` (l.571)
+- `def test_llm_prompt_is_masked(api)` (l.579)
+- `def test_llm_prompt_missing_returns_404(api)` (l.589)
 
 ### `backend/tests/test_api_security.py`
 
@@ -1714,6 +1718,7 @@ le code, pas une copie de celui-ci.
 - `async def test_failed_experiments_remain_visible_with_immutable_manifest(pg)` (l.210)
 - `async def test_observation_data_is_not_available_to_the_public_role(pg, table)` (l.243)
 - `async def test_parallel_api_reads_acquire_distinct_pool_connections(postgres_test_url)` (l.251)
+- `async def test_public_cannot_execute_privileged_maintenance(pg)` (l.285)
 
 ### `backend/tests/test_kraken_adapter.py`
 
@@ -2007,6 +2012,13 @@ le code, pas une copie de celui-ci.
 - `def test_gap_above_the_take_profit_fills_at_the_open()` (l.65)
 - `def test_when_both_levels_are_touched_the_stop_wins()` (l.70)
 - `def test_no_trigger_inside_the_range()` (l.77)
+
+### `backend/tests/test_pre_live_fixes.py`
+
+*Contre-exemples pré live convertis en contrats à respecter.*
+
+- `async def test_paper_kill_switch_never_contacts_exchange_and_keeps_stop_owner_running()` (l.13)
+- `def test_factory_cannot_promote_paper_configuration_to_live()` (l.28)
 
 ### `backend/tests/test_progressif.py`
 
@@ -2318,7 +2330,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_history.py` | 22 |
 | `backend/tests/test_insights.py` | 25 |
 | `backend/tests/test_insights_api.py` | 9 |
-| `backend/tests/test_insights_postgres.py` | 18 |
+| `backend/tests/test_insights_postgres.py` | 19 |
 | `backend/tests/test_kraken_adapter.py` | 25 |
 | `backend/tests/test_kraken_archive.py` | 11 |
 | `backend/tests/test_lessons.py` | 11 |
@@ -2329,6 +2341,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_mean_reversion.py` | 4 |
 | `backend/tests/test_orchestrator.py` | 26 |
 | `backend/tests/test_paper.py` | 9 |
+| `backend/tests/test_pre_live_fixes.py` | 2 |
 | `backend/tests/test_progressif.py` | 13 |
 | `backend/tests/test_reconciliation.py` | 15 |
 | `backend/tests/test_recovery.py` | 8 |
@@ -2340,7 +2353,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_shadow.py` | 5 |
 | `backend/tests/test_sweep.py` | 13 |
 | `backend/tests/test_swing_backtest.py` | 7 |
-| **Total** | **695** |
+| **Total** | **698** |
 
 ## 5. Schéma SQL
 
@@ -2402,6 +2415,10 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 ### `backend/db/migrations/0011_insights_and_controls.sql`
 
 - Tables : `position_policies`, `entry_controls`, `decision_cycles`, `decision_artifacts`, `decision_cycle_artifacts`, `opportunity_events`, `observation_experiments`, `protection_observations`, `protection_incidents`, `observation_commands`
+
+### `backend/db/migrations/0012_private_maintenance.sql`
+
+- Aucun objet créé (droits, index ou contraintes).
 
 ## 6. Rafraîchir
 

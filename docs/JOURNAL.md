@@ -6,6 +6,76 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-09 — Corrections pré go live par lots (en cours)
+
+Demande explicite : corriger les constats et pousser chaque étape sur master avec
+vérification du SHA distant. Lot 1 : isolation PAPER du kill-switch et maintenance
+SQL privée (0012), conservation des preuves et du plan. Pas d’activation live.
+
+Lot 1 vérifié : 698 tests Python dont 25 PostgreSQL locaux, 31 Node ; golden
+inchangé. La migration 0012 révoque les droits PUBLIC et borne les mois de
+maintenance ; les tests anon/authenticated sont négatifs. Le kill-switch ne
+contacte plus Kraken et maintient la gestion d’une position ouverte. Le broker
+refuse une promotion PAPER vers LIVE par surcharge de mode. Application distante
+refusée par la revue automatique, autorisation explicite demandée à Seb ; cible
+non modifiée. Le push est vérifié par comparaison du SHA distant.
+
+## 2026-11-09 — Roadmap unique vers le go live définitif
+
+Demande de Seb : une séquence unique, précise et vérifiable jusqu’à l’exploitation
+réelle durable. Rédaction du plan, critères de passage, responsabilités, règles
+NO-GO et marche arrière. Aucun correctif applicatif ni activation dans cette étape.
+
+**Livré** : [GO_LIVE.md](GO_LIVE.md), huit étapes R0–R7 avec travaux, preuves,
+responsabilités et NO-GO. Protocole proposé : recette cible de 14 jours ET
+20 cycles ; au moins 100 trades simulés avec validation hors calibration ;
+canary d’au moins trois allers-retours ; stabilisation de 30 jours ET dix trades
+réels, sans hausse automatique du risque ou du budget. La faisabilité des 9,37 EUR
+est un prérequis bloquant, pas une raison de relâcher les limites.
+Les anciens parcours sont remplacés par un renvoi unique. Le go live définitif
+reste une décision explicite, sans promesse de date ni de rentabilité.
+
+**Vérifié** : liens locaux, présence des huit étapes et de leurs critères,
+cohérence des renvois et `git diff --check`. Aucun test métier relancé pour ce
+changement exclusivement documentaire.
+
+## 2026-11-09 — Revue technique pré go live : NO-GO confirmé
+
+Audit de la version publiée `master` 39db447. Le checkout local `work` reste intact :
+il contient d’autres correctifs non intégrés et une migration 0010 incompatible
+avec celle du master. Aucune fusion implicite et aucun ordre réel. Vérification
+par relecture, tests et reproductions isolées ; un succès de test ne vaut pas
+qualification du déploiement ni preuve économique.
+
+**Vérifié** : 671 tests hors base + 24 contrats PostgreSQL 17 locaux, soit
+**695 passed**, un warning Starlette ; **31 Node** ; golden identique sans bless
+et navigateur desktop/mobile vérifié. Les onze migrations s’appliquent depuis zéro ;
+`db_migrate.py verify` → 43 relations, 6 vues, 16 partitions, écritures annulées.
+Le premier essai SQL sur 55433 a été refusé par six fixtures imposant 55432 ; base
+recréée sur 55432, suite complète ensuite réussie, sans modification des gardes.
+
+**Contre-exemples** : huit reproductions mémoire et deux SQL en rollback. Appel
+cancel exchange possible en PAPER ; revalidation live repassant de 600 à 1 000 EUR
+d’équité ; reliquat 0,6 sans protection après vente partielle de 0,4 ; données
+marché âgées de 20 jours acceptées ; sonde marquant un timeout comme succès ; HALT
+permanent en simulation ; coût périmé admissible ; suspension après autorisation
+finale ; fonction privilégiée callable par anon ; fill partiel annulé omis des
+diagnostics. Aucun échange avec Kraken dans ces essais, doubles uniquement.
+
+**Cible Supabase `trninja` lue sans écriture** : neuf migrations dont les checksums
+concordent, **0010 et 0011 absentes**. RLS et droits de tables privés confirmés ;
+`ensure_partitions(integer)` reste SECURITY DEFINER et exécutable via les droits
+PUBLIC hérités par anon/authenticated. Son exécution n’a été reproduite que sur
+la base jetable, transaction annulée. Heartbeats cible NULL ; disponibilité des
+services non établie. Les avis sur `rls_auto_enable()` sont distingués : c’est une
+fonction event_trigger, pas une preuve d’invocation RPC ordinaire.
+
+**Livrable** : [audit priorisé](AUDIT_PRE_GO_LIVE_2026-11-09.md), sources, scripts,
+résultats synthétiques et portes G0–G6. Aucun correctif métier, aucune migration
+cible et aucun armement. Les défauts bloquants restent ouverts ; cette entrée
+achève la revue, pas la qualification du passage en réel.
+
+
 ## 2026-11-09 — Dix briefs implémentés et vérifiés localement (D-073)
 
 Travail dans un checkout issu de `master` 96b3a9d, avec profil progressif et capital
