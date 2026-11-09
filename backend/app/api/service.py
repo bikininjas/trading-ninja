@@ -9,7 +9,7 @@ flottants pour l'argent.
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -77,6 +77,16 @@ async def build_status(repo: PostgresRepository, settings: Settings) -> dict:
         "equity": str(account.equity),
         "free_quote": str(account.free_quote),
         "reserve_quote": str(account.reserve_quote),
+        "growth_quote": str(account.growth_quote),
+        "active_equity": str(account.trading_equity),
+        "capital_steps": {
+            "promotions": account.promotions,
+            "step_quote": str(settings.capital_policy.step_quote),
+            "growth_trigger": str(settings.capital_policy.growth_trigger),
+            "interval_days": settings.capital_policy.interval_days,
+            "next_review_at": (account.last_promotion_at + timedelta(days=settings.capital_policy.interval_days)).isoformat()
+            if account.last_promotion_at else None,
+        },
         "drawdowns": {
             "daily": str(account.daily_drawdown_pct),
             "weekly": str(account.weekly_drawdown_pct),

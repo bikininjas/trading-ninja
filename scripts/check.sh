@@ -52,6 +52,7 @@ if [ -x backend/.venv/bin/python ]; then
   RC=$?
   if [ "$RC" -eq 0 ]; then
     COMPTE=$(printf '%s\n' "$OUT" | grep -Eo '[0-9]+ passed' | tail -1)
+    TEST_SAUTES=$(printf '%s\n' "$OUT" | grep -Eo '[0-9]+ skipped' | tail -1 | grep -Eo '^[0-9]+' || true)
     ok "${COMPTE:-tests} — contrat de schéma inclus"
   else
     ko "tests en échec :"
@@ -100,6 +101,8 @@ done
 # légitimement rester en retard — traitée en alerte, jamais en échec.
 if [ -n "${COMPTE:-}" ]; then
   REEL=$(printf '%s' "$COMPTE" | grep -oE '^[0-9]+')
+  # Les contrats PostgreSQL sont collectés mais opt-in sans base locale de test.
+  REEL=$((REEL + ${TEST_SAUTES:-0}))
   for f in docs/ARCHITECTURE.md backend/README.md; do
     [ -f "$ROOT/$f" ] || continue
     ANNONCE=$(grep -oE '[0-9]+ tests?' "$ROOT/$f" 2>/dev/null | grep -oE '[0-9]+' | head -1)
@@ -159,7 +162,7 @@ if command -v node >/dev/null 2>&1; then
   else
     ko "server.js : erreur de syntaxe"
   fi
-  if OUT=$(cd "$ROOT/dashboard" && node --test test/ 2>&1); then
+  if OUT=$(cd "$ROOT/dashboard" && node --test test/*.test.js 2>&1); then
     N=$(printf '%s\n' "$OUT" | grep -E '^ℹ pass' | grep -oE '[0-9]+' | head -1)
     ok "${N:-18} tests dashboard — zéro dépendance"
   else

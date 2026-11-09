@@ -11,6 +11,22 @@ Statuts : ⬜ à faire · 🟨 en cours · ✅ fait et vérifié · ⛔ bloqué 
 
 ## Vue d'ensemble
 
+- ✅ **2.17 — Capital protégé et croissance par paliers** *(2026-11-09)* :
+  journal comptable, surplus global réalisé, réserve immédiate, cagnotte de croissance,
+  reprise atomique des clôtures et stops papier, coûts partagés et rejeu de la politique.
+  Réservé au papier ; 643 tests Python dont 6 PostgreSQL locaux, 26 Node, golden
+  inchangé et contrôle navigateur bureau/mobile. La base déployée et la rentabilité
+  multi-années restent non validées. Détails : D-070 et `PROGRESSION.md`.
+
+
+- ✅ **2.16 — Progression à petit budget, mécanique papier** *(2026-11-09)* : profil
+  papier à 9,37 EUR, budget de perte frais compris, stop suiveur commun au moteur
+  et au rejeu, comparaison des budgets sans relâcher automatiquement le risque.
+  Aucun rendement régulier promis ; le cash et l'absence de trade sont acceptables.
+  *Vérifié* : 617 tests Python, 26 Node, golden inchangé et comparatif hors ligne.
+  La rentabilité multi-années et la base déployée restent non validées dans cette
+  étape ; les critères de passage en réel ne changent pas.
+
 | Phase | Objectif | Statut | Avancement |
 |---|---|---|---|
 | **0. Fondations** | Le socle sur lequel rien ne peut perdre d'argent par accident | ✅ | 9 / 9 |
@@ -83,28 +99,23 @@ Objectif : que le système soit *incapable* de perdre gros même s'il est mal ut
 
 Objectif : le bot tourne en boucle complète, en mode papier uniquement. Le moteur papier
 fonctionne de bout en bout (données réelles → LLM local → pare-feu → exécution simulée
-persistée) ; l'envoi réel et l'API d'administration restent à faire.
+persistée). L'API d'administration et le chemin d'exécution réel sont écrits ;
+le réel reste désactivé et sa validation sur un compte dédié reste à faire.
 
-- 🟨 **1.1 — Vérifier les permissions de la clé Binance** *(2026-11-04)*
-  Au démarrage, interroger l'exchange et **refuser de démarrer** si la clé autorise les
-  retraits. C'est le garde-fou n°1 contre une fuite de clé.
-  Endpoint : `GET /sapi/v1/account/apiRestrictions` (signé), champs `enableWithdrawals`,
-  `enableSpotAndMarginTrading`, `enableReading`. Si l'appel échoue ou si le compte n'a pas
-  le droit de lire ses propres restrictions, on **refuse aussi** (fail-closed) : on ne
-  suppose jamais qu'une clé est saine parce qu'on n'a pas pu la vérifier. Sur testnet,
-  l'endpoint peut ne pas exister — dans ce cas, l'absence de réponse est traitée comme un
-  refus en mode `live` uniquement.
-  *Fait* : `backend/scripts/check_exchange.py`, sonde lecture seule, signature HMAC,
-  recalcul du décalage d'horloge, verdict fail-closed. Clé **mainnet** vérifiée :
-  `enableReading=true`, `enableSpotAndMarginTrading=true`, `enableWithdrawals=false`,
-  `ipRestrict=true`, compte `SPOT` vide. Filtres BTC/USDT lus et convertis en
-  `ExchangeConstraints` (tick 0,01 · pas 0,00001 · min_notional 5 USDT).
-  *Reste* : porter ce contrôle dans un point d'entrée qui refuse le boot — il n'existe
-  pas encore de point d'entrée (étape 1.2 / 2.1).
-  *Critère* : une clé avec `enableWithdrawals=true` fait échouer le boot avec un message
-  explicite ; une clé lecture+trade passe ; une erreur réseau refuse aussi.
-  *Dépendance levée* : les clés fournies sont **mainnet**, pas testnet (voir `JOURNAL.md`).
-  Une clé testnet dédiée reste à créer pour la phase 3.
+- 🟨 **1.1 — Vérifier les permissions de la clé Kraken** *(2026-11-04 ; état relu le 2026-11-09)*
+  Kraken spot est l'exchange retenu. `app/exchange/kraken.py::verify_key_permissions()`
+  interroge `GetApiKeyInfo` et refuse les droits de retrait, les permissions de
+  trading manquantes et les réponses illisibles. `scripts/check_kraken.py` expose
+  cette sonde en lecture seule ; détails dans `docs/KRAKEN.md`.
+  *Reste* : appeler ce contrôle depuis `app.main` avant toute exécution live.
+  Le point d'entrée existe et exige une réconciliation propre, mais ne vérifie pas
+  encore les permissions avec `verify_key_permissions()`.
+  *Critère* : retrait autorisé, permission manquante ou erreur de lecture → refus
+  de démarrer ; clé lecture+trade sans retrait → démarrage autorisé si les autres
+  verrous sont satisfaits.
+  *Historique* : `scripts/check_exchange.py` et les mesures Binance du journal
+  concernent l'ancien exchange. Aucune clé testnet Kraken n'est à créer : Kraken
+  spot n'a pas de testnet CCXT ; la phase 3 est un pré-live canary.
 
 - ✅ **1.2 — Machine à états persistée** *(2026-11-04)*
   `IDLE → EVALUATING → EXECUTING → IN_POSITION → POST_TRADE_SWEEP → COOLDOWN`, plus
@@ -116,11 +127,12 @@ persistée) ; l'envoi réel et l'API d'administration restent à faire.
   (`test_cooldown_is_resumed_after_a_restart`).
 
 - 🟨 **1.3 — Broker papier** *(2026-11-04)*
-  Exécution simulée : prix de remplissage, frais, slippage, stop déclenché au tick.
+  Exécution simulée : prix de remplissage, frais, slippage, stop sur bougie clôturée.
   *Fait* : `app/execution/paper.py` — slippage 5 bps, frais taker du marché, sortie sur
   bougie clôturée, gap traité au prix d'ouverture, stop prioritaire si stop et TP sont
   touchés dans la même bougie. Ordres persistés (`ENTRY` rempli, `STOP_LOSS` armé).
-  *Reste* : la ligne `profit_sweeps` (1.9) et le TP comme ordre frère annulable.
+  *Fait aussi* : écrémage des clôtures gagnantes (1.9).
+  *Reste* : le TP comme ordre frère annulable.
   *Critère* : un trade gagnant simulé écrit la même séquence de lignes qu'un trade réel
   (`llm_signals` → `risk_evaluations` → `orders` → `positions` → `profit_sweeps`), avec
   `mode = 'PAPER'`. Un trade **perdant** écrit la même séquence **sauf** `profit_sweeps`
@@ -137,8 +149,8 @@ persistée) ; l'envoi réel et l'API d'administration restent à faire.
   *Critère vérifié* : valeurs de référence exactes, bougie en cours ignorée.
 
 - ✅ **1.5 — Client LLM et validation** *(2026-11-04)*
-  Client OpenAI-compatible (Ollama/vLLM), `response_format` JSON schema, validation
-  stricte, un seul nouvel essai, bascule sur `HOLD` en cas d'échec. Timeout 5 s.
+  Client Ollama natif, sortie JSON contrainte et validation stricte,
+  bascule sur `HOLD` en cas d'échec. Timeout 8 s.
   *Fait* : `app/llm/client.py` — API **native** Ollama (seule à accepter `think=false`
   et un schéma de décodage contraint), validation stricte, HOLD de repli à confiance
   nulle, audit dans `llm_signals`, rétrogradation déterministe d'un BUY sous EMA200 ou
@@ -161,7 +173,10 @@ persistée) ; l'envoi réel et l'API d'administration restent à faire.
   DOGE, PAXG, HBAR, BNB) ; les alts les plus volatiles exigent 12 à 27 EUR.
   *Écarté* : Binance (`STOP_LOSS_LIMIT`), le paramètre `stopPrice` du brief (inexistant
   dans CCXT 4.5.91), et le TP dans le bracket (un seul `close` par ordre).
-  *Reste* : l'envoi réel et la réconciliation (1.7).
+  *Fait aussi* : `app/execution/live.py` envoie le bracket, vérifie le stop et
+  prévoit une sortie d'urgence si la protection manque. Aucun ordre réel envoyé.
+  *Reste* : valider ce chemin sur un compte dédié (1.7 et phase 3) et compléter
+  le TP distant avec annulation du frère.
   *Critère* : sur un compte réel, un achat suivi d'un stop vérifié sur l'exchange ;
   stop refusé → position soldée et bot halte.
   *Détail* : `docs/KRAKEN.md`.
@@ -174,12 +189,14 @@ persistée) ; l'envoi réel et l'API d'administration restent à faire.
   `app/runtime/reconciliation.py` lit les ordres ouverts et les soldes, puis produit
   un plan : stop armé (OK), stop absent / trop petit / trop bas (liquidation), solde
   insuffisant (arrêt sans vente, on ne vend pas ce qu'on n'a pas). `scripts/reconcile.py`
-  exécute cet audit en lecture seule, sans écrire ni envoyer.
+  exécute cet audit en lecture seule par défaut. `--apply` applique le plan ;
+  en live, `--confirm` est aussi obligatoire. `app.main` refuse le démarrage live
+  si la réconciliation n'est pas propre.
   *Validé par* : audit réel `scripts/reconcile.py` → `mode PAPER · positions 0 ·
   ordres distants 0 · solde 9.37 EUR`, exit 0 ; 15 tests hors réseau.
-  *Reste* : appliquer le plan (liquidation, annulation) via l'exécuteur live, qui
-  n'existe pas encore ; vérifier un stop réellement armé exige un ordre, donc la
-  phase 3. Sans objet en papier, obligatoire avant le réel.
+  *Reste* : valider l'application du plan et la présence d'un stop réellement
+  armé sur le compte dédié en phase 3. Le chemin existe ; sa présence dans le
+  code ne constitue pas une validation de l'exécution réelle.
   *Critère* : tuer le process en position ouverte, le relancer, il retrouve la position
   et son stop sans rien dupliquer.
 
@@ -217,7 +234,9 @@ persistée) ; l'envoi réel et l'API d'administration restent à faire.
   *Fait aussi* : dashboard Node.js zéro dépendance (`dashboard/`) — proxy de l'API,
   cookie `HttpOnly`, SSE, 26 tests à ce jour. Le jeton reste côté serveur. `scripts/manage.sh`
   pilote les deux composants (start/stop/restart, PID vérifiés avant `kill`).
-  *Reste* : le panic-sell réel.
+  *Fait aussi* : chemin de panic-sell réel écrit (D-063), sans ordre réel envoyé.
+  *Reste* : valider l'exécution réelle sur compte dédié et résoudre les défauts
+  live rappelés en D-069 avant activation.
 
 - 🟨 **1.11 — Kill-switch autonome** *(2026-11-04)*
   Script indépendant du processus principal, qui parle directement à l'exchange : annule
@@ -226,10 +245,10 @@ persistée) ; l'envoi réel et l'API d'administration restent à faire.
   liquide au prix courant (slippage + frais), annule le stop armé, écrit un ordre
   `EMERGENCY_EXIT`, passe la position en `EMERGENCY_LIQUIDATED` et force `bot_state`
   en `EMERGENCY_HALT`. `--dry-run` montre sans modifier.
-  *Reste* : le chemin réel (annulation et vente sur Kraken), refusé tant que
-  l'exécuteur live n'est pas revu.
+  *Fait aussi* : chemin réel avec `--confirm-live` (D-063), non activé.
+  *Reste* : revoir les défauts live rappelés en D-069 et valider sur compte dédié.
   *Critère* : exécuté alors que le backend est arrêté, il solde quand même la position.
-  (Vérifié en papier ; réel non câblé.)
+  (Vérifié en papier ; chemin réel écrit, non validé sur exchange.)
 
 - 🟨 **1.12 — Pilotage et réglages depuis le dashboard** *(2026-11-04)*
   Le dashboard montre les statistiques, les graphiques, l'état du modèle et permet de

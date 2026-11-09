@@ -6,6 +6,75 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-09 — Capital protégé et paliers vérifiés (D-070)
+
+Trois enveloppes et nouveau surplus réalisé, réserve immédiate, paliers bornés,
+comptabilité atomique des clôtures, reprise sans revente, frais partagés, curseur
+papier avec rejeu des bougies manquées, panic papier et comparatif H4 alignés.
+La migration 0010 reste à appliquer sur la base de déploiement. Aucun ordre réel,
+aucun secret ni réglage local existant changé.
+
+**Vérifié** : 643 tests Python dont 6 contre PostgreSQL 17 jetable local ; 26 tests
+Node ; golden identique sans bless ; comparatif hors ligne ; dix migrations
+appliquées par le coureur officiel sur une seconde base locale vide. Chromium
+bureau/mobile affiche les trois enveloppes sans erreur JS ni débordement horizontal.
+L'erreur préexistante `resetButton` avant initialisation est corrigée. Le contrôle
+global passe sur les bases locales ; seule alerte : AGENTS.md conserve son compteur
+historique à 603 tests. Les contrats
+SQL opt-in sont comptés comme collectés dans le contrôle documentaire lorsqu'ils
+sont sautés faute de base locale. Index régénéré et diff vérifié.
+
+La fenêtre reste sans trade à 9,37 EUR, et perdante lorsqu'elle trade. Aucun
+avantage statistique démontré ; le mode progressif demeure papier uniquement.
+
+## 2026-11-09 — Démarrage du durcissement du capital (2.17)
+
+Autorisé : rendre la progression par petits paliers solide, sur la branche de la
+PR #1. Réserve protégée, cagnotte, surplus réalisé et reprises après interruption
+sont traités ensemble ; aucune activation live ni migration de la base déployée.
+Validation à compléter par les tests et une base PostgreSQL locale.
+
+## 2026-11-09 — Relecture documentaire de la PR #1
+
+Mise à jour de l'architecture sur BUY/SELL/HALT, du point d'entrée et des étapes
+1.1, 1.6 et 1.7 de la roadmap : Kraken remplace Binance comme référence courante,
+les chemins live et de réconciliation existent mais leur validation réelle reste
+à faire. Les anciennes mesures du journal sont conservées comme historique.
+`PROGRESSION.md` décrit désormais le défaut reproduit de reprise après persistance
+du stop et avant journalisation du signal ; cette mise à jour ne corrige pas le code.
+
+**Vérifié** : relecture contre `app.main`, `verify_key_permissions()`, l'orchestrateur
+et les commandes de réconciliation ; `git diff --check` et index documentaire à jour.
+Documentation uniquement, aucun réglage ni schéma modifié, aucun ordre réel.
+
+## 2026-11-09 — Objectif de progression modeste (D-069)
+
+Demande : préserver le petit capital, rechercher une progression nette de frais
+dans la durée et laisser de la place aux mouvements gagnants. Travail en papier,
+sans activation live ni modification des secrets. Profil papier `progressif`,
+perte prévue frais compris, trailing partagé runtime/rejeu, revalidation du sizing,
+valorisation des positions en cours et comparaison de budgets. Le golden charge
+sa configuration figée retrouvée par son empreinte : aucune décision ni métrique
+historique modifiée. Voir `PROGRESSION.md` pour les règles et la mesure courte.
+
+**Vérifié** (Python 3.12.14 disponible ici ; 3.15.2 prescrit non disponible) :
+
+```text
+cd backend && .venv/bin/python -m pytest          → 617 passed
+cd backend && .venv/bin/python scripts/backtest.py replay → identique au golden
+cd backend && .venv/bin/python scripts/compare_budgets.py → 12 scénarios
+cd dashboard && npm test                         → 26 passed via le contrôle global
+backend/.venv/bin/python scripts/index_codebase.py --check → à jour
+bash scripts/check.sh → échec uniquement sur verify_drawdowns : base non configurée
+```
+
+Le contrôle global a réellement exécuté `node --test test/*.test.js` (même commande
+que `npm test`). L'avertissement AGENTS.md à 603 tests est conservé sans éditer ce
+fichier. Aucun accès à la base déployée ni mesure multi-années ; aucune rentabilité
+validée. Sur la courte fenêtre mécanique, à 9,37 EUR le nouveau profil ne trade
+pas ; à 50 EUR il prend un trade perdant de 0,25 EUR (0,5 %), contre 0,9497 EUR en
+micro. Aucun fichier `.env` existant ni réglage déployé n'a été modifié.
+
 ## 2026-11-05 · 11:00 — Control plane étendu : kill-switch, réconciliation, télémétrie, audit LLM (D-068)
 
 **Fait** : audit puis implémentation des lacunes du dashboard et du backend. Trois

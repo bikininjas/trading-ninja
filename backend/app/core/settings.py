@@ -25,6 +25,7 @@ from typing import Mapping
 from app.core.db import DatabaseConfig
 from app.core.db import from_env as database_from_env
 from app.core.env import load_env, read_dotenv
+from app.engine.capital import CapitalPolicy
 from app.engine.risk_gate import EntryMode, RiskConfig, StopMode, SwingExitMode
 
 __all__ = ["Settings", "ExchangeSettings", "LLMSettings", "load_settings", "RISK_PRESETS"]
@@ -122,6 +123,16 @@ RISK_PRESETS: dict[str, dict[str, str]] = {
         "MAX_CONSECUTIVE_LOSSES": "6",
         "MAX_ORDERS_PER_HOUR": "3",
     },
+}
+
+
+RISK_PRESETS["progressif"] = {
+    **RISK_PRESETS["prudent"],
+    "MAX_NOTIONAL_PCT": "0.50",
+    "TAKE_PROFIT_R_MULTIPLE": "0",
+    "MIN_CONFIDENCE": "0.60",
+    "COST_AWARE": "true",
+    "PROFIT_TRAILING_ENABLED": "true",
 }
 
 
@@ -269,6 +280,7 @@ class Settings:
     admin_password_hash: str = field(default="", repr=False)
     paper_start_equity: Decimal = Decimal("0")
     paper_slippage_bps: int = 5
+    capital_policy: CapitalPolicy = field(default_factory=CapitalPolicy)
     sweep_ratio: Decimal = Decimal("0.30")
     sweep_min_transfer_quote: Decimal = Decimal("1.00")
     halt_auto_resume_hours: int = 24
@@ -305,7 +317,8 @@ class Settings:
 # ---------------------------------------------------------------------------
 
 
-def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, str] | None = None) -> Settings:
+def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, str] | None = None,
+                  *, use_environment: bool = True) -> Settings:
     """Charge la configuration. Lève RuntimeError si incohérente.
 
     Sans `env_file` : chaîne `backend/.env` → `.env` → `.env.local` → os.environ.
@@ -314,9 +327,10 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
     """
     if env_file is not None:
         merged: dict[str, str] = read_dotenv(Path(env_file))
-        merged.update(os.environ)
+        if use_environment:
+            merged.update(os.environ)
     else:
-        merged = load_env()
+        merged = load_env() if use_environment else {}
 
     if overrides:
         merged.update(overrides)
@@ -329,6 +343,8 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
     if profile not in RISK_PRESETS:
         raise RuntimeError(f"RISK_PROFILE inconnu : {profile!r} (connus: {', '.join(RISK_PRESETS)})")
     preset = RISK_PRESETS[profile]
+    if profile == "progressif" and mode != "paper":
+        raise RuntimeError("Le profil progressif reste réservé au mode paper jusqu'à validation")
 
     exchange_id = _env(merged, "EXCHANGE_ID", "binance").lower()
     if exchange_id not in EXCHANGE_KEY_ALIASES:
@@ -372,7 +388,22 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
             "Donchian/EMA20 lit des bougies Daily, pas H4."
         )
 
+    fee = Decimal(merged.get("TAKER_FEE_PCT", EXCHANGE_TAKER_FEE_DEFAULTS[exchange_id]))
+    slip_bps = Decimal(merged.get("PAPER_SLIPPAGE_BPS", "5"))
+    if not fee.is_finite() or not Decimal(0) < fee <= Decimal("0.05"):
+        raise RuntimeError("TAKER_FEE_PCT doit être fini et dans ]0, 5 %]")
+    if not slip_bps.is_finite() or not Decimal(0) <= slip_bps < Decimal(1000):
+        raise RuntimeError("PAPER_SLIPPAGE_BPS doit être fini et dans [0, 1000[")
     risk = RiskConfig(
+        cost_aware=_env_bool(merged, "COST_AWARE", preset.get("COST_AWARE", "false")),
+        execution_fee_pct=fee,
+        execution_slippage_pct=slip_bps / Decimal(10000),
+        opportunity_r_multiple=Decimal(merged.get("OPPORTUNITY_R_MULTIPLE", "4")),
+        min_net_reward_to_risk=Decimal(merged.get("MIN_NET_REWARD_TO_RISK", "1.5")),
+        profit_trailing_enabled=_env_bool(
+            merged, "PROFIT_TRAILING_ENABLED", preset.get("PROFIT_TRAILING_ENABLED", "false")),
+        profit_trailing_start_r=Decimal(merged.get("PROFIT_TRAILING_START_R", "2")),
+        profit_trailing_distance_r=Decimal(merged.get("PROFIT_TRAILING_DISTANCE_R", "1")),
         risk_per_trade_pct=Decimal(p("RISK_PER_TRADE_PCT")),
         max_notional_pct=Decimal(p("MAX_NOTIONAL_PCT")),
         max_position_notional_quote=Decimal(merged.get("MAX_POSITION_NOTIONAL_QUOTE", "2000")),
@@ -437,6 +468,23 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
         min_exit_confidence=Decimal(merged.get("MIN_EXIT_CONFIDENCE", "0.55")),
         min_halt_confidence=Decimal(merged.get("MIN_HALT_CONFIDENCE", "0.80")),
     )
+
+    try:
+        capital_policy = CapitalPolicy(
+            enabled=_env_bool(merged, "CAPITAL_STEPS_ENABLED", "true" if profile == "progressif" else "false"),
+            reserve_ratio=Decimal(merged.get("SWEEP_RATIO", "0.30")),
+            growth_trigger=Decimal(merged.get("CAPITAL_GROWTH_TRIGGER", "1")),
+            step_quote=Decimal(merged.get("CAPITAL_STEP_QUOTE", "0.25")),
+            step_max_pct=Decimal(merged.get("CAPITAL_STEP_MAX_PCT", "0.05")),
+            interval_days=int(merged.get("CAPITAL_INTERVAL_DAYS", "7")),
+            max_active_quote=Decimal(merged.get("CAPITAL_MAX_ACTIVE_QUOTE", "20")),
+        )
+    except ValueError as exc:
+        raise RuntimeError(f"Politique de capital invalide (SWEEP_RATIO / CAPITAL_*) : {exc}") from exc
+    if capital_policy.enabled and mode != "paper":
+        raise RuntimeError("Les paliers de capital restent réservés au mode paper")
+    if capital_policy.enabled and not risk.cost_aware:
+        raise RuntimeError("Les paliers exigent COST_AWARE=true pour borner les pertes frais compris")
 
     sandbox = _env_bool(merged, "EXCHANGE_SANDBOX_MODE", "true")
 
@@ -539,6 +587,7 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
         admin_password_hash=_env(merged, "ADMIN_PASSWORD_HASH", ""),
         paper_start_equity=Decimal(merged.get("PAPER_START_EQUITY", "0")),
         paper_slippage_bps=slippage_bps,
+        capital_policy=capital_policy,
         sweep_ratio=sweep_ratio,
         sweep_min_transfer_quote=sweep_min,
         halt_auto_resume_hours=halt_auto_resume_hours,

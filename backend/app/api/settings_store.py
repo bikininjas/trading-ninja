@@ -23,6 +23,7 @@ __all__ = [
 ]
 
 PROFILE_LABELS = {
+    "progressif": "Progressif (simulation)",
     "prudent": "Prudent",
     "standard": "Équilibré",
     "aggressive": "Audacieux",
@@ -30,6 +31,7 @@ PROFILE_LABELS = {
 }
 
 PROFILE_DESCRIPTIONS = {
+    "progressif": "Petit budget, perte prévue frais compris, gains laissés au stop suiveur. Peut rester en euros.",
     "prudent": "Peu d'achats, petite part du capital, arrêt rapide.",
     "standard": "Un peu plus d'opportunités, risque modéré.",
     "aggressive": "Plus d'opportunités, variations plus fortes.",

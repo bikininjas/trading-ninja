@@ -90,6 +90,7 @@ async def _run(dry_run: bool, confirm_live: bool) -> int:
             repo, exchange, broker, mode,
             quote_currency=settings.exchange.quote_currency,
             starting_equity=settings.paper_start_equity,
+            capital_policy=settings.capital_policy,
         )
         if not results:
             print("aucune position ouverte à liquider.")

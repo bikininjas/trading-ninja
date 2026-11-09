@@ -13,7 +13,8 @@ from __future__ import annotations
 
 import json
 import uuid
-from dataclasses import dataclass
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, asdict
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -21,6 +22,7 @@ from typing import Any
 import asyncpg
 
 from app.core.db import DatabaseConfig
+from app.engine.capital import CapitalState, start_capital, allocate_close
 
 __all__ = [
     "AccountSnapshot",
@@ -46,6 +48,13 @@ class AccountSnapshot:
     orders_last_hour: int
     has_open_position: bool
     reserve_quote: Decimal = Decimal(0)
+    growth_quote: Decimal = Decimal(0)
+    promotions: int = 0
+    last_promotion_at: datetime | None = None
+
+    @property
+    def trading_equity(self) -> Decimal:
+        return max(Decimal(0), self.equity - self.reserve_quote - self.growth_quote)
 
     @property
     def peak(self) -> Decimal:
@@ -63,6 +72,7 @@ class PositionRow:
     take_profit_price: Decimal | None
     opened_at: datetime
     risk_amount_quote: Decimal
+    monitor_cursor_at: datetime | None = None
 
 
 def _drawdown(peak: Decimal, equity: Decimal) -> Decimal:
@@ -72,13 +82,14 @@ def _drawdown(peak: Decimal, equity: Decimal) -> Decimal:
 
 
 class PostgresRepository:
-    def __init__(self, connection: asyncpg.Connection):
+    def __init__(self, connection: asyncpg.Connection, *, lock_connection_factory=None):
         self._conn = connection
+        self._lock_connection_factory = lock_connection_factory
 
     @classmethod
     async def connect(cls, config: DatabaseConfig) -> "PostgresRepository":
         connection = await asyncpg.connect(**config.asyncpg_kwargs())
-        return cls(connection)
+        return cls(connection, lock_connection_factory=lambda: asyncpg.connect(**config.asyncpg_kwargs()))
 
     async def close(self) -> None:
         await self._conn.close()
@@ -149,6 +160,14 @@ class PostgresRepository:
     # -- compte ----------------------------------------------------------
 
     async def account(self, mode: str, starting_equity: Decimal) -> AccountSnapshot:
+        # Le dashboard ne doit pas lire un ancien snapshot avec une réserve
+        # déjà mise à jour par une clôture concurrente.
+        if self._conn.is_in_transaction():
+            return await self._account(mode, starting_equity)
+        async with self._conn.transaction(isolation="repeatable_read", readonly=True):
+            return await self._account(mode, starting_equity)
+
+    async def _account(self, mode: str, starting_equity: Decimal) -> AccountSnapshot:
         last = await self._conn.fetchrow(
             "SELECT equity_quote, free_quote FROM equity_snapshots "
             "WHERE mode = $1::execution_mode ORDER BY taken_at DESC LIMIT 1",
@@ -190,17 +209,28 @@ class PostgresRepository:
             "AND transfer_status IN ('SUCCESS', 'SIMULATED')",
             mode,
         )
+        capital = await self.capital_state(mode)
+        growth = capital.growth_quote if capital else Decimal(0)
+        if capital:
+            reserve = capital.reserve_quote
+            active_peak = capital.active_quote + max(Decimal(0), capital.surplus_hwm - capital.realized_pnl)
+            hwm_drawdown = _drawdown(active_peak, equity - reserve - growth)
+        else:
+            hwm_drawdown = Decimal(0)
         return AccountSnapshot(
             equity=equity,
             free_quote=free,
             hwm=hwm,
             daily_drawdown_pct=_drawdown(max(daily_peak or Decimal(0), equity), equity),
             weekly_drawdown_pct=_drawdown(max(weekly_peak or Decimal(0), equity), equity),
-            from_hwm_drawdown_pct=_drawdown(max(hwm, equity), equity),
+            from_hwm_drawdown_pct=max(hwm_drawdown, _drawdown(max(hwm, equity), equity)),
             consecutive_losses=int(counters["consecutive_losses"]) if counters else 0,
             orders_last_hour=int(orders_last_hour or 0),
             has_open_position=bool(has_position),
             reserve_quote=reserve or Decimal(0),
+            growth_quote=growth,
+            promotions=capital.promotions if capital else 0,
+            last_promotion_at=capital.last_promotion_at if capital else None,
         )
 
     async def snapshot_equity(self, mode: str, *, equity: Decimal, free_quote: Decimal,
@@ -476,7 +506,7 @@ class PostgresRepository:
     async def open_positions(self, mode: str) -> list[PositionRow]:
         rows = await self._conn.fetch(
             "SELECT id, symbol, entry_price, initial_amount, stop_loss_price, "
-            "take_profit_price, opened_at, risk_amount_quote FROM positions "
+            "take_profit_price, opened_at, risk_amount_quote, monitor_cursor_at FROM positions "
             "WHERE mode = $1::execution_mode AND status = 'OPEN' "
             "ORDER BY opened_at DESC",
             mode,
@@ -487,6 +517,7 @@ class PostgresRepository:
                 amount=row["initial_amount"], stop_loss_price=row["stop_loss_price"],
                 take_profit_price=row["take_profit_price"], opened_at=row["opened_at"],
                 risk_amount_quote=row["risk_amount_quote"],
+                monitor_cursor_at=row["monitor_cursor_at"],
             )
             for row in rows
         ]
@@ -568,9 +599,9 @@ class PostgresRepository:
             "INSERT INTO positions (symbol, mode, entry_signal_id, entry_risk_evaluation_id, "
             "entry_price, initial_amount, initial_notional_quote, stop_loss_price, "
             "take_profit_price, risk_amount_quote, r_multiple_at_tp, protective_order_id, "
-            "protective_order_ok, protective_checked_at) "
+            "protective_order_ok, protective_checked_at, monitor_cursor_at) "
             "VALUES ($1, $2::execution_mode, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, "
-            "TRUE, CLOCK_TIMESTAMP()) RETURNING id",
+            "TRUE, CLOCK_TIMESTAMP(), CLOCK_TIMESTAMP()) RETURNING id",
             symbol, mode, signal_id, evaluation_id, entry_price, amount, notional_quote,
             stop_loss_price, take_profit_price, risk_amount_quote, r_multiple_at_tp,
             protective_order_id,
@@ -924,3 +955,93 @@ class PostgresRepository:
             mode, limit,
         )
         return [dict(row) for row in rows]
+
+
+    @asynccontextmanager
+    async def cycle_lock(self, mode: str):
+        # Le pooler Supabase peut être en mode transaction. Un verrou de
+        # session y serait perdu/réattribué. Transaction dédiée sur une seconde
+        # connexion ; les intents/fills sur la connexion de travail restent durables.
+        if self._lock_connection_factory is None:
+            raise RuntimeError("connexion dédiée au verrou de cycle non configurée")
+        connection = await self._lock_connection_factory()
+        try:
+            async with connection.transaction():
+                acquired = await connection.fetchval(
+                    "SELECT pg_try_advisory_xact_lock(70217, hashtext($1))", mode)
+                if not acquired:
+                    raise StateTransitionError("un autre cycle détient le verrou de ce mode")
+                yield
+        finally:
+            await connection.close()
+
+    async def capital_state(self, mode: str) -> CapitalState | None:
+        row = await self._conn.fetchrow("SELECT * FROM capital_accounts WHERE mode=$1::execution_mode", mode)
+        if row is None:
+            return None
+        return CapitalState(**{key: row[key] for key in CapitalState.__dataclass_fields__})
+
+    async def ensure_capital(self, mode: str, quote: str, equity: Decimal, reserve: Decimal,
+                             at: datetime) -> CapitalState:
+        row = await self.capital_state(mode)
+        if row is not None:
+            currency = await self._conn.fetchval("SELECT quote_currency FROM capital_accounts WHERE mode=$1::execution_mode", mode)
+            if currency != quote:
+                raise ValueError("devise du capital différente de la configuration")
+            return row
+        if await self.open_position(mode) is not None:
+            raise ValueError("initialisation des paliers exige un compte sans position ouverte")
+        state = start_capital(equity, at, reserve=reserve)
+        values = asdict(state)
+        columns = ', '.join(values)
+        placeholders = ', '.join(f'${i}' for i in range(3, 3 + len(values)))
+        await self._conn.execute(
+            f"INSERT INTO capital_accounts (mode, quote_currency, {columns}) "
+            f"VALUES ($1::execution_mode,$2,{placeholders})", mode, quote, *values.values())
+        return state
+
+    async def allocate_capital(self, mode: str, position_id: uuid.UUID, pnl: Decimal,
+                               at: datetime, policy, *, allow_promotion: bool) -> CapitalState:
+        # À appeler dans la transaction de clôture : verrou + clé idempotente.
+        await self._conn.fetchrow("SELECT mode FROM capital_accounts WHERE mode=$1::execution_mode FOR UPDATE", mode)
+        previous = await self.capital_state(mode)
+        if previous is None:
+            raise ValueError("capital non initialisé")
+        if await self._conn.fetchval("SELECT EXISTS(SELECT 1 FROM capital_events WHERE position_id=$1)", position_id):
+            raise ValueError("clôture déjà affectée au capital")
+        current = allocate_close(previous, pnl, at, policy, allow_promotion=allow_promotion)
+        values = asdict(current)
+        assignments = ', '.join(f'{key}=${i}' for i, key in enumerate(values, 2))
+        await self._conn.execute(f"UPDATE capital_accounts SET {assignments} WHERE mode=$1::execution_mode", mode, *values.values())
+        # Le montant promu se retrouve aussi comme diminution de la cagnotte.
+        surplus = max(Decimal(0), current.realized_pnl - previous.surplus_hwm)
+        promoted = surplus - (current.reserve_quote - previous.reserve_quote) - (current.growth_quote - previous.growth_quote)
+        await self._conn.execute(
+            "INSERT INTO capital_events (position_id,mode,closed_at,pnl_quote,active_delta,reserve_delta,growth_delta,promoted_quote) "
+            "VALUES ($1,$2::execution_mode,$3,$4,$5,$6,$7,$8)", position_id, mode, at, pnl,
+            current.active_quote-previous.active_quote, current.reserve_quote-previous.reserve_quote,
+            current.growth_quote-previous.growth_quote, promoted)
+        return current
+
+    async def advance_paper_position(self, position: PositionRow, stop: Decimal, close_at: datetime) -> None:
+        result = await self._conn.fetchval(
+            "UPDATE positions SET stop_loss_price=GREATEST(stop_loss_price,$2), monitor_cursor_at=$3 "
+            "WHERE id=$1 AND status='OPEN' AND monitor_cursor_at IS NOT DISTINCT FROM $4 RETURNING id",
+            position.id, stop, close_at, position.monitor_cursor_at)
+        if result is None:
+            raise StateTransitionError("curseur de position modifié par un autre cycle")
+
+    async def pending_exit(self, position_id: uuid.UUID):
+        return await self._conn.fetchrow("SELECT * FROM pending_exits WHERE position_id=$1", position_id)
+
+    async def prepare_exit(self, mode: str, position_id: uuid.UUID, reason: str, purpose: str, halt: bool):
+        await self._conn.execute(
+            "INSERT INTO pending_exits(position_id,mode,reason,purpose,halt) VALUES($1,$2::execution_mode,$3,$4,$5)",
+            position_id, mode, reason, purpose, halt)
+
+    async def confirm_exit(self, position_id: uuid.UUID, fill) -> None:
+        await self._conn.execute("UPDATE pending_exits SET fill=$2::jsonb WHERE position_id=$1",
+                                 position_id, json.dumps({k: str(v) if isinstance(v, Decimal) else v for k,v in asdict(fill).items()}))
+
+    async def clear_exit(self, position_id: uuid.UUID) -> None:
+        await self._conn.execute("DELETE FROM pending_exits WHERE position_id=$1", position_id)

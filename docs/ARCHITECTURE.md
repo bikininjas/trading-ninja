@@ -24,12 +24,14 @@
 ```
 
 Le point à retenir : **la flèche qui va du LLM vers la gateway ne porte que trois
-champs**, et tous les trois ne peuvent que provoquer un refus. Toute la géométrie du
-système découle de là.
+champs** : `action`, `confidence` et `market_regime`. L'action peut déclencher
+un achat, une vente de clôture ou un arrêt ; les garde-fous déterministes valident
+ou refusent ces intentions. Un SELL ne peut jamais ouvrir un short. Le LLM ne
+choisit ni quantité, ni prix, ni stop : toute la géométrie vient du code.
 
 ## 2. Ce qui existe, ce qui n'existe pas
 
-**603 tests** Python et **26 tests** Node (629 au total), répartis ci-dessous.
+**643 tests** Python et **26 tests** Node (669 au total), répartis ci-dessous.
 
 | Composant | Fichier | État |
 |---|---|---|

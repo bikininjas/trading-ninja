@@ -4,7 +4,13 @@ Bot de trading déterministe sur crypto spot. Le LLM propose, un pare-feu
 mathématique dispose : aucun ordre ne part sans franchir une Risk Gateway
 fail-closed.
 
-**État actuel : phase 1 (moteur). Aucun argent engagé, aucun ordre envoyé.**
+**État actuel : simulation ; le chemin réel existe mais n'est pas activé.**
+
+L'objectif est une progression modeste dans la durée, nette de frais, avec des
+pertes contenues. Le profil papier **`progressif`** inclut les coûts dans le risque
+et laisse courir les gagnants avec un stop suiveur. Budget d'exemple : **9,37 EUR
+virtuels** ; un budget insuffisant peut empêcher tout achat. Règles et limites :
+[`docs/PROGRESSION.md`](docs/PROGRESSION.md).
 
 ## Où regarder
 
@@ -25,6 +31,7 @@ cd backend
 uv venv --python 3.15.2 .venv
 uv pip install -r requirements.txt -r requirements-dev.txt
 .venv/bin/python -m pytest
+.venv/bin/python scripts/compare_budgets.py  # hors ligne, sans argent réel
 .venv/bin/python scripts/db_migrate.py verify
 ```
 
@@ -59,6 +66,7 @@ cookie de session `HttpOnly`.
 
 ## Secrets
 
-`.env.local` (racine) contient les identifiants Supabase et Binance. Il est ignoré par
-git et bloqué par un crochet `pre-commit`. Sur un nouveau clone :
+`.env.local` (racine) peut contenir les identifiants PostgreSQL et Kraken, ainsi que
+les anciennes clés Binance. Il est ignoré par git et bloqué par un crochet
+`pre-commit`. Sur un nouveau clone :
 `git config core.hooksPath .githooks`.

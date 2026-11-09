@@ -90,6 +90,8 @@ async def build_stats(repo, settings: Settings) -> dict:
             "free_quote": jsonable(account.free_quote),
             "engaged_position_quote": jsonable(engaged_position),
             "reserve_quote": jsonable(account.reserve_quote),
+            "growth_quote": jsonable(account.growth_quote),
+            "active_equity": jsonable(account.trading_equity),
             "equity": jsonable(account.equity),
         },
         "daily": [

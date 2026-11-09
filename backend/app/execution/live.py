@@ -156,6 +156,10 @@ class LiveBroker:
         """CCXT est synchrone ; on ne bloque jamais la boucle asyncio."""
         return await asyncio.to_thread(function, *args, **kwargs)
 
+    @property
+    def execution_fee_pct(self) -> Decimal:
+        return self._taker
+
     def fee(self, notional_quote: Decimal) -> Decimal:
         """Estimation utilisée seulement si l'exchange n'a pas renvoyé ses frais."""
         return notional_quote * self._taker

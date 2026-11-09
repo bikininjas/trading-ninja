@@ -1,0 +1,14 @@
+{
+  "TRADING_MODE": "paper",
+  "EXCHANGE_SANDBOX_MODE": "true",
+  "EXCHANGE_ID": "kraken",
+  "TRADING_SYMBOL": "BTC/EUR",
+  "RISK_PROFILE": "micro",
+  "PAPER_START_EQUITY": "1000",
+  "PAPER_SLIPPAGE_BPS": "5",
+  "LLM_MODEL_NAME": "qwen3.5:9b",
+  "MIN_CONFIDENCE": "0.60",
+  "ENTRY_EMA200_SLOPE_MIN": "2.0",
+  "STOP_ATR_MULTIPLE": "2.5",
+  "TAKE_PROFIT_R_MULTIPLE": "2.0"
+}
