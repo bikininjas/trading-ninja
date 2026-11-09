@@ -10,7 +10,25 @@ réserve protégée et des augmentations graduelles du capital actif.
 Ce document consigne la relecture et les propositions suivantes. Les constats
 reposent sur le code ; ils ne constituent pas tous des incidents reproduits.
 Les critères ci-dessous décrivent les preuves à obtenir lors de leur traitement.
-**Aucun des chantiers listés n'est déclaré terminé par ce document.**
+**Mise à jour D-073 :** le tableau ci-dessous décrit les corrections livrées depuis
+la revue ; les paragraphes suivants restent les constats d’origine et les critères
+à satisfaire entièrement.
+
+| Point | État après les dix briefs |
+|---|---|
+| B-01 | Corrigé : pool borné, connexion par requête, preuve de 24 lectures API concurrentes sur PostgreSQL 17 local |
+| B-02 | Révisions demandée/appliquée, prévisualisation, refus et CAS livrés ; revue des autres handlers attachés à la configuration de démarrage encore nécessaire |
+| B-03 | Écritures locales d’entrée regroupées en transaction ; intention d’achat durable et réconciliation des résultats inconnus encore bloquantes |
+| B-04, B-05 | Restent bloquants avant réel : sémantique des urgences, exécutions partielles/incertaines |
+| B-06 | Identification et couverture des stops renforcées pour le broker et l’observateur ; suivi complet des remplacements et historique des fills encore à qualifier |
+| B-07 | Preuve de cycles et surveillant avec fraîcheur explicite livrés ; les autres sondes de télémétrie gardent leurs limites |
+| F-01 | Parcours des opportunités, causes pré-LLM et codes de refus visibles ; aucune proposition automatique de financement |
+| F-02 à F-06 | Restent à traiter intégralement ; I-02/I-06 fournissent une partie de l’analyse des coûts |
+| V-01 | Portefeuilles indépendants et hypothèses reproductibles disponibles ; mesure multi-années positive non obtenue |
+| V-02 | Preuves locales Python/SQL/Node/navigateur exécutées ; automatisation GitHub à installer |
+
+Guide livré : [OBSERVATION_ET_RECHERCHE.md](docs/OBSERVATION_ET_RECHERCHE.md).
+Le surveillant et le classement ne ferment pas les défauts d’exécution réelle.
 
 La PR apporte déjà les trois enveloppes, les paliers bornés, la clôture comptable
 atomique, le curseur papier et les tests associés. Les points ci-dessous complètent

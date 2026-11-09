@@ -97,7 +97,7 @@ done
 
 # Les documents qui décrivent l'ÉTAT COURANT doivent annoncer le vrai nombre de
 # tests. Le journal est exclu (chiffres historiques). AGENTS.md est exclu aussi :
-# son écriture est protégée par une demande d'approbation humaine, donc il peut
+# son décompte est facultatif, donc il peut
 # légitimement rester en retard — traitée en alerte, jamais en échec.
 if [ -n "${COMPTE:-}" ]; then
   REEL=$(printf '%s' "$COMPTE" | grep -oE '^[0-9]+')
@@ -119,7 +119,7 @@ if [ -n "${COMPTE:-}" ]; then
   if [ "$ANNONCE_AGENTS" = "$REEL" ]; then
     ok "AGENTS.md annonce $REEL tests"
   else
-    alerte "AGENTS.md annonce ${ANNONCE_AGENTS:-?} tests au lieu de $REEL (mise à jour protégée : approbation requise)"
+    alerte "AGENTS.md annonce ${ANNONCE_AGENTS:-?} tests au lieu de $REEL (consulter le guide de reprise)"
   fi
 fi
 

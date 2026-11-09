@@ -120,6 +120,10 @@ async def cmd_verify(conn: asyncpg.Connection) -> int:
         "llm_signals", "risk_evaluations", "positions", "orders", "profit_sweeps",
         "bot_state", "equity_snapshots", "system_state_logs", "schema_migrations",
         "runtime_settings", "shadow_trades", "lessons",
+        "capital_accounts", "capital_events", "pending_exits", "position_policies", "entry_controls",
+        "decision_cycles", "decision_artifacts", "decision_cycle_artifacts",
+        "opportunity_events", "observation_experiments", "protection_observations",
+        "protection_incidents", "observation_commands",
     }
     rows = await conn.fetch(
         "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
@@ -166,6 +170,19 @@ async def cmd_verify(conn: asyncpg.Connection) -> int:
         failures.append("system_state.EXECUTING manquant")
     if "STOP_LOSS" not in enum_map.get("order_type", []):
         failures.append("order_type.STOP_LOSS manquant (type réel Binance spot)")
+
+    private_tables={"position_policies","entry_controls","decision_cycles","decision_artifacts",
+                    "decision_cycle_artifacts","opportunity_events","observation_experiments",
+                    "protection_observations","protection_incidents","observation_commands"}
+    for name in sorted(private_tables & tables):
+        secure=await conn.fetchval("SELECT relrowsecurity FROM pg_class WHERE oid=to_regclass($1)",name)
+        if not secure:failures.append(f"RLS absente : {name}")
+        for role in ('anon','authenticated'):
+            allowed=await conn.fetchval("SELECT has_table_privilege($1,$2,'SELECT,INSERT,UPDATE,DELETE')",role,name)
+            if allowed:failures.append(f"droits publics inattendus : {role}.{name}")
+    for table,columns in {'positions':{'policy_id'},'runtime_settings':{'revision','applied_revision','applied_payload','applied_at','apply_error'}}.items():
+        actual={r['column_name'] for r in await conn.fetch("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1",table)}
+        if columns-actual:failures.append(f"colonnes manquantes : {table}.{','.join(sorted(columns-actual))}")
 
     # Test d'écriture : on insère dans les tables critiques puis on annule.
     tx = conn.transaction()

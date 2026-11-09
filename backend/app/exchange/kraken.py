@@ -347,3 +347,10 @@ def build_bracket_entry(exchange: Any, decision: RiskDecision, symbol: str) -> d
         "price": None,
         "params": bracket_params(stop),
     }
+
+
+def is_stop_loss_order(order):
+    kind=str(order.get('type') or '').lower().replace('_','-')
+    if kind in {'stop-loss','stop-loss-limit','stop-market'}:return True
+    if kind in {'take-profit','take-profit-limit'}:return False
+    return order.get('stopLossPrice') is not None and order.get('takeProfitPrice') is None

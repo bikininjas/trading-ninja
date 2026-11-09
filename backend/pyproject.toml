@@ -10,3 +10,5 @@ testpaths = ["tests"]
 addopts = "-q"
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
+
+markers = ["postgres_integration: PostgreSQL 17 local jetable uniquement"]

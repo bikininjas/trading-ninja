@@ -22,6 +22,7 @@ from typing import Any
 import asyncpg
 
 from app.core.db import DatabaseConfig
+from app.insights.store import InsightsStore
 from app.engine.capital import CapitalState, start_capital, allocate_close
 
 __all__ = [
@@ -73,6 +74,7 @@ class PositionRow:
     opened_at: datetime
     risk_amount_quote: Decimal
     monitor_cursor_at: datetime | None = None
+    policy_id: str | None = None
 
 
 def _drawdown(peak: Decimal, equity: Decimal) -> Decimal:
@@ -81,7 +83,7 @@ def _drawdown(peak: Decimal, equity: Decimal) -> Decimal:
     return max(Decimal(0), Decimal(1) - equity / peak)
 
 
-class PostgresRepository:
+class PostgresRepository(InsightsStore):
     def __init__(self, connection: asyncpg.Connection, *, lock_connection_factory=None):
         self._conn = connection
         self._lock_connection_factory = lock_connection_factory
@@ -506,7 +508,7 @@ class PostgresRepository:
     async def open_positions(self, mode: str) -> list[PositionRow]:
         rows = await self._conn.fetch(
             "SELECT id, symbol, entry_price, initial_amount, stop_loss_price, "
-            "take_profit_price, opened_at, risk_amount_quote, monitor_cursor_at FROM positions "
+            "take_profit_price, opened_at, risk_amount_quote, monitor_cursor_at, policy_id FROM positions "
             "WHERE mode = $1::execution_mode AND status = 'OPEN' "
             "ORDER BY opened_at DESC",
             mode,
@@ -517,7 +519,7 @@ class PostgresRepository:
                 amount=row["initial_amount"], stop_loss_price=row["stop_loss_price"],
                 take_profit_price=row["take_profit_price"], opened_at=row["opened_at"],
                 risk_amount_quote=row["risk_amount_quote"],
-                monitor_cursor_at=row["monitor_cursor_at"],
+                monitor_cursor_at=row["monitor_cursor_at"], policy_id=row["policy_id"],
             )
             for row in rows
         ]
@@ -794,8 +796,9 @@ class PostgresRepository:
             await self._conn.execute(
                 "UPDATE bot_state SET state = 'EMERGENCY_HALT'::system_state, "
                 "since = CLOCK_TIMESTAMP(), locked_at = CLOCK_TIMESTAMP(), "
-                "lock_reason = $2::risk_rejection_code, lock_details = $3, "
-                "cooldown_until = $4, updated_at = CLOCK_TIMESTAMP() "
+                "lock_reason = $2::risk_rejection_code, "
+                "lock_details = CASE WHEN state='EMERGENCY_HALT' AND cooldown_until IS NULL AND $4::timestamptz IS NOT NULL THEN lock_details ELSE $3 END, "
+                "cooldown_until = CASE WHEN state='EMERGENCY_HALT' AND cooldown_until IS NULL THEN NULL ELSE $4::timestamptz END, updated_at = CLOCK_TIMESTAMP() "
                 "WHERE mode = $1::execution_mode",
                 mode, code, reason, auto_resume_at,
             )
@@ -829,18 +832,13 @@ class PostgresRepository:
             payload = json.loads(payload)
         return dict(payload or {}), row["updated_at"]
 
-    async def update_runtime_settings(self, mode: str, payload: dict,
-                                      *, updated_by: str = "dashboard") -> datetime:
-        """Écrit les réglages du dashboard. Une ligne par mode, jamais partagée."""
-        row = await self._conn.fetchrow(
-            "INSERT INTO runtime_settings (mode, payload, updated_by) "
-            "VALUES ($1::execution_mode, $2::jsonb, $3) "
-            "ON CONFLICT (mode) DO UPDATE SET payload = EXCLUDED.payload, "
-            "updated_by = EXCLUDED.updated_by, updated_at = CLOCK_TIMESTAMP() "
-            "RETURNING updated_at",
-            mode, json.dumps(payload, ensure_ascii=False), updated_by,
-        )
-        return row["updated_at"]
+    async def update_runtime_settings(self, mode: str, payload: dict, *, updated_by: str = "dashboard", expected_revision: int | None = None) -> datetime:
+        async with self._conn.transaction():
+            await self._conn.execute("INSERT INTO runtime_settings(mode,payload,updated_by) VALUES($1::execution_mode,'{}',$2) ON CONFLICT DO NOTHING",mode,updated_by)
+            result=await self._conn.fetchrow('UPDATE runtime_settings SET payload=$2::jsonb,updated_by=$3,updated_at=CLOCK_TIMESTAMP(),revision=revision+1 '
+                'WHERE mode=$1::execution_mode AND ($4::bigint IS NULL OR revision=$4) RETURNING updated_at',mode,json.dumps(payload),updated_by,expected_revision)
+            if result is None:raise StateTransitionError('révision des réglages obsolète')
+            return result['updated_at']
 
     async def update_after_close(self, mode: str, *, consecutive_losses: int,
                                  equity: Decimal) -> None:

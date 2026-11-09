@@ -23,6 +23,7 @@ Aucun ordre, aucune écriture en base, aucun LLM.
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Sequence, cast
@@ -462,6 +463,8 @@ def run_swing_backtest(
         (last_close - first_close) / first_close if first_close else Decimal(0)
     )
 
+    from app.insights.diagnostics import backtest_trade_diagnostics
+    trades=[replace(t,diagnostics=backtest_trade_diagnostics(t,d1,D1_MS)) for t in trades]
     return BacktestResult(
         symbol=symbol,
         model="SWING_MACRO_D1",

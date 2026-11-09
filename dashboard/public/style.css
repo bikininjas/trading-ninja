@@ -784,3 +784,12 @@ dialog input {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Observations : contenus longs et imports utilisables sur petit écran. */
+#insights-panel pre { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; overflow: auto; }
+#insights-panel details { margin-top: 1rem; }
+#insights-panel summary { cursor: pointer; padding: .5rem 0; }
+#insights-panel input { min-width: 0; max-width: 100%; }
+#insights-panel button { max-width: 100%; white-space: normal; }
+#insights-cycles article { margin: .75rem 0; padding: 1rem; }
+#insights-cycles button { margin: .25rem; }

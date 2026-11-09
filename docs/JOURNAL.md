@@ -6,6 +6,45 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-09 — Dix briefs implémentés et vérifiés localement (D-073)
+
+Travail dans un checkout issu de `master` 96b3a9d, avec profil progressif et capital
+par paliers conservés. Les modifications applicatives locales des sessions
+antérieures restent préservées dans leur checkout. Implémentation des dix périmètres,
+par défaut en observation/papier pour la recherche, sans réglage live ni ordre réel.
+
+**Livré** : capture et rejeu du véritable runtime, diagnostics de trade, permission
+d’entrée persistante, politiques immuables, révisions de réglages, expériences
+indépendantes, coûts et classement, parcours avant/après LLM, surveillant séparé
+et cohortes de confiance. Pool API et liste blanche du proxy, interface française,
+TOTP à la réautorisation/adoption et documentation d’exploitation complètent le socle.
+La migration 0011 est nouvelle ; aucune migration appliquée n’a été modifiée.
+
+**Preuves exécutées** :
+
+- Suite complète : `TN_TEST_DATABASE_URL=<base locale> python -m pytest -o addopts='' -q --postgres-test-url <base locale>` → **695 passed**, dont 24 PostgreSQL ; un avertissement de dépréciation Starlette/httpx.
+- `python scripts/db_migrate.py verify` → schéma conforme, **43 relations, 6 vues, 16 partitions**, RLS/droits privés vérifiés et écritures annulées ; onze migrations locales sans dérive.
+- `node --test test/*.test.js` → **31 passed**.
+- `python scripts/check_dashboard_browser.py /tmp/tn-insights-browser-final` → capital, suspension/réautorisation TOTP, rejeu et diagnostics vérifiés ; desktop/mobile sans erreur JavaScript ni débordement.
+- CLI `insights.py replay` → **IDENTICAL** ; `experiment` → deux portefeuilles hors ligne sans erreur, données synthétiques uniquement.
+- `DATABASE_URL=<base locale> bash scripts/check.sh` → **TOUT EST VERT** : 671 tests hors base, 24 contrats SQL collectés opt-in, 31 Node, migrations, drawdowns, documentation et index cohérents.
+- Lint des nouveaux modules d’observation/API/CLI/tests → aucune erreur F ; index du code régénéré. Golden inclus dans la suite, fixture inchangée, aucun bless.
+
+**Cas couverts** : capture SQL JSONB puis rejeu exact, cycles suivants avec réglages
+déjà appliqués et identité des poids, altération/refus de paquet, protection maintenue
+malgré quota, suspension pendant inférence, revalidation du prix final, classement
+observé contre sélection papier, fills partiels descriptifs et frais inconnus,
+portefeuilles causaux isolés, commandes d’incident dédupliquées, observations périmées,
+conflits de révision, rôles SQL privés et 24 lectures API simultanées.
+
+**Limites** : aucun déploiement cible, clé/canal réel de surveillance ou politique de
+rétention installé. Les labels statistiques, mesure hors calibration et défauts live
+B-03/B-04/B-05 restent bloquants. Le code local antérieur est préservé dans son
+checkout ; aucune activation ni ordre réel n’a été envoyé. Guide et portes go live
+mis à jour, sans déclarer une rentabilité ni une exploitation validée.
+
+
+
 ## 2026-11-09 — Nettoyage documentaire et dix briefs techniques (D-072)
 
 **Réalisé** : suppression des trois spécifications d'origine périmées et du handoff

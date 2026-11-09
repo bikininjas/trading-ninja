@@ -15,7 +15,7 @@ Statuts : ⬜ à faire · 🟨 en cours · ✅ fait et vérifié · ⛔ bloqué 
 |---|---|---|---|
 | **0. Fondations** | Le socle sur lequel rien ne peut perdre d'argent par accident | ✅ | 9 / 9 |
 | **1. Moteur** | Le bot existe et tourne, mais sans argent | 🟨 | 6 / 12 |
-| **2. Simulation** | Prouver la mécanique sur des centaines de trades fictifs | 🟨 | 11 / 19 |
+| **2. Simulation** | Prouver la mécanique sur des centaines de trades fictifs | 🟨 | 12 / 20 |
 | **3. Pré-live** | Prouver l'exécution réelle avec un canary minuscule (Kraken n'a pas de testnet) | 🟨 | 1 / 3 |
 | **4. Argent réel** | Engager le minimum, profil prudent, sous surveillance | ⬜ | 0 / 3 |
 
@@ -527,6 +527,17 @@ Objectif : mesurer, pas espérer.
   *Validé par* : 43 liens locaux vérifiés, dix briefs complets, IDs uniques et
   différences exclusivement Markdown par rapport à `master` ; code applicatif inchangé.
 
+- ✅ **2.20 — Implémentation des dix briefs I-01 à I-10 (D-073)** *(2026-11-09)*
+  Journal/rejeu, diagnostics, suspension des entrées, politiques de position,
+  comparaisons papier, coûts et classement en observation, parcours des opportunités,
+  surveillance indépendante et analyse des scores. Aucun armement live.
+  *Vérifié* : 695 tests Python, dont 24 contrats PostgreSQL 17 locaux, 31 Node,
+  golden inchangé, navigateur desktop/mobile et CLI hors ligne. Onze migrations
+  appliquées localement ; `db_migrate.py verify` vérifie aussi RLS et droits privés.
+  Guide et limites : [OBSERVATION_ET_RECHERCHE.md](OBSERVATION_ET_RECHERCHE.md).
+  *Reste hors livraison* : déploiement cible, canal réel du surveillant, rétention,
+  mesures multi-années et hors calibration. Aucun armement live.
+
 **Critère de passage en phase 3** : au moins **100 trades simulés**, drawdown maximal
 sous le seuil configuré, espérance positive. En dessous, on corrige ou on abandonne —
 les deux sont des résultats utiles. **Non atteint** : 2.9 plafonne à 39 trades par
@@ -578,6 +589,22 @@ position nue, et aucun double envoi après redémarrage.
 Seb. Le risque par trade (0,5 %) reste inchangé quel que soit le capital.
 
 ---
+
+## Portes de passage après D-073
+
+| Ordre | Preuve requise avant go live | État |
+|---|---|---|
+| 1 | Fermer B-03/B-04/B-05 et qualifier B-06 : intention d’achat durable, urgences, fills partiels/incertains, remplacements de stops ; tests d’interruption et concurrence | ⬜ bloquant, voir l’audit actif |
+| 2 | Brancher la vérification de permissions au démarrage live (1.1), sauvegarder puis vérifier 0010/0011 sur la base cible, versions homogènes des services et revue des positions historiques | ⬜ cible non modifiée par D-073 |
+| 3 | Recette PAPER sur le déploiement : suspension pendant inférence, stop toujours géré, révisions appliquées, export/rejeu, panne et quota explicites | ⬜ preuves locales obtenues, déploiement à qualifier |
+| 4 | Installer le surveillant séparé, clé de lecture, notification réelle et sonde de disponibilité externe ; simuler perte de protection/timeout/redémarrage | ⬜ code testé localement, exploitation non installée |
+| 5 | Politique entière et coûts défavorables sur plusieurs régimes et période hors calibration ; au moins 100 trades simulés, espérance nette positive, drawdown sous plafond | ⛔ aucune preuve de rentabilité robuste |
+| 6 | Sous-compte, montant et autorisation explicites de Seb ; canary minuscule, stop distant, réconciliation et survie au redémarrage (3.2/3.3) | ⬜ aucun ordre réel dans D-073 |
+
+Le classement, les expériences et le rapport de confiance ne lèvent aucune de ces
+portes. Les critères non atteints restent visibles, même quand les tests logiciels
+passent. L’automatisation GitHub et la politique de rétention restent aussi à
+installer pour pérenniser les preuves locales.
 
 ## Checklist d'activation réelle
 

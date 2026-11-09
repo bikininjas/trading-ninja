@@ -113,6 +113,9 @@ def build_payload(current: dict, update: dict) -> dict:
         for key, value in current.items()
         if key in RUNTIME_ALLOWED_KEYS
     }
+    if update.get('profile') is not None and str(update['profile'])!=payload.get('RISK_PROFILE'):
+        for key in ('MAX_NOTIONAL_PCT','MAX_DAILY_DRAWDOWN_PCT','MAX_ORDERS_PER_HOUR','MIN_CONFIDENCE','ENTRY_RULE_ENABLED'):
+            payload.pop(key,None)
     payload.update(_mapping(update))
     return payload
 

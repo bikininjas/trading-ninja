@@ -45,6 +45,7 @@ const ASSETS = {
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
   '/favicon.svg': ['favicon.svg', 'image/svg+xml'],
+  '/insights.js': ['insights.js', 'text/javascript; charset=utf-8'],
 };
 
 const SECURITY_HEADERS = {
@@ -103,19 +104,19 @@ function redirect(res, location, headers = {}) {
   res.end();
 }
 
-async function readBody(req) {
+async function readBody(req, maxBytes = MAX_BODY_BYTES) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > MAX_BODY_BYTES) throw new Error('corps de requête trop volumineux');
+    if (size > maxBytes) throw new Error('corps de requête trop volumineux');
     chunks.push(chunk);
   }
   return Buffer.concat(chunks).toString('utf8');
 }
 
-async function readJson(req) {
-  const raw = await readBody(req);
+async function readJson(req, maxBytes = MAX_BODY_BYTES) {
+  const raw = await readBody(req, maxBytes);
   if (!raw) return {};
   try {
     const value = JSON.parse(raw);
@@ -312,6 +313,29 @@ export function createDashboardServer(options = {}) {
       return sendJson(res, result.status, result.data);
     }
 
+    const idPart = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+    const insightGet = new Set(['/api/insights/overview', '/api/insights/cycles',
+      '/api/insights/experiments', '/api/insights/confidence', '/api/insights/protection',
+      '/api/insights/policy', '/api/diagnostics/opportunities']);
+    const insightPost = new Set(['/api/control/entries', '/api/settings/preview',
+      '/api/insights/replay', '/api/insights/experiments']);
+    const insightRead = method === 'GET' && (insightGet.has(pathname)
+      || new RegExp(`^/api/insights/cycles/${idPart}(?:/events)?$`, 'i').test(pathname)
+      || new RegExp(`^/api/positions/${idPart}/diagnostics$`, 'i').test(pathname));
+    const insightWrite = method === 'POST' && (insightPost.has(pathname)
+      || new RegExp(`^/api/insights/cycles/${idPart}/replay$`, 'i').test(pathname)
+      || new RegExp(`^/api/insights/incidents/${idPart}/acknowledge$`, 'i').test(pathname)
+      || new RegExp(`^/api/control/positions/${idPart}/adopt-policy$`, 'i').test(pathname));
+    if (insightRead || insightWrite) {
+      if (insightWrite && !sameOrigin(req)) return sendJson(res, 403, { error: 'origine refusée' });
+      const session = requireSession(req, res);
+      if (!session) return;
+      const body = insightWrite ? await readJson(req, 8 * 1024 * 1024) : undefined;
+      const result = await callApi(pathname + url.search, { method, token: session.token, body });
+      if (result.status === 401) return expireSession(res, session);
+      return sendJson(res, result.status, result.data);
+    }
+
     if (method === 'GET' && pathname.startsWith('/api/history/')) {
       const session = requireSession(req, res);
       if (!session) return;
@@ -349,8 +373,11 @@ export function createDashboardServer(options = {}) {
       const session = requireSession(req, res);
       if (!session) return;
 
+      const allowed = new Set(['/api/control/pause', '/api/control/resume', '/api/control/panic',
+        '/api/control/kill-switch', '/api/control/circuit-breaker/reset', '/api/control/reconcile']);
+      if (!allowed.has(pathname)) return sendJson(res, 404, { error: 'commande non exposée' });
       let body;
-      if (pathname === '/api/control/panic') {
+      if (new Set(['/api/control/panic', '/api/control/kill-switch', '/api/control/circuit-breaker/reset']).has(pathname)) {
         const payload = await readJson(req);
         const totp = String(payload.totp ?? '').replace(/\s+/g, '');
         if (!/^\d{6}$/.test(totp)) {

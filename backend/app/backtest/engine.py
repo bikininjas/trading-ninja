@@ -79,6 +79,7 @@ class TradeRecord:
     take_profit_price: Decimal | None
     confidence: Decimal
     thesis: str = ""
+    diagnostics: dict | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -286,6 +287,7 @@ class BacktestResult:
                 "take_profit_price": str(t.take_profit_price) if t.take_profit_price else None,
                 "confidence": str(t.confidence),
                 "thesis": t.thesis,
+                "diagnostics": t.diagnostics,
             }
 
         return {
@@ -828,6 +830,9 @@ async def run_backtest(
     last_close = _decimal(h4[last][4])
     buy_and_hold = (last_close - first_close) / first_close if first_close else Decimal(0)
 
+    from app.insights.diagnostics import backtest_trade_diagnostics
+    trades=[replace(t,diagnostics=backtest_trade_diagnostics(t,h4,DECISION_MS)) for t in trades]
+    baseline_trades=[replace(t,diagnostics=backtest_trade_diagnostics(t,h4,DECISION_MS)) for t in baseline_trades]
     return BacktestResult(
         symbol=symbol,
         model=str(getattr(settings.llm, "model", "?")),

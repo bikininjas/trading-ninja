@@ -370,6 +370,35 @@
       </div>
     </section>
 
+    <section id="insights-panel" class="panel" aria-labelledby="insights-title">
+      <div class="panel-head"><h2 id="insights-title">Comprendre les décisions</h2><button id="insights-refresh" class="ghost" type="button">Actualiser</button></div>
+      <p id="insights-status" class="muted" role="status" aria-live="polite">Chargement des observations…</p>
+      <div class="controls">
+        <button id="entries-toggle" class="ghost" type="button" disabled>Suspendre les nouveaux achats</button>
+        <span id="entries-status" class="muted"></span>
+      </div>
+      <p class="muted">La suspension des achats conserve la gestion des positions et leurs protections.</p>
+      <div class="cards" id="opportunity-summary"></div>
+      <details><summary>Derniers cycles et rejeu hors ligne</summary><div id="insights-cycles"></div></details>
+      <details><summary>Comprendre une position</summary>
+        <form id="diagnostic-form" class="controls"><label>Identifiant de position <input id="diagnostic-id" required placeholder="Identifiant dans l’activité Positions"></label><button type="submit" class="ghost">Analyser</button></form>
+        <div id="trade-diagnostics"></div>
+      </details>
+      <details><summary>Règles de gestion des positions</summary><div id="position-policies"></div></details>
+      <details><summary>Expériences en simulation</summary>
+        <p class="muted">Comparer jusqu’à trois politiques sur le même historique, avec des portefeuilles séparés. Aucune promotion automatique.</p>
+        <label>Fichier d’expérience JSON <input id="experiment-file" type="file" accept="application/json,.json"></label>
+        <button id="experiment-run" class="ghost" type="button">Comparer en simulation</button>
+        <div id="experiment-results"></div>
+      </details>
+      <details><summary>Fiabilité des scores du modèle</summary><button id="confidence-load" class="ghost" type="button">Analyser les 90 derniers jours</button><div id="confidence-results"></div></details>
+      <details><summary>Surveillance des protections</summary><div id="protection-results"></div></details>
+      <details><summary>Importer un cycle pour le rejouer</summary>
+        <label>Paquet JSON <input id="replay-file" type="file" accept="application/json,.json"></label>
+        <button id="replay-run" class="ghost" type="button">Rejouer hors ligne</button><div id="replay-results"></div>
+      </details>
+    </section>
+
     <p class="footer">
       Mode <span id="mode">—</span> · <span id="footer-note">—</span> ·
       flux <span id="updated-footer">—</span>
@@ -426,5 +455,6 @@
   </dialog>
 
   <script src="/app.js" defer></script>
+  <script src="/insights.js" defer></script>
 </body>
 </html>

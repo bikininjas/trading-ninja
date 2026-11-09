@@ -403,6 +403,20 @@ class SignalClient:
             degradation_reason=reason,
         )
 
+    async def model_identity(self):
+        """Identité observée dans l'inventaire local, jamais une clé ni un secret."""
+        root=self._settings.base_url.rstrip('/')
+        if root.endswith('/v1'):root=root[:-3]
+        try:
+            async with httpx.AsyncClient(transport=self._transport,timeout=2) as client:
+                response=await client.get(root+'/api/tags')
+                response.raise_for_status()
+                models=response.json().get('models',[])
+                matches=[m for m in models if m.get('name')==self._settings.model or m.get('model')==self._settings.model]
+                return matches[0].get('digest') if len(matches)==1 else None
+        except (httpx.HTTPError,ValueError,TypeError,KeyError):
+            return None
+
     async def propose(self, symbol: str, snapshot: MarketSnapshot, context: MarketContext, *,
                       has_position: bool = False,
                       trend_buffer_pct: Decimal = Decimal("0.005"),

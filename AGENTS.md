@@ -26,12 +26,24 @@ prix et stop sont toujours calculés par le code.
   de frais/glissement, un trailing et trois enveloppes : capital actif, réserve et
   cagnotte. Seul le capital actif dimensionne ; les pertes ne sont pas rechargées
   depuis la réserve ou la cagnotte. Voir `docs/PROGRESSION.md`, D-069 et D-070.
-- Dix migrations sont versionnées, dont `0010_capital_ledger.sql`. Leur validation
+- Onze migrations sont versionnées, dont `0010_capital_ledger.sql` et
+  `0011_insights_and_controls.sql`. Leur validation
   locale ne prouve pas leur déploiement sur Supabase ; vérifier la base cible avant
   exploitation. Les défauts ouverts restent dans `AMELIORATIONS_2026-11-09.md`.
-- Les dix nouvelles propositions de `docs/IDEES_ET_BRIEFS_TECHNIQUES.md` sont des
-  briefs, pas des fonctionnalités livrées. Ne pas présenter leurs prérequis manquants
-  comme déjà implémentés.
+- 695 tests Python sont collectés, dont 24 contrats PostgreSQL locaux opt-in ;
+  31 tests Node et un contrôle navigateur complètent les preuves.
+- Les dix briefs I-01 à I-10 ont une première version implémentée (D-073) :
+  journal/rejeu, diagnostics, suspension, politiques, expériences, coûts/classement,
+  parcours, surveillance et scores. Guide : `docs/OBSERVATION_ET_RECHERCHE.md`.
+  Classement en observation par défaut, sélection PAPER seulement ; aucune
+  promotion ni modification automatique de seuil. La qualification économique et
+  l’installation du surveillant restent à faire.
+- Chaque position nouvelle garde une politique stratégique immuable. Les limites
+  de sécurité restent courantes. Une position historique sans politique conserve
+  stop/TP ; adoption explicite PAPER + TOTP, aucune substitution silencieuse.
+- La capture indisponible suspend les nouveaux achats mais laisse gérer l’existant.
+  Un paquet incomplet est non rejouable. Le rejeu appelle le véritable runtime avec
+  I/O enregistrées, sans SQL, exchange ni nouvelle inférence.
 - Le budget de perte totale de 9,37 EUR et le modèle `qwen3.5:9b` sont déjà
   documentés. Les minima Kraken peuvent empêcher les achats ; ne pas relâcher le
   risque ni augmenter le budget pour les financer sans décision explicite.
@@ -49,7 +61,7 @@ le comportement actuel, appliquer cet ordre :
 | 2 | `backend/app/engine/risk_gate.py` | Logique de risque et codes de rejet |
 | 3 | `docs/DECISIONS.md` | Le pourquoi de chaque choix |
 | 4 | `docs/ROADMAP.md` | Avancement et critères de passage |
-| 5 | `docs/IDEES_ET_BRIEFS_TECHNIQUES.md` | Propositions futures, sans autorité sur le comportement livré |
+| 5 | `docs/IDEES_ET_BRIEFS_TECHNIQUES.md` | Briefs et critères ; comportement livré dans OBSERVATION_ET_RECHERCHE.md |
 
 Le rang 1 et le rang 2 doivent rester **identiques** : le test
 `backend/tests/test_schema_contract.py` compare mécaniquement l'énumération
@@ -100,7 +112,8 @@ docs/ROADMAP.md            étapes, statuts, critères de passage
 docs/JOURNAL.md            historique daté + commande de vérification
 docs/DECISIONS.md          décisions datées, le pourquoi
 docs/ARCHITECTURE.md       couches, modules, modèle de données
-docs/IDEES_ET_BRIEFS_TECHNIQUES.md  dix propositions, non implémentées
+docs/IDEES_ET_BRIEFS_TECHNIQUES.md  dix briefs, état livré et qualification
+docs/OBSERVATION_ET_RECHERCHE.md  commandes, API et limites des observations
 scripts/check.sh           vérification globale
 scripts/manage.sh          start/stop/restart api|dashboard|all
 scripts/backtest_watch.sh  veille hebdomadaire (cron, silencieuse)
@@ -131,6 +144,7 @@ backend/
   scripts/reconcile.py     audit base ↔ exchange ; --apply --confirm en live
   scripts/shadow_report.py achats non pris : résumé + évaluation stop/TP
   scripts/lessons.py      relecture des résultats → leçons actives
+  scripts/insights.py     replay / experiment / export / diagnose / confidence / watch
   scripts/verify_drawdowns.py  drawdowns sur jeu figé, transaction annulée
   tests/                   tests Python et golden ; décompte dans CODE_INDEX.md
 ```
@@ -169,7 +183,8 @@ backend/
 ## 8. Prochaine action
 
 Lire la roadmap et le dernier journal avant d'agir. Les mesures économiques restent
-bloquantes pour l'argent réel. Les idées I-01 à I-10 sont un catalogue de travaux
-possibles : ouvrir une étape et fixer ses critères avant toute implémentation.
+bloquantes pour l'argent réel. Les briefs I-01 à I-10 ont leur version D-073 ; accumuler les preuves économiques
+et qualifier le déploiement décrit dans le guide. Ne pas confondre tests locaux,
+installation des migrations sur la cible et fonctionnement réel du surveillant.
 Ne pas réintroduire de brief périmé comme spécification du code actuel ; les choix
 historiques sont conservés dans `docs/DECISIONS.md` et `docs/JOURNAL.md`.

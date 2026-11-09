@@ -1143,10 +1143,16 @@
     if (entryRule) entryRule.checked = Boolean(settings.entry_rule_enabled);
     refreshSettingOutputs();
     const definition = settingsProfiles.find((profile) => profile.key === settings.profile);
+    const applied = settings.application;
+    if (applied) {
+      setText('settings-updated', `Demandés : ${applied.revision} · appliqués : ${applied.applied_revision ?? 'aucune preuve'}${applied.apply_error ? ` · ${applied.apply_error}` : ''}`);
+    }
     setText('set-profile-help', definition?.description || '');
     setText(
       'settings-updated',
-      settings.updated_at
+      settings.application
+        ? `Demandés : ${settings.application.revision} · appliqués : ${settings.application.applied_revision ?? 'aucune preuve'}${settings.application.apply_error ? ` · ${settings.application.apply_error}` : ''}`
+        : settings.updated_at
         ? `modifié le ${new Date(settings.updated_at).toLocaleString('fr-FR')}`
         : 'réglages par défaut',
     );
@@ -1211,6 +1217,17 @@
     if (save) save.disabled = true;
     setSettingsFeedback('enregistrement…');
     try {
+      if (latestSettings?.application) {
+        payload.expected_revision = latestSettings.application.revision;
+        const preview = await fetch('/api/settings/preview', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ update: Object.fromEntries(Object.entries(payload).filter(([key]) => key !== 'expected_revision')), expected_revision: payload.expected_revision }),
+        });
+        const impact = await preview.json();
+        if (!preview.ok) throw new Error(typeof impact.detail === 'string' ? impact.detail : 'Prévisualisation refusée');
+        const safety = Object.values(impact.changes || {}).filter((item) => item.scope === 'GLOBAL_SAFETY').length;
+        if (!window.confirm(`${Object.keys(impact.changes || {}).length} réglages changent, dont ${safety} limites globales. Les règles stratégiques des positions déjà versionnées restent conservées. Enregistrer ?`)) return;
+      }
       const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

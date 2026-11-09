@@ -281,6 +281,11 @@ class Settings:
     paper_start_equity: Decimal = Decimal("0")
     paper_slippage_bps: int = 5
     capital_policy: CapitalPolicy = field(default_factory=CapitalPolicy)
+    insights_enabled: bool = True
+    ranking_mode: str = "observe"
+    observer_api_key: str = field(default="", repr=False)
+    observer_secret: str = field(default="", repr=False)
+    observer_interval_seconds: int = 15
     sweep_ratio: Decimal = Decimal("0.30")
     sweep_min_transfer_quote: Decimal = Decimal("1.00")
     halt_auto_resume_hours: int = 24
@@ -486,6 +491,12 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
     if capital_policy.enabled and not risk.cost_aware:
         raise RuntimeError("Les paliers exigent COST_AWARE=true pour borner les pertes frais compris")
 
+    ranking_mode=_env(merged,"RANKING_MODE","observe")
+    if ranking_mode not in {"observe","paper_select"} or (ranking_mode=="paper_select" and mode!="paper"):
+        raise RuntimeError("classement sélectionnable uniquement en papier, observation par défaut")
+    if not 5<=int(_env(merged,"OBSERVER_INTERVAL_SECONDS","15"))<=300:
+        raise RuntimeError("surveillance entre 5 et 300 secondes")
+
     sandbox = _env_bool(merged, "EXCHANGE_SANDBOX_MODE", "true")
 
     # Cohérence mode / sandbox. Sans ce contrôle, `TRADING_MODE=testnet` avec
@@ -588,6 +599,11 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
         paper_start_equity=Decimal(merged.get("PAPER_START_EQUITY", "0")),
         paper_slippage_bps=slippage_bps,
         capital_policy=capital_policy,
+        insights_enabled=_env_bool(merged, "INSIGHTS_ENABLED", "true"),
+        ranking_mode=_env(merged, "RANKING_MODE", "observe"),
+        observer_api_key=_env(merged, "OBSERVER_API_KEY", ""),
+        observer_secret=_env(merged, "OBSERVER_SECRET", ""),
+        observer_interval_seconds=int(_env(merged, "OBSERVER_INTERVAL_SECONDS", "15")),
         sweep_ratio=sweep_ratio,
         sweep_min_transfer_quote=sweep_min,
         halt_auto_resume_hours=halt_auto_resume_hours,

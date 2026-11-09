@@ -15,7 +15,8 @@ aucun stop : tout cela reste dans le moteur et dans la Risk Gateway.
 - **Aucune donnée dans `innerHTML`.** Les thèses du LLM, les symboles et les motifs de
   refus passent par `textContent`. Un texte hostile ne peut pas injecter de balise.
 - **Lecture seule par défaut.** Le dashboard observe ; les seules écritures sont les
-  commandes explicites (`pause`, `resume`, `panic`) et le formulaire de réglages.
+  commandes explicites, suspension/réautorisation des achats, adoption PAPER,
+  expériences et acquittement des incidents, ainsi que le formulaire de réglages.
 - **Pas d'argent réel sans les verrous du bot.** Le panic-sell fonctionne aussi en
   `LIVE` (annulation globale puis vente au marché), mais uniquement derrière les trois
   verrous du bot ; le dashboard ne peut pas activer `LIVE` à lui seul.
@@ -73,7 +74,15 @@ dernières données restent lisibles.
 | Achats non pris | shadow trades : refus, HOLD sur setup, plans finançables, résultat simulé | `/api/stats` |
 | Leçons | leçons actives, version et nombre de résultats source | `/api/stats` |
 | Réglages | profil, part par achat, perte journalière, ordres/heure, conviction, reprise auto, règle d'entrée | `/api/settings` |
+| Comprendre les décisions | suspension des achats, parcours, coûts/classement, export/rejeu, diagnostics, politiques, expériences, confiance et incidents | `/api/insights/*`, guide dédié |
 | Activité | onglets Signaux, Pare-feu, Ordres, Positions ; 10/25/50 lignes ; rafraîchissement | `/api/history/{table}` |
+
+Le panneau d’observation se rafraîchit à la demande. Les erreurs et données absentes
+restent explicites. La réautorisation des achats et l’adoption de règles historiques
+exigent un nouveau TOTP. Le formulaire de réglages prévisualise l’impact et montre
+les révisions demandée/appliquée ; une réponse d’enregistrement ne vaut pas une
+application confirmée par le moteur. Contrat détaillé et limites dans
+[OBSERVATION_ET_RECHERCHE.md](OBSERVATION_ET_RECHERCHE.md).
 
 ### Jauges de risque
 

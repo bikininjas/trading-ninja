@@ -27,7 +27,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Awaitable, Callable, Sequence
 
 from app.engine.risk_gate import RiskDecision
-from app.exchange.kraken import build_bracket_entry, to_exchange_amount
+from app.exchange.kraken import build_bracket_entry, to_exchange_amount, is_stop_loss_order
 from app.execution.paper import Fill, PaperBroker
 
 __all__ = [
@@ -228,17 +228,18 @@ class LiveBroker:
                 return _decimal(value)
         return None
 
-    async def _find_stop(self, symbol: str, amount: Decimal,
-                         stop_price: Decimal) -> dict | None:
+    @classmethod
+    def _covers_position(cls,order,amount,stop_price):
+        if (str(order.get('side') or '').lower()!='sell' or not is_stop_loss_order(order)
+                or str(order.get('status') or '').lower() in {'closed','filled','canceled','rejected','expired'}):
+            return False
+        price=cls._stop_price(order)
+        remaining=_decimal(order.get('remaining')) if order.get('remaining') is not None else _decimal(order.get('amount'))-_decimal(order.get('filled'))
+        return amount>0 and price is not None and price>=stop_price and remaining>=amount*_AMOUNT_TOLERANCE
+
+    async def _find_stop(self,symbol,amount,stop_price):
         for order in await self._open_orders(symbol):
-            if str(order.get("side") or "").lower() != "sell":
-                continue
-            remote_stop = self._stop_price(order)
-            if remote_stop is None or remote_stop < stop_price:
-                continue
-            remote_amount = _decimal(order.get("amount") or order.get("remaining"))
-            if remote_amount >= amount * _AMOUNT_TOLERANCE:
-                return order
+            if self._covers_position(order,amount,stop_price):return order
         return None
 
     async def _wait_for_stop(self, symbol: str, amount: Decimal,

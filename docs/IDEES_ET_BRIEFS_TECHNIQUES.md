@@ -1,18 +1,32 @@
 # Idées et briefs techniques — Trading Ninja
 
-Date : 9 novembre 2026. **Statut : propositions, aucune implémentation dans cette
-livraison.** Ce catalogue reprend les huit idées détaillées et les deux pistes
-complémentaires de la revue du code. Il sert à préparer des développements
-séparés, avec un périmètre et des preuves attendues pour chacun.
+Date : 9 novembre 2026. **Statut : première version des dix briefs implémentée
+(D-073), vérification locale ; activation réelle et qualification économique séparées.**
 
-La qualification avant argent réel reste dans [ROADMAP.md](ROADMAP.md). Le profil
-papier et ses limites sont dans [PROGRESSION.md](PROGRESSION.md). L'audit des
-points encore ouverts est conservé dans
-[AMELIORATIONS_2026-11-09.md](../AMELIORATIONS_2026-11-09.md). Une proposition de
-ce fichier ne constitue ni une fonctionnalité disponible, ni une autorisation
-d'activation. Ce catalogue tient compte du socle de `master` au commit `77092c6` :
-le profil progressif, le budget de risque net et les enveloppes de capital existent
-déjà ; les idées correspondantes ci-dessous en proposent des extensions.
+Le [guide d’utilisation](OBSERVATION_ET_RECHERCHE.md) décrit le comportement livré,
+les formats, commandes et limites. Les sections détaillées ci-dessous conservent
+le problème initial, la conception et les critères de qualification ; leurs noms
+de contrats proposés ne remplacent pas le schéma et les routes effectivement livrés.
+Le socle part de `master` au commit `96b3a9d`, avec capital progressif conservé.
+
+| Brief | Version livrée | Qualification restante |
+|---|---|---|
+| I-01 | Classement `lexicographic-v1`, observation par défaut, sélection PAPER explicite et revalidation finale | Comparaison hors échantillon avant toute décision de déploiement |
+| I-02 | Diagnostics de positions/fills partiels et rapports H4/swing/meanrev, couverture explicite | Historique complet à accumuler ; aucun extrême intrabougie prétendu |
+| I-03 | Capture typée, artefacts dédupliqués, rejeu du véritable runtime sans I/O réelle | Rétention, charge et reprise d’un processus interrompu à qualifier en exploitation |
+| I-04 | Suspension persistante des achats, révision, TOTP à la réautorisation | Recette administrative sur le déploiement cible |
+| I-05 | Jusqu’à trois portefeuilles indépendants, données causales, actions mécaniques/enregistrées | Données multi-années, actions LLM figées, contrôle hors calibration |
+| I-06 | Coût de profondeur daté, spread/impact/frais et cas inconnus | Mesure du carnet réel et confrontation aux fills |
+| I-07 | Politique immuable par position, versions demandées/appliquées, adoption historique PAPER explicite | Recette de migration des anciennes positions et de changement de profil |
+| I-08 | Parcours complet avant/après LLM, opportunités/tentatives/achats séparés | Observation continue et rétention à dimensionner |
+| I-09 | Processus indépendant, clé lecture seule, incidents, fraîcheur, webhook, commandes HALT uniquement | Installer le processus, son canal réel et une sonde externe de disponibilité |
+| I-10 | Cohortes poids/prompt/leçons/politique, effectifs et biais de sélection | Accumuler des labels clos ; aucune modification automatique du seuil |
+
+Les critères de passage avant argent réel restent dans [ROADMAP.md](ROADMAP.md).
+Le profil papier et ses limites sont dans [PROGRESSION.md](PROGRESSION.md).
+L’[audit actif](../AMELIORATIONS_2026-11-09.md) distingue les défauts corrigés et
+les blocages live encore ouverts. Implémentation ne signifie pas validation de
+rentabilité ni autorisation d’activation.
 
 ## 1. Vue d'ensemble et ordre conseillé
 
@@ -54,9 +68,8 @@ amélioration de la rentabilité.
 - Distinguer heure de l'événement, heure de réception et heure de décision, toutes
   en UTC. Aucune décision historique ne consulte des données devenues connues après
   son instant de simulation.
-- Versionner les contrats. Les tables, champs, routes et fichiers nouveaux cités
-  ci-dessous sont des **propositions**, à préciser pendant l'implémentation ; ils
-  n'existent pas du seul fait de ce document.
+- Versionner les contrats. Les noms de tables, champs et routes du brief restent des contrats de
+  conception ; le guide d’utilisation et la migration 0011 donnent les noms livrés.
 - Toute persistance nouvelle exige une nouvelle migration ; ne pas modifier 0010
   ni une autre migration déjà appliquée. Tables privées, RLS et autorisations du
   rôle backend à vérifier ; aucune donnée sensible exposée au navigateur.
@@ -71,7 +84,7 @@ amélioration de la rentabilité.
 
 ### Problème et objectif
 
-`Orchestrator._evaluate_cycle()` retient aujourd'hui le premier candidat approuvé
+`Orchestrator._evaluate_cycle()` retenait à l’origine le premier candidat approuvé
 rencontré dans `allowed_symbols`. Les candidats suivants peuvent être évalués,
 mais ne remplacent pas ce choix. L'ordre de configuration influence donc la paire
 achetée. L'objectif est de rendre cet arbitrage explicite et mesurable en restant

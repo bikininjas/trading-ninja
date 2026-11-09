@@ -1733,3 +1733,53 @@ Les coûts nets et les enveloppes déjà présents sont reconnus comme socle exi
 Aucune idée n'est présentée comme implémentée et aucun critère d'activation réelle
 n'est levé. Publication documentaire seulement, sur le `master` distant courant,
 sans incorporer les modifications applicatives locales non commitées.
+
+
+## D-073 — Observer et comparer le véritable runtime, garder le pilotage explicite
+
+**Date : 2026-11-09.** Implémentation des dix briefs demandée par Seb, sur le
+`master` `96b3a9d`, sans autorisation nouvelle d’argent réel.
+
+**Choix** : capturer les frontières I/O et injecter horloge, identifiants et
+chronomètre dans l’Orchestrator existant. Le rejeu relance ce même orchestrateur
+avec des réponses figées, sans SQL ni échange réseau. Le paquet vérifie empreintes,
+code, Python, CCXT et contexte Decimal. Il conserve la version réelle des réglages
+déjà appliqués et l’identité des poids quand disponible. Une trace incomplète ou
+incompatible est refusée ; aucune seconde inférence n’est prétendue déterministe.
+
+Les expériences utilisent également ce runtime et le PaperBroker, avec un ledger
+indépendant par variante et un flux causal commun. Le coût observé du carnet ne
+remplace pas le risque ; le classement reste en observation par défaut et sa
+sélection est réservée au papier. La confiance reste un score descriptif, par
+cohorte poids/prompt/leçons/politique ; aucun seuil ni sizing n’est ajusté.
+
+Le pilotage des achats est une permission persistante par mode, avec révision et
+TOTP frais à la réautorisation, distincte du HALT. Les règles stratégiques sont
+attachées une fois à la position ; les limites de sécurité restent courantes.
+L’adoption des positions historiques est PAPER explicite avec empreinte et TOTP.
+Les réglages demandés et appliqués sont distingués avec CAS et motif de refus.
+
+Le surveillant est un processus séparé à clé de lecture vérifiée. Il n’appelle
+jamais create/cancel/sell : incidents persistants, fraîcheur explicite et HALT en
+base uniquement. Le webhook est facultatif, HTTPS, sans redirection ; déduplication
+d’envoi locale au processus. Déploiement et surveillance externe restent à qualifier.
+
+**Persistance** : migration 0011 nouvelle, dix tables privées RLS, artefacts
+adressés par contenu, limites de volume. Capture indisponible = nouveaux achats
+suspendus, gestion existante maintenue ; échec analytique jamais transformé en
+vente de compensation. La transaction locale d’entrée regroupe le ledger, sans
+prétendre résoudre l’intention d’achat distante durable encore manquante (B-03).
+Pool API de quatre connexions, emprunt par requête ; un seul calcul de recherche
+HTTP à la fois afin de préserver les commandes administratives.
+
+**Validation locale** : 695 tests Python dont 24 contre PostgreSQL 17 jetable,
+31 tests Node, golden identique sans bless, contrôle Playwright desktop/mobile,
+CLI replay IDENTICAL et deux portefeuilles sans erreur sur données synthétiques.
+Les onze migrations sont appliquées localement et `db_migrate.py verify` vérifie
+structure, écritures annulées, RLS et droits des dix tables. Les tests isolent
+l’environnement et refusent les connexions externes.
+
+**Limites maintenues** : aucune base Supabase ni service déployé modifié ; aucun
+ordre réel ni activation de `paper_select`. Pas de conclusion économique, de
+purge automatique ou de promotion. Les défauts live de l’audit restent bloquants.
+Commandes, formats et portée exacte : [OBSERVATION_ET_RECHERCHE.md](OBSERVATION_ET_RECHERCHE.md).

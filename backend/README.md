@@ -3,6 +3,28 @@
 Moteur d'exécution déterministe. Le LLM propose, la Risk Gateway dispose :
 aucun ordre ne part sans franchir un pare-feu mathématique fail-closed.
 
+## Observation et recherche
+
+Les dix briefs sont implémentés en première version : voir
+[`OBSERVATION_ET_RECHERCHE.md`](../docs/OBSERVATION_ET_RECHERCHE.md) pour les
+contrats JSON, API, CLI et limites. `scripts/insights.py --help` donne les commandes.
+Replay, expériences et analyse de confiance par fichier fonctionnent hors ligne.
+Appliquer 0011 sur la base cible avant de démarrer l’instrumentation.
+
+Les tests n’utilisent aucune clé du shell et interdisent les connexions externes.
+La suite normale collecte 695 tests : 671 passent hors base, 24 contrats SQL sont
+ignorés sans base jetable. Pour tout vérifier, démarrer PostgreSQL 17 local avec
+les rôles `anon`/`authenticated`, appliquer les onze migrations et utiliser :
+
+```bash
+TN_TEST_DATABASE_URL="$TN_REVIEW_DSN" .venv/bin/python -m pytest \
+  --postgres-test-url "$TN_REVIEW_DSN"
+```
+
+`TN_REVIEW_DSN` doit viser exclusivement `127.0.0.1`/`localhost`, base
+`trading_ninja_review` jetable. Les tests SQL annulent leurs écritures ; ils ne
+valident pas le schéma Supabase déployé. Le golden est inclus dans la suite.
+
 ## Outillage
 
 | Outil | Version | Emplacement |
@@ -31,7 +53,7 @@ Le profil papier `progressif` et le comparatif de budgets sont décrits dans
 virtuels ; il ne modifie pas les réglages locaux existants.
 
 ```bash
-.venv/bin/python -m pytest                     # 643 tests du moteur, du schéma, des sondes et du backtest
+.venv/bin/python -m pytest                     # 695 tests collectés ; 24 PostgreSQL opt-in, voir ci-dessous
 .venv/bin/python -m app.main --once            # un cycle papier complet (données réelles)
 .venv/bin/python -m app.main --serve           # une évaluation par bougie H4 clôturée
 .venv/bin/python -m app.main --status          # état + 3 dernières lignes par table

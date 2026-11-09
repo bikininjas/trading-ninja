@@ -323,6 +323,8 @@ def run_mean_reversion_backtest(
         (last_close - first_close) / first_close if first_close else Decimal(0)
     )
 
+    from app.insights.diagnostics import backtest_trade_diagnostics
+    trades=[replace(t,diagnostics=backtest_trade_diagnostics(t,candles,series.step_ms)) for t in trades]
     return BacktestResult(
         symbol=symbol,
         model="MEAN_REVERSION_BB",

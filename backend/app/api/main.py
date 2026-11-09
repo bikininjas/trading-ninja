@@ -22,6 +22,7 @@ base détenu, avant de halter le bot.
 from __future__ import annotations
 
 import asyncio
+import asyncpg
 from contextlib import asynccontextmanager
 from dataclasses import asdict, replace
 from datetime import datetime, timedelta, timezone
@@ -61,6 +62,7 @@ class OptionalTotpRequest(BaseModel):
 
 
 class SettingsUpdate(BaseModel):
+    expected_revision: int | None = Field(default=None, ge=0)
     """Réglages du dashboard. Les pourcentages sont des fractions (0,50 = 50 %)."""
 
     profile: str | None = None
@@ -394,10 +396,12 @@ def create_app(
     settings_loader: Any | None = None,
 ) -> FastAPI:
     config = settings or load_settings()
-    load = settings_loader or load_settings
-    require_secrets(
-        config.jwt_secret, config.totp_secret, config.admin_password_hash
+    load = settings_loader or (
+        lambda overrides=None: load_settings(
+            overrides={**config._raw_env, **(overrides or {})}, use_environment=False
+        )
     )
+    require_secrets(config.jwt_secret, config.totp_secret, config.admin_password_hash)
 
     totp = TotpVerifier(config.totp_secret)
     limiter = AttemptLimiter()
@@ -410,21 +414,42 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        app.state.repo = (
-            await PostgresRepository.connect(config.database()) if owned_repo else repo
-        )
-        yield
-        if owned_repo and app.state.repo is not None:
-            await app.state.repo.close()
+        app.state.repo = repo
+        app.state.pool = None
+        if owned_repo:
+            app.state.pool = await asyncpg.create_pool(
+                min_size=1, max_size=4, **config.database().asyncpg_kwargs()
+            )
+        try:
+            yield
+        finally:
+            if app.state.pool is not None:
+                await app.state.pool.close()
 
     app = FastAPI(
         title="Trading Ninja — administration",
-        docs_url=None, redoc_url=None, openapi_url=None,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
         lifespan=lifespan,
     )
 
-    def get_repo(request: Request) -> Any:
-        return request.app.state.repo
+    @asynccontextmanager
+    async def repository_for(app):
+        if app.state.pool is None:
+            yield app.state.repo
+        else:
+            async with app.state.pool.acquire() as connection:
+                yield PostgresRepository(
+                    connection,
+                    lock_connection_factory=lambda: asyncpg.connect(
+                        **config.database().asyncpg_kwargs()
+                    ),
+                )
+
+    async def get_repo(request: Request):
+        async with repository_for(request.app) as repository:
+            yield repository
 
     async def session(authorization: str = Header(default="")) -> dict:
         if not authorization.startswith("Bearer "):
@@ -479,14 +504,19 @@ def create_app(
     async def settings_view(repo=Depends(get_repo),
                             _: dict = Depends(session)) -> dict:
         try:
-            payload, updated_at = await repo.runtime_settings(config.execution_mode)
+            if hasattr(repo,'runtime_snapshot'):
+                snapshot=await repo.runtime_snapshot(config.execution_mode)
+                payload,updated_at=snapshot['payload'],snapshot['updated_at']
+            else:payload,updated_at=await repo.runtime_settings(config.execution_mode)
             candidate = validate_payload(payload, loader=load)
-            return friendly_settings(
-                candidate,
-                updated_at=updated_at.isoformat() if updated_at else None,
-            )
+            view=friendly_settings(candidate,updated_at=updated_at.isoformat() if updated_at else None)
+            if hasattr(repo,'runtime_snapshot'):view['application']=jsonable({k:v for k,v in snapshot.items() if k not in {'payload','updated_at'}})
+            elif hasattr(repo,'settings_state'):view['application']=jsonable(await repo.settings_state(config.execution_mode))
+            return view
         except SettingsRefused as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except StateTransitionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -497,16 +527,28 @@ def create_app(
         try:
             current, _ = await repo.runtime_settings(config.execution_mode)
             new_payload = build_payload(current, payload.model_dump(exclude_none=True))
+            version_getter=getattr(repo,'settings_state',None)
+            if version_getter:
+                if payload.expected_revision is None:raise HTTPException(428,'révision attendue requise')
+                version=await version_getter(config.execution_mode)
+                if payload.expected_revision is not None and version['revision']!=payload.expected_revision:
+                    raise HTTPException(409,'révision des réglages obsolète')
             candidate = validate_payload(new_payload, loader=load)
+            if hasattr(repo,'capital_state'):
+                capital=await repo.capital_state(config.execution_mode)
+                if capital is not None and not candidate.capital_policy.enabled:
+                    raise HTTPException(409,'capital par paliers existant : changement incompatible')
             updated_at = await repo.update_runtime_settings(
-                config.execution_mode, new_payload, updated_by="dashboard"
+                config.execution_mode, new_payload, updated_by="dashboard",
+                **({"expected_revision":payload.expected_revision} if payload.expected_revision is not None else {})
             )
-            return friendly_settings(
-                candidate,
-                updated_at=updated_at.isoformat() if updated_at else None,
-            )
+            view=friendly_settings(candidate,updated_at=updated_at.isoformat() if updated_at else None)
+            if hasattr(repo,'settings_state'):view['application']=jsonable(await repo.settings_state(config.execution_mode))
+            return view
         except SettingsRefused as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except StateTransitionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -630,20 +672,28 @@ def create_app(
         except (asyncio.TimeoutError, WebSocketDisconnect, ValueError):
             await websocket.close(code=4401)
             return
+        if not isinstance(first,dict):
+            await websocket.close(code=4401);return
+        token=str(first.get("token",""))
         try:
-            decode_token(config.jwt_secret, str(first.get("token", "")))
+            decode_token(config.jwt_secret, token)
         except AuthError:
             await websocket.close(code=4401)
             return
         try:
             while True:
-                await websocket.send_json(
-                    await build_status(websocket.app.state.repo, config)
-                )
+                try:decode_token(config.jwt_secret,token)
+                except AuthError:
+                    await websocket.close(code=4401);return
+                async with repository_for(websocket.app) as repository:
+                    payload=await build_status(repository,config)
+                await websocket.send_json(payload)
                 await asyncio.sleep(interval)
         except WebSocketDisconnect:
             return
 
+    from app.api.insights import router as insights_router
+    app.include_router(insights_router(config,load,session,get_repo,totp))
     return app
 
 

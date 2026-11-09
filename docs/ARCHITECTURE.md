@@ -31,7 +31,8 @@ choisit ni quantité, ni prix, ni stop : toute la géométrie vient du code.
 
 ## 2. Ce qui existe, ce qui n'existe pas
 
-**643 tests** Python et **26 tests** Node (669 au total), répartis ci-dessous.
+**695 tests** Python (671 hors base et 24 contrats PostgreSQL locaux opt-in)
+et **31 tests** Node (726 au total), répartis ci-dessous.
 
 | Composant | Fichier | État |
 |---|---|---|
@@ -54,7 +55,7 @@ choisit ni quantité, ni prix, ni stop : toute la géométrie vient du code.
 | API — authentification | `app/api/security.py` | ✅ écrit (22 assertions) |
 | API — routes | `app/api/main.py` | ✅ écrit (12 assertions) |
 | API — lecture et contrôle | `app/api/service.py` | ✅ écrit |
-| Dashboard Node.js | `dashboard/server.js` | ✅ écrit (26 tests Node, zéro dépendance) |
+| Dashboard Node.js | `dashboard/server.js` | ✅ écrit (31 tests Node, zéro dépendance) |
 | Gestion des processus | `scripts/manage.sh` | ✅ écrit (start/stop/restart/status/logs) |
 | Backtest historique | `app/backtest/engine.py` | ✅ écrit (7 assertions) |
 | Golden de régression | `tests/fixtures/backtest_golden.json` | ✅ 44 décisions figées |
@@ -63,7 +64,7 @@ choisit ni quantité, ni prix, ni stop : toute la géométrie vient du code.
 | Garde-fou de sortie LLM | `app/engine/exit_guard.py` | ✅ écrit (9 assertions) |
 | Sonde de clé Kraken | `scripts/check_kraken.py` | ✅ lecture seule |
 | Lecture `.env` / `.env.local` | `app/core/env.py` | ✅ écrit |
-| Schéma SQL + migrations | `db/migrations/` | ✅ 9 migrations appliquées sur Supabase |
+| Schéma SQL + migrations | `db/migrations/` | ✅ 11 migrations versionnées ; 0010/0011 validées localement, cible à vérifier |
 | Coureur de migrations | `scripts/db_migrate.py` | ✅ status / apply / verify |
 | Démonstration du pare-feu | `scripts/demo_guardrails.py` | ✅ exécutable |
 | Sonde de clé exchange (lecture seule) | `scripts/check_exchange.py` | ✅ écrit — mainnet vérifié, testnet sans clé |
@@ -78,6 +79,11 @@ choisit ni quantité, ni prix, ni stop : toute la géométrie vient du code.
 | Ingestion multi-années | `scripts/ingest_history.py` | ✅ 158 600 bougies en base |
 | Balayage statistique | `backtest.py sweep` | ✅ écrit — 48 scénarios, deux modes |
 | Cadence d'évaluation | `app/runtime/scheduler.py` | ✅ écrit (8 assertions) |
+| Observation et recherche | `app/insights/`, `app/api/insights.py` | ✅ dix briefs, comportements et limites dans le guide |
+| Journal/rejeu | `app/insights/replay.py` | ✅ vrai runtime, I/O enregistrées, code et environnement vérifiés |
+| Pilotage versionné | `app/insights/policy.py`, `store.py` | ✅ suspension, politiques, révisions demandées/appliquées |
+| Laboratoire papier | `app/insights/experiments.py` | ✅ portefeuilles indépendants et données causales |
+| Surveillant indépendant | `scripts/insights.py watch` | ✅ lecture seule exchange, HALT en base, installation à qualifier |
 | Vérification des drawdowns | `scripts/verify_drawdowns.py` | ✅ jeu figé, transaction annulée |
 
 Autrement dit : **le corps est assemblé en mode papier, et le chemin réel est écrit mais
@@ -102,6 +108,18 @@ L'historique détaillé passe par une liste blanche de quatre tables et une limi
 La carte ligne par ligne (modules, classes, méthodes, migrations, tests) est dans
 [`CODE_INDEX.md`](CODE_INDEX.md). Elle est **générée** par `scripts/index_codebase.py` et
 vérifiée par `scripts/check.sh` : un index périmé fait échouer la vérification.
+
+L’API utilise un pool asyncpg borné à quatre connexions et réserve une connexion
+par requête/transaction. Le WebSocket la libère entre émissions ; les verrous de
+cycle gardent leur connexion dédiée. Les recherches HTTP sont limitées à un calcul
+simultané pour préserver la disponibilité administrative.
+
+Le module `insights` observe les frontières du runtime, sans créer de chemin
+parallèle d’ordre. La sélection de paire reste en observation par défaut ; seule
+l’option PAPER explicite peut changer le candidat, avec revalidation finale.
+La stratégie attachée à la position reste immuable ; les limites de sécurité sont
+courantes. Le guide [Observation et recherche](OBSERVATION_ET_RECHERCHE.md) décrit
+les onze migrations, paquets, nouveaux contrats privés et limites de déploiement.
 
 ## 3. Les 15 étapes de filtrage et les 23 codes de rejet
 

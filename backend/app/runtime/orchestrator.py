@@ -29,6 +29,11 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from inspect import isawaitable
+from types import SimpleNamespace
+from app.insights.codec import digest,encode,public
+from app.insights.policy import position_policy,apply_policy
+from app.insights.costs import estimate_costs
+from app.insights.ranking import rank_candidates
 from typing import Any
 
 from app.core.settings import RUNTIME_ALLOWED_KEYS, Settings, load_settings
@@ -47,7 +52,7 @@ from app.engine.risk_gate import (
 )
 from app.execution.live import LiveExecutionError
 from app.execution.paper import PaperBroker, Fill
-from app.llm.client import LLMSignal, SignalClient
+from app.llm.client import LLMSignal, SignalClient, SYSTEM_PROMPT, D1_SYSTEM_PROMPT
 from app.market.feed import (
     FeedError, SymbolState, build_snapshot, closed_candles, last_price,
 )
@@ -92,7 +97,8 @@ class CycleReport:
 class Orchestrator:
     def __init__(self, settings: Settings, repo: PostgresRepository, exchange: Any,
                  signal_client: SignalClient, broker: Any,
-                 *, now: Any = None, settings_loader: Any = None):
+                 *, now: Any = None, settings_loader: Any = None, insights: bool | None = None,
+                 id_factory=None, perf_clock=None):
         fee = getattr(broker, "execution_fee_pct", settings.risk.execution_fee_pct)
         self._settings = replace(settings, risk=replace(settings.risk, execution_fee_pct=fee))
         self._repo = repo
@@ -102,8 +108,21 @@ class Orchestrator:
         self._now = now or (lambda: datetime.now(timezone.utc))
         self._mode = settings.execution_mode
         self._settings_updated_at: datetime | None = None
-        self._load_settings = settings_loader or load_settings
+        self._base_settings=self._settings
+        self._load_settings = settings_loader or (lambda overrides=None:load_settings(overrides={**settings._raw_env,**(overrides or {})},use_environment=False))
         self._lessons: list[str] = []
+        self._capture = settings.insights_enabled if insights is None else insights
+        self._id_factory = id_factory or uuid.uuid4
+        self._perf = perf_clock or time.perf_counter
+        self._feature_repo = repo
+        self._cycle_id = None
+        self._event_seq = 0
+        self._opportunities = {}
+        self._legacy_policy = False
+        self._model_digest = None
+        self._submission = False
+        self._observation_error = None
+        self._recorder = None
 
     # -- helpers ---------------------------------------------------------
 
@@ -145,7 +164,7 @@ class Orchestrator:
         )
 
     def _client_id(self, symbol: str, purpose: str) -> str:
-        return f"{self._mode}-{symbol.replace('/', '')}-{purpose}-{uuid.uuid4().hex[:10]}"
+        return f"{self._mode}-{symbol.replace('/', '')}-{purpose}-{self._id_factory().hex[:10]}"
 
     async def _starting_equity(self) -> Decimal:
         if self._settings.paper_start_equity > 0:
@@ -168,41 +187,105 @@ class Orchestrator:
         bougent pas à chaud. Un payload invalide est refusé et l'ancienne
         configuration reste active.
         """
+        version = None
         try:
-            payload, updated_at = await self._repo.runtime_settings(self._mode)
-        except Exception as exc:  # noqa: BLE001 — une base indisponible ne doit pas
-            # empêcher le cycle de continuer avec les réglages déjà chargés.
+            snapshot = getattr(self._repo, "runtime_snapshot", None)
+            if snapshot:
+                version = await snapshot(self._mode)
+                payload, updated_at = version["payload"], version["updated_at"]
+            else:
+                payload, updated_at = await self._repo.runtime_settings(self._mode)
+        except Exception as exc:
             return False, f"réglages en base illisibles : {exc}"
+
+        async def refused(reason):
+            ack = getattr(self._repo, "acknowledge_settings", None)
+            if ack and version is not None:
+                await ack(self._mode, version["revision"], {}, error=reason)
+            return False, reason
+
         if updated_at == self._settings_updated_at:
             return False, None
         try:
-            fresh = self._load_settings(overrides={
-                key: str(value)
-                for key, value in payload.items()
-                if key in RUNTIME_ALLOWED_KEYS
-            })
+            fresh = (
+                self._base_settings
+                if not payload
+                else self._load_settings(
+                    overrides={
+                        key: str(value)
+                        for key, value in payload.items()
+                        if key in RUNTIME_ALLOWED_KEYS
+                    }
+                )
+            )
         except RuntimeError as exc:
-            return False, f"réglages en base refusés : {exc}"
+            return await refused(f"réglages en base refusés : {exc}")
         if fresh.execution_mode != self._settings.execution_mode:
-            return False, "réglages en base ignorés : le mode ne peut pas changer à chaud"
+            return await refused(
+                "réglages en base ignorés : le mode ne peut pas changer à chaud"
+            )
+        if (
+            fresh.exchange.daily_timeframe_decision
+            != self._settings.exchange.daily_timeframe_decision
+        ):
+            return await refused("changement de cadence : redémarrage requis")
         fee = getattr(self._broker, "execution_fee_pct", fresh.risk.execution_fee_pct)
-        self._settings = replace(fresh, risk=replace(fresh.risk, execution_fee_pct=fee))
+        capital = await self._repo.capital_state(self._mode)
+        if capital is not None and not fresh.capital_policy.enabled:
+            return await refused(
+                "capital existant : réconciliation requise avant changement de profil"
+            )
+        self._settings = replace(
+            self._settings,
+            risk=replace(fresh.risk, execution_fee_pct=fee),
+            risk_profile=fresh.risk_profile,
+            capital_policy=fresh.capital_policy,
+            halt_auto_resume_hours=fresh.halt_auto_resume_hours,
+        )
+        ack = getattr(self._repo, "acknowledge_settings", None)
+        if ack:
+            if version is None:
+                version = await self._repo.settings_state(self._mode)
+            await ack(
+                self._mode,
+                version["revision"],
+                {
+                    "risk": public(self._settings.risk),
+                    "profile": self._settings.risk_profile,
+                },
+            )
         self._settings_updated_at = updated_at
         return True, None
 
-    async def _log_signal(self, symbol: str, signal: LLMSignal,
-                          report: CycleReport) -> tuple[uuid.UUID, datetime]:
+    async def _log_signal(
+        self, symbol: str, signal: LLMSignal, report: CycleReport
+    ) -> tuple[uuid.UUID, datetime]:
         """Persiste toute décision du modèle, y compris HOLD, SELL et HALT."""
         report.signals += 1
         if signal.degraded:
             report.degraded_calls += 1
         return await self._repo.insert_signal(
-            self._mode, symbol,
+            self._mode,
+            symbol,
             f"{self._settings.llm.model}{' (repli)' if signal.degraded else ''}",
-            action=signal.action, confidence=signal.confidence,
-            market_regime=signal.market_regime, thesis=signal.thesis,
+            action=signal.action,
+            confidence=signal.confidence,
+            market_regime=signal.market_regime,
+            thesis=signal.thesis,
             prompt_payload=dict(signal.prompt_payload),
-            raw_response=dict(signal.raw),
+            raw_response={
+                **dict(signal.raw),
+                "model_digest": self._model_digest,
+                "lessons_digest": digest(self._lessons),
+                "prompt_template_digest": digest(
+                    {
+                        "system": D1_SYSTEM_PROMPT
+                        if self._settings.exchange.daily_timeframe_decision == "1d"
+                        else SYSTEM_PROMPT,
+                        "temperature": self._settings.llm.temperature,
+                    }
+                ),
+            },
             inference_time_ms=signal.inference_ms,
             prompt_sha256=signal.prompt_sha256 or None,
             temperature=self._settings.llm.temperature,
@@ -281,13 +364,136 @@ class Orchestrator:
 
     # -- cycle -----------------------------------------------------------
 
+    async def _event(self, stage, *, symbol=None, at=None, terminal=False, body=None):
+        if self._cycle_id is None:
+            return
+        self._event_seq += 1
+        try:
+            await self._feature_repo.append_opportunity(
+                self._cycle_id,
+                self._event_seq,
+                self._mode,
+                stage,
+                at or datetime.now(timezone.utc),
+                symbol=symbol,
+                opportunity_id=self._opportunities.get(symbol),
+                terminal=terminal,
+                body=body,
+            )
+        except Exception as exc:
+            self._observation_error = type(exc).__name__
+            if self._recorder:
+                self._recorder.failure = "EVENT_PERSISTENCE_FAILED"
+
+    async def _entry_enabled(self):
+        if self._observation_error or (self._recorder and self._recorder.failure):
+            return False
+        getter = getattr(self._repo, "entry_control", None)
+        return (await getter(self._mode))["enabled"] if getter else True
+
     async def run_once(self) -> CycleReport:
-        async with self._repo.cycle_lock(self._mode):
-            return await self._run_once()
+        self._observation_error = None
+        if not self._capture or not hasattr(self._feature_repo, "begin_cycle"):
+            async with self._repo.cycle_lock(self._mode):
+                return await self._run_once()
+        from app.insights.replay import Recorder
+
+        recorder = Recorder(self._settings)
+        recorder.manifest["runtime_state"] = {
+            "base_settings": encode(self._base_settings),
+            "settings_updated_at": encode(self._settings_updated_at),
+        }
+        identity = getattr(self._llm, "model_identity", None)
+        if identity:
+            self._model_digest = await identity()
+            recorder.manifest["model_digest"] = self._model_digest
+        raw = (
+            self._repo,
+            self._exchange,
+            self._llm,
+            self._broker,
+            self._now,
+            self._load_settings,
+            self._id_factory,
+            self._perf,
+        )
+        clock = SimpleNamespace(
+            now=self._now,
+            settings=self._load_settings,
+            new_id=self._id_factory,
+            perf=self._perf,
+        )
+        self._cycle_id = uuid.uuid4()
+        self._event_seq = 0
+        self._opportunities = {}
+        self._submission = False
+        try:
+            await self._feature_repo.begin_cycle(
+                self._cycle_id, self._mode, self._now(), recorder.manifest
+            )
+        except Exception as exc:
+            self._cycle_id = None
+            self._observation_error = type(exc).__name__
+            async with self._repo.cycle_lock(self._mode):
+                report = await self._run_once()
+            report.errors.append(
+                "observation indisponible : nouveaux achats suspendus, gestion existante maintenue"
+            )
+            return report
+        self._recorder = recorder
+        self._repo, self._exchange, self._llm, self._broker = [
+            recorder.proxy(k, v)
+            for k, v in zip(("repo", "exchange", "llm", "broker"), raw[:4])
+        ]
+        clock = recorder.proxy("clock", clock)
+        self._now, self._load_settings, self._id_factory, self._perf = (
+            clock.now,
+            clock.settings,
+            clock.new_id,
+            clock.perf,
+        )
+        report = error = None
+        try:
+            async with self._repo.cycle_lock(self._mode):
+                report = await self._run_once()
+            return report
+        except Exception as exc:
+            error = exc
+            await self._event(
+                "EXECUTION_UNCERTAIN" if self._submission else "CYCLE_FAILED",
+                terminal=True,
+                body={"error_type": type(exc).__name__},
+            )
+            raise
+        finally:
+            (
+                self._repo,
+                self._exchange,
+                self._llm,
+                self._broker,
+                self._now,
+                self._load_settings,
+                self._id_factory,
+                self._perf,
+            ) = raw
+            try:
+                packet = recorder.packet(report, error)
+                await self._feature_repo.finish_cycle(self._cycle_id, packet)
+            except Exception:
+                if report is not None:
+                    report.errors.append(
+                        "paquet d’observation non persisté ; cycle non rejouable"
+                    )
+            finally:
+                self._cycle_id = None
+                self._recorder = None
 
     async def _run_once(self) -> CycleReport:
-        started = time.perf_counter()
+        started = self._perf()
         await self._repo.ensure_mode(self._mode)
+        commands = getattr(self._repo, "consume_observation_commands", None)
+        if commands:
+            await commands(self._mode)
         reloaded, reload_error = await self._refresh_settings()
         lessons_error: str | None = None
         try:
@@ -336,7 +542,7 @@ class Orchestrator:
             return report
         if state in (LOCKED, HALT):
             report.actions.append(f"état {state} : aucune action automatique")
-            report.elapsed_ms = int((time.perf_counter() - started) * 1000)
+            report.elapsed_ms = int((self._perf() - started) * 1000)
             return report
 
         # Reprise après arrêt brutal : l'état EVALUATING/EXECUTING n'est pas un état
@@ -351,7 +557,7 @@ class Orchestrator:
         if state == COOLDOWN:
             if cooldown_until is not None and now < cooldown_until:
                 report.actions.append(f"cooldown jusqu'à {cooldown_until:%H:%M} UTC")
-                report.elapsed_ms = int((time.perf_counter() - started) * 1000)
+                report.elapsed_ms = int((self._perf() - started) * 1000)
                 return report
             await machine.go(IDLE, "cooldown expiré")
 
@@ -387,12 +593,24 @@ class Orchestrator:
         position = await self._repo.open_position(self._mode)
 
         if position is not None:
-            await self._monitor(machine, position, account, report)
+            prior=self._settings
+            getter=getattr(self._repo,'position_policy',None)
+            self._legacy_policy=False
+            if getter:
+                policy=await getter(position.id)
+                if policy:self._settings=apply_policy(self._settings,policy)
+                else:
+                    self._legacy_policy=True
+                    await self._event('LEGACY_POLICY_MISSING',symbol=position.symbol,body={'position_id':str(position.id)})
+            try:
+                await self._monitor(machine,position,account,report)
+            finally:
+                self._settings=prior;self._legacy_policy=False
         else:
             await self._evaluate_cycle(machine, account, report)
 
         report.state_after = machine.current
-        report.elapsed_ms = int((time.perf_counter() - started) * 1000)
+        report.elapsed_ms = int((self._perf() - started) * 1000)
         return report
 
     # -- position ouverte ------------------------------------------------
@@ -479,7 +697,7 @@ class Orchestrator:
 
         try:
             state = build_snapshot(
-                self._exchange, position.symbol,
+                self._exchange, position.symbol, now=self._now(),
                 decision_timeframe=self._settings.exchange.daily_timeframe_decision,
                 entry_timeframe=self._settings.exchange.entry_timeframe,
                 with_d1=self._settings.risk.entry_mode is EntryMode.SWING_MACRO_D1,
@@ -521,7 +739,7 @@ class Orchestrator:
                     await self._close_trade(machine, position, account, exit_price, reason, report,
                                             purpose="STOP_LOSS" if reason == "STOP_LOSS" else "TAKE_PROFIT")
                     return
-                candidate = advance_profit_stop(
+                candidate = position.stop_loss_price if self._legacy_policy else advance_profit_stop(
                     entry_price=position.entry_price,
                     initial_distance=position.risk_amount_quote / position.amount,
                     current_stop=position.stop_loss_price, close=Decimal(str(candle[4])),
@@ -534,6 +752,13 @@ class Orchestrator:
         elif position.take_profit_price is not None and Decimal(str(last[2])) >= position.take_profit_price:
             await self._close_trade(machine, position, account, position.take_profit_price,
                                     "TAKE_PROFIT", report, purpose="TAKE_PROFIT")
+            return
+
+        if self._legacy_policy:
+            report.actions.append("position historique : stop/TP conservés ; adoption de politique requise")
+            price=last_price(self._exchange,position.symbol)
+            await self._repo.snapshot_equity(self._mode,equity=account.free_quote+position.amount*price+account.reserve_quote+account.growth_quote,
+                free_quote=account.free_quote,position_value_quote=position.amount*price,symbol=position.symbol,source='LEGACY_MONITOR')
             return
 
         # -- gestion swing D1 : seuil de rentabilité puis sortie de tendance ----
@@ -809,20 +1034,26 @@ class Orchestrator:
 
     async def _evaluate_cycle(self, machine: StateMachine, account: AccountSnapshot,
                               report: CycleReport) -> None:
+        if not await self._entry_enabled():
+            await self._event('ENTRY_DISABLED',terminal=True)
+            report.actions.append("nouveaux achats suspendus ; gestion des positions maintenue")
+            return
         await machine.go(EVALUATING, "cycle d'évaluation")
         chosen: tuple[SymbolState, LLMSignal, Any, uuid.UUID, uuid.UUID, datetime] | None = None
         account_state = self._account_state(account)
 
+        candidates=[]
         for symbol in self._settings.exchange.allowed_symbols:
             try:
                 state = build_snapshot(
-                    self._exchange, symbol,
+                    self._exchange, symbol, now=self._now(),
                     decision_timeframe=self._settings.exchange.daily_timeframe_decision,
                     entry_timeframe=self._settings.exchange.entry_timeframe,
                     with_d1=self._settings.risk.entry_mode is EntryMode.SWING_MACRO_D1,
                     chandelier_period=self._settings.risk.swing_chandelier_period,
                 )
             except FeedError as exc:
+                await self._event("DATA_UNAVAILABLE",symbol=symbol,terminal=True,body={"reason":str(exc)})
                 report.errors.append(f"{symbol} : {exc}")
                 continue
 
@@ -831,8 +1062,11 @@ class Orchestrator:
             # les statistiques et peut rouvrir une position sitôt la précédente
             # fermée. La comparaison traverse les redémarrages : le dernier signal
             # est relu en base.
+            self._opportunities[symbol]=digest({'symbol':symbol,'candle':state.last_close_at.isoformat(),'policy':position_policy(self._settings)['id']})
+            await self._event('OBSERVED',symbol=symbol,at=state.last_close_at)
             last_signal = await self._repo.last_signal_at(self._mode, symbol)
             if last_signal is not None and last_signal >= state.last_close_at:
+                await self._event("ALREADY_EVALUATED",symbol=symbol,terminal=True)
                 report.skipped += 1
                 report.actions.append(
                     f"{symbol} : bougie clôturée à "
@@ -846,6 +1080,7 @@ class Orchestrator:
             if self._settings.risk.entry_rule_enabled:
                 setup = evaluate_entry(state.snapshot, state.context, self._settings.risk)
                 if not setup.triggered:
+                    await self._event("NO_SETUP",symbol=symbol,terminal=True,body={"reason":setup.reason})
                     report.actions.append(f"{symbol} : pas de setup ({setup.reason})")
                     continue
 
@@ -856,15 +1091,18 @@ class Orchestrator:
                 decision_timeframe=self._settings.exchange.daily_timeframe_decision,
             )
             signal_id, signal_at = await self._log_signal(symbol, signal, report)
+            await self._event('SIGNAL',symbol=symbol,body={'signal_id':str(signal_id),'action':signal.action,'confidence':signal.confidence})
             action = Action(signal.action)
             confidence = Decimal(str(signal.confidence))
 
             if signal.degraded:
+                await self._event("LLM_UNAVAILABLE",symbol=symbol,terminal=True)
                 report.actions.append(
                     f"{symbol} : HOLD de repli ({signal.degradation_reason})"
                 )
                 continue
             if action is Action.HALT:
+                await self._event("LLM_HALT",symbol=symbol,terminal=True)
                 if confidence >= self._settings.risk.min_halt_confidence:
                     await self._force_halt(
                         machine, report,
@@ -877,11 +1115,13 @@ class Orchestrator:
                 )
                 continue
             if action is Action.SELL:
+                await self._event("SELL_WITHOUT_POSITION",symbol=symbol,terminal=True)
                 # Un SELL sans position ne peut pas créer un short : il est loggué
                 # puis ignoré. Le garde-fou de sortie n'a rien à liquider.
                 report.actions.append(f"{symbol} : SELL sans position, ignoré")
                 continue
             if action is Action.HOLD:
+                await self._event("LLM_HOLD",symbol=symbol,terminal=True)
                 await self._record_shadow(
                     kind="MODEL_HOLD", symbol=symbol, signal=signal,
                     signal_id=signal_id, evaluation_id=None, decision=None,
@@ -900,11 +1140,11 @@ class Orchestrator:
                 action, float(confidence),
                 MarketRegime(signal.market_regime), signal.thesis,
             )
-            eval_started = time.perf_counter()
+            eval_started = self._perf()
             decision = evaluate(
                 intent, fresh, account_state, state.info.constraints, self._settings.risk
             )
-            eval_ms = int((time.perf_counter() - eval_started) * 1000)
+            eval_ms = int((self._perf() - eval_started) * 1000)
             evaluation_id, _ = await self._repo.insert_evaluation(
                 self._mode, symbol, signal_id=signal_id, signal_created_at=signal_at,
                 decision=decision, snapshot=fresh, account=account,
@@ -913,6 +1153,17 @@ class Orchestrator:
             )
             report.evaluations += 1
             if decision.approved:
+                await self._event('APPROVED',symbol=symbol,body={'decision_id':str(evaluation_id)})
+                cost={'available':False,'reason':'BOOK_UNAVAILABLE'}
+                if hasattr(self._exchange,'fetch_order_book'):
+                    try:
+                        cost=estimate_costs(self._exchange.fetch_order_book(symbol,limit=20),decision.amount,
+                            self._settings.risk.execution_fee_pct,now=self._now())
+                    except Exception:
+                        cost={'available':False,'reason':'BOOK_UNAVAILABLE'}
+                candidates.append({'symbol':symbol,'observed_at':self._now(),'approved':True,'cost':cost,
+                    'structure_atr':abs(state.snapshot.price-state.context.ema_50_h4)/state.snapshot.atr_14_h4,
+                    'choice':(state,signal,decision,signal_id,evaluation_id,signal_at)})
                 report.approved += 1
                 report.actions.append(
                     f"{symbol} : APPROUVÉ {decision.amount} @ {price} · "
@@ -921,6 +1172,7 @@ class Orchestrator:
                 if chosen is None:
                     chosen = (state, signal, decision, signal_id, evaluation_id, signal_at)
             else:
+                await self._event('RISK_REJECTED',symbol=symbol,terminal=True,body={'code':str(decision.rejection_code)})
                 await self._record_shadow(
                     kind="GATE_REJECTED_BUY", symbol=symbol, signal=signal,
                     signal_id=signal_id, evaluation_id=evaluation_id,
@@ -930,99 +1182,210 @@ class Orchestrator:
                 )
                 report.actions.append(f"{symbol} : refusé {decision.rejection_code}")
 
+        ranked=rank_candidates(candidates,now=self._now())
+        if self._settings.ranking_mode=='paper_select':
+            if self._mode!='PAPER':raise RuntimeError('sélection interdite hors papier')
+            chosen=next((r['choice'] for r in ranked if r['eligible']),None)
+        await self._event('RANKING',body={'mode':self._settings.ranking_mode,'candidates':[
+            {k:v for k,v in r.items() if k!='choice'} for r in ranked]})
+        for candidate in candidates:
+            if chosen is None or candidate['symbol']!=chosen[0].symbol:
+                await self._event('NOT_SELECTED',symbol=candidate['symbol'],terminal=True)
         if chosen is None:
             await machine.go(IDLE, "aucune décision approuvée")
             return
 
         state, signal, decision, signal_id, evaluation_id, signal_at = chosen
-        if self._settings.risk.cost_aware:
-            price = last_price(self._exchange, state.symbol)
-            moment = self._now()
-            fresh = replace(state.snapshot, price=price, tick_at=moment, now=moment)
-            decision = evaluate(
-                TradeIntent(Action.BUY, signal.confidence, MarketRegime(signal.market_regime)),
-                fresh, account_state, state.info.constraints, self._settings.risk,
-            )
-            evaluation_id, _ = await self._repo.insert_evaluation(
-                self._mode, state.symbol, signal_id=signal_id, signal_created_at=signal_at,
-                decision=decision, snapshot=fresh, account=account, evaluation_time_ms=0,
-                decision_timeframe=self._settings.exchange.daily_timeframe_decision,
-            )
-            report.evaluations += 1
-            if not decision.approved:
-                report.actions.append(f"{state.symbol} : entrée annulée à la revalidation ({decision.rejection_details})")
-                await machine.go(IDLE, "revalidation du risque refusée")
-                return
-            state = replace(state, snapshot=fresh)
+        self._selected_confidence = signal.confidence
+        self._selected_regime = MarketRegime(signal.market_regime)
         await machine.go(EXECUTING, f"entrée approuvée sur {state.symbol}")
-        await self._enter(machine, state, decision, signal_id, evaluation_id, account, report)
-
-    async def _enter(self, machine: StateMachine, state: SymbolState, decision: Any,
-                     signal_id: uuid.UUID, evaluation_id: uuid.UUID,
-                     account: AccountSnapshot, report: CycleReport) -> None:
-        price = (state.snapshot.price if self._settings.risk.cost_aware
-                 else last_price(self._exchange, state.symbol))
-        fill = await self._maybe_await(
-            self._broker.entry(decision, price, symbol=state.symbol)
+        await self._enter(
+            machine,
+            state,
+            decision,
+            signal_id,
+            evaluation_id,
+            account,
+            report,
+            signal_created_at=signal_at,
         )
-        entry_client_id = self._client_id(state.symbol, "ENTRY")
-        stop_client_id = self._client_id(state.symbol, "STOP")
 
-        if decision.take_profit_price is not None:
-            r_multiple = (decision.take_profit_price - fill.price) / (
-                fill.price - decision.stop_loss_price
+    async def _enter(
+        self,
+        machine: StateMachine,
+        state: SymbolState,
+        decision: Any,
+        signal_id: uuid.UUID,
+        evaluation_id: uuid.UUID,
+        account: AccountSnapshot,
+        report: CycleReport,
+        *,
+        signal_created_at: datetime,
+    ) -> None:
+        current, _ = await self._repo.state(self._mode)
+        if current != EXECUTING or not await self._entry_enabled():
+            await self._event("ENTRY_DISABLED", symbol=state.symbol, terminal=True)
+            if current == EXECUTING:
+                await machine.go(IDLE, "achat suspendu avant envoi")
+            else:
+                machine.current = current
+            return
+        policy = position_policy(self._settings)
+        saver = getattr(self._repo, "save_policy", None)
+        if saver:
+            await saver(policy)
+        price = last_price(self._exchange, state.symbol)
+        fresh = replace(
+            state.snapshot, price=price, tick_at=self._now(), now=self._now()
+        )
+        # Every candidate, including the selected ranked candidate, is evaluated again.
+        latest = await self._repo.account(self._mode, await self._starting_equity())
+        position = await self._repo.open_position(self._mode)
+        decision = evaluate(
+            TradeIntent(
+                Action.BUY,
+                float(self._selected_confidence),
+                getattr(self, "_selected_regime", MarketRegime.TRENDING_UP),
+            ),
+            fresh,
+            self._account_state(latest, (position.symbol,) if position else ()),
+            state.info.constraints,
+            self._settings.risk,
+        )
+        evaluation_id, _ = await self._repo.insert_evaluation(
+            self._mode,
+            state.symbol,
+            signal_id=signal_id,
+            signal_created_at=signal_created_at,
+            decision=decision,
+            snapshot=fresh,
+            account=latest,
+            evaluation_time_ms=0,
+            decision_timeframe=self._settings.exchange.daily_timeframe_decision,
+        )
+        if not decision.approved:
+            await self._event(
+                "REVALIDATION_REJECTED",
+                symbol=state.symbol,
+                terminal=True,
+                body={"code": str(decision.rejection_code)},
             )
-        else:
-            r_multiple = None
-
+            await machine.go(IDLE, "revalidation refusée")
+            return
+        current, _ = await self._repo.state(self._mode)
+        if current != EXECUTING or not await self._entry_enabled():
+            machine.current = current
+            if current == EXECUTING:
+                await machine.go(IDLE, "achat suspendu pendant la revalidation")
+            await self._event("ENTRY_DISABLED", symbol=state.symbol, terminal=True)
+            return
+        await self._event(
+            "SUBMITTED", symbol=state.symbol, body={"policy_id": policy["id"]}
+        )
+        self._submission = True
         try:
-            position_id = await self._repo.create_position(
-                self._mode, symbol=state.symbol, entry_price=fill.price, amount=fill.amount,
-                notional_quote=fill.notional_quote, stop_loss_price=decision.stop_loss_price,
-                take_profit_price=decision.take_profit_price,
-                risk_amount_quote=decision.effective_risk_quote or decision.intended_risk_quote,
-                r_multiple_at_tp=r_multiple, signal_id=signal_id, evaluation_id=evaluation_id,
-                protective_order_id=fill.stop_order_id or stop_client_id,
+            fill = await self._maybe_await(
+                self._broker.entry(decision, price, symbol=state.symbol)
             )
-        except Exception:
-            # L'achat est parti mais la base n'a pas la position : on ne laisse
-            # pas une position réelle non suivie. Le stop est annulé par la vente.
-            if hasattr(self._broker, "emergency_exit"):
-                await self._broker.emergency_exit(
-                    fill.amount, symbol=state.symbol,
-                    stop_price=decision.stop_loss_price,
+            entry_client_id = self._client_id(state.symbol, "ENTRY")
+            stop_client_id = self._client_id(state.symbol, "STOP")
+            distance = fill.price - decision.stop_loss_price
+            r_multiple = (
+                (decision.take_profit_price - fill.price) / distance
+                if decision.take_profit_price is not None and distance > 0
+                else None
+            )
+            async with self._repo.transaction():
+                position_id = await self._repo.create_position(
+                    self._mode,
+                    symbol=state.symbol,
+                    entry_price=fill.price,
+                    amount=fill.amount,
+                    notional_quote=fill.notional_quote,
+                    stop_loss_price=decision.stop_loss_price,
+                    take_profit_price=decision.take_profit_price,
+                    risk_amount_quote=decision.effective_risk_quote
+                    or decision.intended_risk_quote,
+                    r_multiple_at_tp=r_multiple,
+                    signal_id=signal_id,
+                    evaluation_id=evaluation_id,
+                    protective_order_id=fill.stop_order_id or stop_client_id,
                 )
+                attach = getattr(self._repo, "attach_policy", None)
+                if attach:
+                    await attach(self._mode, position_id, policy)
+                await self._repo.insert_order(
+                    self._mode,
+                    client_order_id=entry_client_id,
+                    symbol=state.symbol,
+                    side="BUY",
+                    order_type="MARKET",
+                    purpose="ENTRY",
+                    status="FILLED",
+                    requested_amount=fill.amount,
+                    filled_amount=fill.amount,
+                    requested_price=None,
+                    stop_price=None,
+                    average_fill_price=fill.price,
+                    fee_amount=fill.fee_quote,
+                    fee_currency=self._settings.exchange.quote_currency,
+                    slippage_quote=fill.slippage_quote,
+                    position_id=position_id,
+                    risk_evaluation_id=evaluation_id,
+                )
+                await self._repo.insert_order(
+                    self._mode,
+                    client_order_id=stop_client_id,
+                    symbol=state.symbol,
+                    side="SELL",
+                    order_type="STOP_LOSS",
+                    purpose="STOP_LOSS",
+                    status="SUBMITTED",
+                    requested_amount=fill.amount,
+                    filled_amount=Decimal(0),
+                    requested_price=None,
+                    stop_price=decision.stop_loss_price,
+                    average_fill_price=Decimal(0),
+                    fee_amount=Decimal(0),
+                    fee_currency=self._settings.exchange.quote_currency,
+                    slippage_quote=None,
+                    position_id=position_id,
+                    risk_evaluation_id=evaluation_id,
+                )
+                cash = latest.free_quote - fill.notional_quote - fill.fee_quote
+                value = fill.amount * price
+                await self._repo.snapshot_equity(
+                    self._mode,
+                    equity=cash + value + latest.reserve_quote + latest.growth_quote,
+                    free_quote=cash,
+                    position_value_quote=value,
+                    symbol=state.symbol,
+                    source="ENTRY",
+                )
+                await machine.go(IN_POSITION, f"position ouverte sur {state.symbol}")
+        except Exception:
+            if self._mode == "LIVE":
+                try:
+                    await self._repo.force_halt(
+                        self._mode,
+                        "achat au résultat incertain ou ledger incomplet : réconciliation obligatoire",
+                    )
+                    machine.current = HALT
+                except Exception:
+                    pass  # Database failure cannot authorize a compensating sell.
             raise
-        await self._repo.insert_order(
-            self._mode, client_order_id=entry_client_id, symbol=state.symbol, side="BUY",
-            order_type="MARKET", purpose="ENTRY", status="FILLED",
-            requested_amount=fill.amount, filled_amount=fill.amount, requested_price=None,
-            stop_price=None, average_fill_price=fill.price, fee_amount=fill.fee_quote,
-            fee_currency=self._settings.exchange.quote_currency,
-            slippage_quote=fill.slippage_quote, position_id=position_id,
-            risk_evaluation_id=evaluation_id,
+        self._submission = False
+        await self._event(
+            "FILLED",
+            symbol=state.symbol,
+            terminal=True,
+            body={
+                "position_id": str(position_id),
+                "policy_id": policy["id"],
+                "fill": public(fill),
+            },
         )
-        await self._repo.insert_order(
-            self._mode, client_order_id=stop_client_id, symbol=state.symbol, side="SELL",
-            order_type="STOP_LOSS", purpose="STOP_LOSS", status="SUBMITTED",
-            requested_amount=fill.amount, filled_amount=Decimal(0), requested_price=None,
-            stop_price=decision.stop_loss_price, average_fill_price=Decimal(0),
-            fee_amount=Decimal(0), fee_currency=self._settings.exchange.quote_currency,
-            slippage_quote=None, position_id=position_id,
-            risk_evaluation_id=evaluation_id,
-        )
-        cash = account.free_quote - fill.notional_quote - fill.fee_quote
-        value = fill.amount * price
-        await self._repo.snapshot_equity(
-            self._mode, equity=cash + value + account.reserve_quote + account.growth_quote,
-            free_quote=cash, position_value_quote=value,
-            symbol=state.symbol, source="ENTRY",
-        )
-        await machine.go(IN_POSITION, f"position ouverte sur {state.symbol}")
-        report.position_opened = (
-            f"{state.symbol} {fill.amount} @ {fill.price} · stop "
-            f"{decision.stop_loss_price} · TP {decision.take_profit_price}"
-        )
+        report.position_opened = f"{state.symbol} {fill.amount} @ {fill.price} · stop {decision.stop_loss_price} · TP {decision.take_profit_price}"
 
 
 def position_initial_notional(position: PositionRow) -> Decimal:
