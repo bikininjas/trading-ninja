@@ -18,6 +18,7 @@ La procédure de mise à jour est volontairement manuelle : relire le diff, puis
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import pytest
 
@@ -49,7 +50,8 @@ BLESS_HINT = (
 def _bundle_and_settings():
     if not FIXTURE.exists():
         pytest.skip(f"golden absent : {FIXTURE}")
-    return load_bundle(FIXTURE), load_settings()
+    frozen = json.loads(FIXTURE.with_name("backtest_settings.json").read_text())
+    return load_bundle(FIXTURE), load_settings(overrides=frozen, use_environment=False)
 
 
 def test_le_prompt_et_le_modele_sont_ceux_du_golden():

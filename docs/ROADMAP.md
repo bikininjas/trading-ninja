@@ -11,6 +11,14 @@ Statuts : ⬜ à faire · 🟨 en cours · ✅ fait et vérifié · ⛔ bloqué 
 
 ## Vue d'ensemble
 
+- ✅ **2.16 — Progression à petit budget, mécanique papier** *(2026-11-09)* : profil
+  papier à 9,37 EUR, budget de perte frais compris, stop suiveur commun au moteur
+  et au rejeu, comparaison des budgets sans relâcher automatiquement le risque.
+  Aucun rendement régulier promis ; le cash et l'absence de trade sont acceptables.
+  *Vérifié* : 617 tests Python, 26 Node, golden inchangé et comparatif hors ligne.
+  La rentabilité multi-années et la base déployée restent non validées dans cette
+  étape ; les critères de passage en réel ne changent pas.
+
 | Phase | Objectif | Statut | Avancement |
 |---|---|---|---|
 | **0. Fondations** | Le socle sur lequel rien ne peut perdre d'argent par accident | ✅ | 9 / 9 |

@@ -11,13 +11,40 @@ fournit uniquement le niveau et le test de clôture au backtest et au runtime.
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN
 
 __all__ = [
+    "advance_profit_stop",
     "chandelier_stop",
     "should_exit_chandelier",
     "update_chandelier_stop",
 ]
+
+
+def advance_profit_stop(*, entry_price: Decimal, initial_distance: Decimal,
+                        current_stop: Decimal, close: Decimal,
+                        price_tick: Decimal, config) -> Decimal:
+    """Cliquet sur clôtures : actif dès +2R net, stop au moins au seuil net.
+
+    Le nouveau stop s'applique à la bougie suivante : ne jamais rejouer le plus
+    bas de la bougie qui a servi à le calculer. Aucun plafond de gain n'est posé.
+    """
+    if not config.profit_trailing_enabled or initial_distance <= 0:
+        return current_stop
+    fee, slip = config.execution_fee_pct, config.execution_slippage_pct
+    # entry_price est le fill réel/simulé : son slippage est déjà payé.
+    break_even = entry_price * (1 + fee) / ((1 - fee) * (1 - slip))
+    net_gain = close * (1 - fee) * (1 - slip) - entry_price * (1 + fee)
+    if net_gain < config.profit_trailing_start_r * initial_distance:
+        return current_stop
+    candidate = max(break_even, close - config.profit_trailing_distance_r * initial_distance)
+    candidate = (candidate / price_tick).to_integral_value(rounding=ROUND_DOWN) * price_tick
+    # Arrondir le seuil de rentabilité vers le bas pourrait le rendre perdant.
+    if candidate < break_even:
+        candidate += price_tick
+    if candidate >= close:
+        return current_stop
+    return max(current_stop, candidate)
 
 
 def _positive(value: Decimal, name: str) -> Decimal:

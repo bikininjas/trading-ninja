@@ -125,6 +125,16 @@ RISK_PRESETS: dict[str, dict[str, str]] = {
 }
 
 
+RISK_PRESETS["progressif"] = {
+    **RISK_PRESETS["prudent"],
+    "MAX_NOTIONAL_PCT": "0.50",
+    "TAKE_PROFIT_R_MULTIPLE": "0",
+    "MIN_CONFIDENCE": "0.60",
+    "COST_AWARE": "true",
+    "PROFIT_TRAILING_ENABLED": "true",
+}
+
+
 # ---------------------------------------------------------------------------
 # Spécificités exchange
 # ---------------------------------------------------------------------------
@@ -305,7 +315,8 @@ class Settings:
 # ---------------------------------------------------------------------------
 
 
-def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, str] | None = None) -> Settings:
+def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, str] | None = None,
+                  *, use_environment: bool = True) -> Settings:
     """Charge la configuration. Lève RuntimeError si incohérente.
 
     Sans `env_file` : chaîne `backend/.env` → `.env` → `.env.local` → os.environ.
@@ -314,9 +325,10 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
     """
     if env_file is not None:
         merged: dict[str, str] = read_dotenv(Path(env_file))
-        merged.update(os.environ)
+        if use_environment:
+            merged.update(os.environ)
     else:
-        merged = load_env()
+        merged = load_env() if use_environment else {}
 
     if overrides:
         merged.update(overrides)
@@ -329,6 +341,8 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
     if profile not in RISK_PRESETS:
         raise RuntimeError(f"RISK_PROFILE inconnu : {profile!r} (connus: {', '.join(RISK_PRESETS)})")
     preset = RISK_PRESETS[profile]
+    if profile == "progressif" and mode != "paper":
+        raise RuntimeError("Le profil progressif reste réservé au mode paper jusqu'à validation")
 
     exchange_id = _env(merged, "EXCHANGE_ID", "binance").lower()
     if exchange_id not in EXCHANGE_KEY_ALIASES:
@@ -372,7 +386,22 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
             "Donchian/EMA20 lit des bougies Daily, pas H4."
         )
 
+    fee = Decimal(merged.get("TAKER_FEE_PCT", EXCHANGE_TAKER_FEE_DEFAULTS[exchange_id]))
+    slip_bps = Decimal(merged.get("PAPER_SLIPPAGE_BPS", "5"))
+    if not fee.is_finite() or not Decimal(0) < fee <= Decimal("0.05"):
+        raise RuntimeError("TAKER_FEE_PCT doit être fini et dans ]0, 5 %]")
+    if not slip_bps.is_finite() or not Decimal(0) <= slip_bps < Decimal(1000):
+        raise RuntimeError("PAPER_SLIPPAGE_BPS doit être fini et dans [0, 1000[")
     risk = RiskConfig(
+        cost_aware=_env_bool(merged, "COST_AWARE", preset.get("COST_AWARE", "false")),
+        execution_fee_pct=fee,
+        execution_slippage_pct=slip_bps / Decimal(10000),
+        opportunity_r_multiple=Decimal(merged.get("OPPORTUNITY_R_MULTIPLE", "4")),
+        min_net_reward_to_risk=Decimal(merged.get("MIN_NET_REWARD_TO_RISK", "1.5")),
+        profit_trailing_enabled=_env_bool(
+            merged, "PROFIT_TRAILING_ENABLED", preset.get("PROFIT_TRAILING_ENABLED", "false")),
+        profit_trailing_start_r=Decimal(merged.get("PROFIT_TRAILING_START_R", "2")),
+        profit_trailing_distance_r=Decimal(merged.get("PROFIT_TRAILING_DISTANCE_R", "1")),
         risk_per_trade_pct=Decimal(p("RISK_PER_TRADE_PCT")),
         max_notional_pct=Decimal(p("MAX_NOTIONAL_PCT")),
         max_position_notional_quote=Decimal(merged.get("MAX_POSITION_NOTIONAL_QUOTE", "2000")),

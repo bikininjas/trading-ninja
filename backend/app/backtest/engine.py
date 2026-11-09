@@ -40,6 +40,7 @@ from app.engine.risk_gate import (
 )
 from app.engine.entry_rule import evaluate_entry
 from app.execution.paper import Fill, PaperBroker
+from app.engine.exit_rule import advance_profit_stop
 from app.market.feed import (
     EMA_PERIOD,
     TIMEFRAME_MS,
@@ -401,6 +402,8 @@ def _simulate_exit(
     broker: PaperBroker,
     max_hold_candles: int = 0,
     stop_index: int | None = None,
+    config: RiskConfig | None = None,
+    price_tick: Decimal = Decimal("0.01"),
 ) -> tuple[int, Fill, str]:
     """Cherche la première sortie après l'entrée. Stop prioritaire sur le TP.
 
@@ -422,6 +425,13 @@ def _simulate_exit(
         if trigger is not None:
             price, reason = trigger
             return j, broker.exit(amount, price), reason
+        if config is not None:
+            stop = advance_profit_stop(
+                entry_price=broker.entry(decision, _decimal(h4[entry_index][4])).price,
+                initial_distance=decision.stop_distance_quote or Decimal(0),
+                current_stop=stop, close=_decimal(h4[j][4]),
+                price_tick=price_tick, config=config,
+            )
 
     price = _decimal(h4[last_index][4])
     return last_index, broker.exit(amount, price), "END_OF_WINDOW"
@@ -466,6 +476,13 @@ async def _simulate_trade(
             price, reason = trigger
             return j, broker.exit(amount, price), reason, exit_signals, False
 
+        stop = advance_profit_stop(
+            entry_price=broker.entry(decision, _decimal(h4[entry_index][4])).price,
+            initial_distance=decision.stop_distance_quote or Decimal(0),
+            current_stop=stop, close=_decimal(h4[j][4]),
+            price_tick=info.constraints.price_tick, config=config,
+        )
+
         at = _close_time(h4[j])
         try:
             state = build_snapshot(
@@ -504,6 +521,15 @@ def _max_drawdown(curve: list[tuple[datetime, Decimal]]) -> Decimal:
         if peak > 0:
             worst = max(worst, (peak - equity) / peak)
     return worst
+
+
+def _record_trade_curve(curve, h4, entry_index, exit_index, equity_before,
+                        entry, exit_fill, broker):
+    """Valorisation à chaque clôture, frais de liquidation inclus, sans futur."""
+    for j in range(entry_index, exit_index):
+        value = broker.exit(entry.amount, _decimal(h4[j][4]))
+        curve.append((_close_time(h4[j]), equity_before + _pnl(entry, value)))
+    curve.append((_close_time(h4[exit_index]), equity_before + _pnl(entry, exit_fill)))
 
 
 async def run_backtest(
@@ -603,12 +629,14 @@ async def run_backtest(
             if decision.approved:
                 entry = paper_broker.entry(decision, state.snapshot.price)
                 exit_index, exit_fill, reason = _simulate_exit(
-                    h4, i, decision, paper_broker, max_hold_candles, stop_index=last
+                    h4, i, decision, paper_broker, max_hold_candles, stop_index=last,
+                    config=config, price_tick=info.constraints.price_tick,
                 )
                 pnl = _pnl(entry, exit_fill)
+                _record_trade_curve(baseline_curve, h4, i, exit_index,
+                                    baseline_equity, entry, exit_fill, paper_broker)
                 baseline_equity += pnl
                 baseline_consecutive = 0 if pnl > 0 else baseline_consecutive + 1
-                baseline_curve.append((_close_time(h4[exit_index]), baseline_equity))
                 baseline_trades.append(
                     TradeRecord(
                         entry_at=at,
@@ -628,6 +656,7 @@ async def run_backtest(
                 )
                 i = exit_index + 1
             else:
+                rejections[str(decision.rejection_code)] += 1
                 i += 1
             continue
 
@@ -703,9 +732,9 @@ async def run_backtest(
             if reason in ("LLM_SELL", "LLM_HALT"):
                 llm_exits += 1
             pnl = _pnl(entry, exit_fill)
+            _record_trade_curve(curve, h4, i, exit_index, equity, entry, exit_fill, paper_broker)
             equity += pnl
             consecutive_losses = 0 if pnl > 0 else consecutive_losses + 1
-            curve.append((_close_time(h4[exit_index]), equity))
             trades.append(
                 TradeRecord(
                     entry_at=at,
@@ -748,7 +777,8 @@ async def run_backtest(
             if forced.approved:
                 entry = paper_broker.entry(forced, state.snapshot.price)
                 exit_index, exit_fill, reason = _simulate_exit(
-                    h4, i, forced, paper_broker, max_hold_candles, stop_index=last
+                    h4, i, forced, paper_broker, max_hold_candles, stop_index=last,
+                    config=config, price_tick=info.constraints.price_tick,
                 )
                 counterfactual_rows.append(
                     Counterfactual(

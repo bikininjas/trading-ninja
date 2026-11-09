@@ -1636,3 +1636,36 @@ les verrous live intacts, aucun ordre réel. La suite passe à 603 tests Python 
 
 **Validé par** : `pytest -q` → 603 passed ; `node --test test/` → 26 passed ;
 `bash scripts/check.sh` → TOUT EST VERT.
+
+
+---
+
+## D-069 — Progression modeste, coûts inclus et petit budget (2026-11-09)
+
+**Demande** : rechercher une progression modeste dans la durée et profiter des
+mouvements gagnants, sans objectif de gain quotidien ni hausse automatique du risque.
+
+**Décision** : profil `progressif` réservé au papier, perte prévue 0,5 % frais et
+glissement compris, exposition max 50 %, aucun relèvement pour financer un minimum
+exchange. L'exemple passe à Kraken/EUR et 9,37 EUR virtuels. Aucun `.env` local,
+secret, schéma, base ou verrou live modifié. Entrées H4 et LLM existants conservés.
+
+Le pare-feu compare un scénario hypothétique à +4 R au stop, ratio net minimal 1,5.
+Ce scénario filtre des coûts disproportionnés ; il ne prédit aucune probabilité
+de gain. Le stop suiveur démarre à +2 R net et suit à 1 R sous la clôture, sans
+TP fixe. Une seule fonction sert au runtime et au rejeu ; la même bougie ne peut
+pas déclencher rétrospectivement un stop qui vient d'être remonté. Les champs de
+risque historiques restent géométriques ; la décision ajoute la perte totale prévue.
+
+Le comparatif `scripts/compare_budgets.py` isole le budget sans LLM ni réseau.
+Le rejeu H4 valorise aussi les positions en cours (coûts de liquidation compris).
+La configuration originale du golden a été retrouvée par son empreinte exacte
+et versionnée ; les décisions et métriques de la fixture sont inchangées.
+Le script Node de vérification utilise un glob explicite, compatible avec Node 24.
+
+**Validation** : régression identique au golden, tests de coût/trailing/runtime,
+comparaison des budgets 9,37 / 25 / 50 / 1 000 EUR. Voir `PROGRESSION.md` pour les
+résultats et limites. La fenêtre courte reste perdante lorsqu'elle prend un trade ;
+aucune rentabilité démontrée et aucun ordre réel. Les défauts live de l'audit
+(kill-switch, fills partiels, états réseau inconnus) restent hors de cette étape et
+bloquent toujours une activation réelle.

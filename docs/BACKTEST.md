@@ -1,5 +1,11 @@
 # Backtest — mesurer les décisions, sans argent
 
+Le profil papier `progressif`, le comparatif hors ligne des petits budgets et ses
+limites sont décrits dans [PROGRESSION.md](PROGRESSION.md). Le rejeu H4 valorise
+désormais chaque clôture pendant la détention, coûts de liquidation compris.
+`replay` utilise la configuration versionnée `backtest_settings.json` lorsqu'elle
+est présente à côté du golden ; les décisions et métriques du golden restent intactes.
+
 ## Pourquoi
 
 Le moteur papier exécute une décision toutes les quatre heures sur des données

@@ -26,8 +26,12 @@ uv pip install -r requirements.txt -r requirements-dev.txt
 
 ## Commandes
 
+Le profil papier `progressif` et le comparatif de budgets sont décrits dans
+[`../docs/PROGRESSION.md`](../docs/PROGRESSION.md). L'exemple utilise 9,37 EUR
+virtuels ; il ne modifie pas les réglages locaux existants.
+
 ```bash
-.venv/bin/python -m pytest                     # 603 tests du moteur, du schéma, des sondes et du backtest
+.venv/bin/python -m pytest                     # 617 tests du moteur, du schéma, des sondes et du backtest
 .venv/bin/python -m app.main --once            # un cycle papier complet (données réelles)
 .venv/bin/python -m app.main --serve           # une évaluation par bougie H4 clôturée
 .venv/bin/python -m app.main --status          # état + 3 dernières lignes par table
@@ -43,6 +47,7 @@ uv pip install -r requirements.txt -r requirements-dev.txt
 .venv/bin/python scripts/totp_setup.py             # secret TOTP + QR (Authy)
 .venv/bin/python scripts/backtest.py record        # golden : décisions LLM (~2 min)
 .venv/bin/python scripts/backtest.py replay        # régression déterministe (< 1 s)
+.venv/bin/python scripts/compare_budgets.py        # budgets 9,37 / 25 / 50 / 1 000 EUR
 .venv/bin/python scripts/backtest.py watch         # veille de dérive
 .venv/bin/python scripts/backtest.py measure       # règle + LLM sur les 7 paires (réseau + LLM)
 .venv/bin/python scripts/backtest.py swing --months 60   # swing macro D1, sans LLM

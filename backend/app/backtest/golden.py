@@ -95,8 +95,17 @@ def prompt_fingerprint(settings: Any) -> str:
 
 def risk_fingerprint(settings: Any, info: Any) -> str:
     """Identité du risque, des frais et du capital de départ. Change les résultats."""
+    risk = asdict(settings.risk)
+    # Préserver l'identité des anciens profils lorsque les nouveaux mécanismes
+    # sont désactivés ; leur activation reste bien couverte par l'empreinte.
+    if not settings.risk.cost_aware and not settings.risk.profit_trailing_enabled:
+        for key in ("cost_aware", "execution_fee_pct", "execution_slippage_pct",
+                    "opportunity_r_multiple", "min_net_reward_to_risk",
+                    "profit_trailing_enabled", "profit_trailing_start_r",
+                    "profit_trailing_distance_r"):
+            risk.pop(key)
     payload = {
-        "risk": {key: str(value) for key, value in asdict(settings.risk).items()},
+        "risk": {key: str(value) for key, value in risk.items()},
         "taker_fee": str(info.taker_fee),
         "slippage_bps": str(settings.paper_slippage_bps),
         "start_equity": str(settings.paper_start_equity),

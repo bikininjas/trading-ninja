@@ -6,6 +6,34 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-09 — Objectif de progression modeste (D-069)
+
+Demande : préserver le petit capital, rechercher une progression nette de frais
+dans la durée et laisser de la place aux mouvements gagnants. Travail en papier,
+sans activation live ni modification des secrets. Profil papier `progressif`,
+perte prévue frais compris, trailing partagé runtime/rejeu, revalidation du sizing,
+valorisation des positions en cours et comparaison de budgets. Le golden charge
+sa configuration figée retrouvée par son empreinte : aucune décision ni métrique
+historique modifiée. Voir `PROGRESSION.md` pour les règles et la mesure courte.
+
+**Vérifié** (Python 3.12.14 disponible ici ; 3.15.2 prescrit non disponible) :
+
+```text
+cd backend && .venv/bin/python -m pytest          → 617 passed
+cd backend && .venv/bin/python scripts/backtest.py replay → identique au golden
+cd backend && .venv/bin/python scripts/compare_budgets.py → 12 scénarios
+cd dashboard && npm test                         → 26 passed via le contrôle global
+backend/.venv/bin/python scripts/index_codebase.py --check → à jour
+bash scripts/check.sh → échec uniquement sur verify_drawdowns : base non configurée
+```
+
+Le contrôle global a réellement exécuté `node --test test/*.test.js` (même commande
+que `npm test`). L'avertissement AGENTS.md à 603 tests est conservé sans éditer ce
+fichier. Aucun accès à la base déployée ni mesure multi-années ; aucune rentabilité
+validée. Sur la courte fenêtre mécanique, à 9,37 EUR le nouveau profil ne trade
+pas ; à 50 EUR il prend un trade perdant de 0,25 EUR (0,5 %), contre 0,9497 EUR en
+micro. Aucun fichier `.env` existant ni réglage déployé n'a été modifié.
+
 ## 2026-11-05 · 11:00 — Control plane étendu : kill-switch, réconciliation, télémétrie, audit LLM (D-068)
 
 **Fait** : audit puis implémentation des lacunes du dashboard et du backend. Trois

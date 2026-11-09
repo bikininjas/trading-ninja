@@ -34,7 +34,7 @@ from app.core.settings import RUNTIME_ALLOWED_KEYS, Settings, load_settings
 from app.db.repository import AccountSnapshot, PositionRow, PostgresRepository
 from app.engine.entry_rule import evaluate_entry
 from app.engine.exit_guard import OpenPosition, evaluate_exit
-from app.engine.exit_rule import should_exit_chandelier, update_chandelier_stop
+from app.engine.exit_rule import advance_profit_stop, should_exit_chandelier, update_chandelier_stop
 from app.engine.machine import (
     COOLDOWN, EVALUATING, EXECUTING, HALT, IDLE, IN_POSITION, LOCKED,
     POST_TRADE_SWEEP, StateMachine,
@@ -483,6 +483,13 @@ class Orchestrator:
             report.actions.append("aucune bougie clôturée depuis l'entrée")
             return
 
+        # Une nouvelle protection calculée à la clôture ne doit jamais être
+        # testée contre le plus bas de cette même bougie lors d'un second cycle.
+        # Le signal de surveillance est persisté : ce garde survit au redémarrage.
+        monitored_at = (await self._repo.last_signal_at(self._mode, position.symbol)
+                        if self._settings.risk.profit_trailing_enabled else None)
+        already_monitored = monitored_at is not None and monitored_at >= state.last_close_at
+
         # Le stop et le take-profit vivent dans la bougie : ils passent avant toute
         # décision du modèle, qui ne voit que la clôture. En live, le stop est
         # chez l'exchange : on ne le rejoue pas localement, sinon une même
@@ -497,6 +504,8 @@ class Orchestrator:
             trigger = self._broker.exit_trigger(
                 position.stop_loss_price, position.take_profit_price, last
             )
+        if already_monitored:
+            trigger = None
         if trigger is not None:
             exit_price, reason = trigger
             await self._close_trade(
@@ -504,6 +513,20 @@ class Orchestrator:
                 purpose="STOP_LOSS" if reason == "STOP_LOSS" else "TAKE_PROFIT",
             )
             return
+
+        if self._settings.risk.profit_trailing_enabled and not already_monitored:
+            candidate = advance_profit_stop(
+                entry_price=position.entry_price,
+                initial_distance=position.risk_amount_quote / position.amount,
+                current_stop=position.stop_loss_price,
+                close=Decimal(str(last[4])), price_tick=state.info.constraints.price_tick,
+                config=self._settings.risk,
+            )
+            moved = await self._move_stop(
+                position, candidate, report, live_state=live_state,
+                label="protection progressive des gains",
+            )
+            position = replace(position, stop_loss_price=moved)
 
         # -- gestion swing D1 : seuil de rentabilité puis sortie de tendance ----
         if self._settings.risk.entry_mode is EntryMode.SWING_MACRO_D1:
@@ -766,7 +789,7 @@ class Orchestrator:
     async def _evaluate_cycle(self, machine: StateMachine, account: AccountSnapshot,
                               report: CycleReport) -> None:
         await machine.go(EVALUATING, "cycle d'évaluation")
-        chosen: tuple[SymbolState, LLMSignal, Any, uuid.UUID, uuid.UUID] | None = None
+        chosen: tuple[SymbolState, LLMSignal, Any, uuid.UUID, uuid.UUID, datetime] | None = None
         account_state = self._account_state(account)
 
         for symbol in self._settings.exchange.allowed_symbols:
@@ -875,7 +898,7 @@ class Orchestrator:
                     f"risque {decision.effective_risk_quote:.4f}"
                 )
                 if chosen is None:
-                    chosen = (state, signal, decision, signal_id, evaluation_id)
+                    chosen = (state, signal, decision, signal_id, evaluation_id, signal_at)
             else:
                 await self._record_shadow(
                     kind="GATE_REJECTED_BUY", symbol=symbol, signal=signal,
@@ -890,14 +913,34 @@ class Orchestrator:
             await machine.go(IDLE, "aucune décision approuvée")
             return
 
-        state, signal, decision, signal_id, evaluation_id = chosen
+        state, signal, decision, signal_id, evaluation_id, signal_at = chosen
+        if self._settings.risk.cost_aware:
+            price = last_price(self._exchange, state.symbol)
+            moment = self._now()
+            fresh = replace(state.snapshot, price=price, tick_at=moment, now=moment)
+            decision = evaluate(
+                TradeIntent(Action.BUY, signal.confidence, MarketRegime(signal.market_regime)),
+                fresh, account_state, state.info.constraints, self._settings.risk,
+            )
+            evaluation_id, _ = await self._repo.insert_evaluation(
+                self._mode, state.symbol, signal_id=signal_id, signal_created_at=signal_at,
+                decision=decision, snapshot=fresh, account=account, evaluation_time_ms=0,
+                decision_timeframe=self._settings.exchange.daily_timeframe_decision,
+            )
+            report.evaluations += 1
+            if not decision.approved:
+                report.actions.append(f"{state.symbol} : entrée annulée à la revalidation ({decision.rejection_details})")
+                await machine.go(IDLE, "revalidation du risque refusée")
+                return
+            state = replace(state, snapshot=fresh)
         await machine.go(EXECUTING, f"entrée approuvée sur {state.symbol}")
         await self._enter(machine, state, decision, signal_id, evaluation_id, account, report)
 
     async def _enter(self, machine: StateMachine, state: SymbolState, decision: Any,
                      signal_id: uuid.UUID, evaluation_id: uuid.UUID,
                      account: AccountSnapshot, report: CycleReport) -> None:
-        price = last_price(self._exchange, state.symbol)
+        price = (state.snapshot.price if self._settings.risk.cost_aware
+                 else last_price(self._exchange, state.symbol))
         fill = await self._maybe_await(
             self._broker.entry(decision, price, symbol=state.symbol)
         )

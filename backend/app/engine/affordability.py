@@ -23,9 +23,10 @@ Le calcul ne relâche aucun garde-fou : il dit seulement où est le mur.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, ROUND_CEILING
 
 from app.engine.risk_gate import ExchangeConstraints, RiskConfig
+from app.engine.costs import entry_cost, planned_loss
 
 __all__ = ["Affordability", "assess"]
 
@@ -77,8 +78,17 @@ def assess(
         raise ValueError("le budget de risque doit être strictement positif")
 
     stop_distance_pct = (config.stop_atr_multiple * atr_14) / price
-    min_order_quote = max(constraints.min_amount * price, constraints.min_notional)
-    risk_at_minimum = min_order_quote * stop_distance_pct / equity
+    minimum_amount = max(constraints.min_amount, constraints.min_notional / price)
+    minimum_amount = (minimum_amount / constraints.amount_step).to_integral_value(
+        rounding=ROUND_CEILING) * constraints.amount_step
+    min_order_quote = minimum_amount * price
+    loss_per_unit = price * stop_distance_pct
+    if config.cost_aware:
+        stop = price - loss_per_unit
+        stop = (stop // constraints.price_tick) * constraints.price_tick
+        loss_per_unit = planned_loss(price, stop, config.execution_fee_pct,
+                                     config.execution_slippage_pct)
+    risk_at_minimum = minimum_amount * loss_per_unit / equity
 
     if min_order_quote > config.max_position_notional_quote:
         return Affordability(
@@ -92,7 +102,7 @@ def assess(
             equity=equity,
         )
 
-    required_by_risk = min_order_quote * stop_distance_pct / effective_risk
+    required_by_risk = minimum_amount * loss_per_unit / effective_risk
     required_by_exposure = min_order_quote / config.max_notional_pct
     binding = "risk" if required_by_risk >= required_by_exposure else "exposure"
     required_equity = max(required_by_risk, required_by_exposure)

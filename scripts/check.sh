@@ -159,7 +159,7 @@ if command -v node >/dev/null 2>&1; then
   else
     ko "server.js : erreur de syntaxe"
   fi
-  if OUT=$(cd "$ROOT/dashboard" && node --test test/ 2>&1); then
+  if OUT=$(cd "$ROOT/dashboard" && node --test test/*.test.js 2>&1); then
     N=$(printf '%s\n' "$OUT" | grep -E '^ℹ pass' | grep -oE '[0-9]+' | head -1)
     ok "${N:-18} tests dashboard — zéro dépendance"
   else

@@ -203,7 +203,15 @@ async def record(args) -> int:
 
 
 async def replay(args) -> int:
-    settings = with_overrides(load_settings(), args)
+    settings_path = Path(args.golden).with_name("backtest_settings.json")
+    if settings_path.exists():
+        settings = load_settings(
+            overrides=json.loads(settings_path.read_text()), use_environment=False,
+        )
+        print(f"Configuration de régression figée : {settings_path}")
+    else:
+        settings = load_settings()
+    settings = with_overrides(settings, args)
     bundle = load_bundle(args.golden)
     current_prompt = prompt_fingerprint(settings)
     if current_prompt != bundle.prompt_fingerprint and not args.bless:

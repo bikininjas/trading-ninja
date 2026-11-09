@@ -25,6 +25,8 @@ from datetime import datetime, timedelta
 from decimal import ROUND_DOWN, Decimal
 from enum import StrEnum
 
+from app.engine.costs import entry_cost, exit_proceeds, planned_loss
+
 __all__ = [
     "Action",
     "AccountState",
@@ -221,6 +223,15 @@ class RiskConfig:
     max_notional_pct: Decimal = Decimal("0.20")  # exposition max par position
     max_position_notional_quote: Decimal = Decimal("2000")  # plafond absolu, anti-bug
     fee_buffer_pct: Decimal = Decimal("0.002")  # marge pour frais taker A/R
+    # Opt-in : le profil progressif borne la perte prévue frais/glissement compris.
+    cost_aware: bool = False
+    execution_fee_pct: Decimal = Decimal("0")
+    execution_slippage_pct: Decimal = Decimal("0")
+    opportunity_r_multiple: Decimal = Decimal("4")
+    min_net_reward_to_risk: Decimal = Decimal("1.5")
+    profit_trailing_enabled: bool = False
+    profit_trailing_start_r: Decimal = Decimal("2")
+    profit_trailing_distance_r: Decimal = Decimal("1")
 
     # --- Stop / sortie ------------------------------------------------------
     stop_atr_multiple: Decimal = Decimal("2.5")  # aligné sur l'ATR du timeframe de décision
@@ -305,6 +316,17 @@ class RiskConfig:
     min_halt_confidence: Decimal = Decimal("0.80")
 
     def __post_init__(self) -> None:
+        for name in ("execution_fee_pct", "execution_slippage_pct"):
+            value = getattr(self, name)
+            if not value.is_finite() or not Decimal(0) <= value < Decimal("0.1"):
+                raise ValueError(f"{name} doit être fini et dans [0, 10 %[")
+        for name in ("opportunity_r_multiple", "min_net_reward_to_risk",
+                     "profit_trailing_start_r", "profit_trailing_distance_r"):
+            value = getattr(self, name)
+            if not value.is_finite() or value <= 0:
+                raise ValueError(f"{name} doit être fini et > 0")
+        if self.profit_trailing_distance_r >= self.profit_trailing_start_r:
+            raise ValueError("le trailing doit démarrer au-delà de sa distance")
         if not (Decimal("0") < self.risk_per_trade_pct <= Decimal("0.05")):
             raise ValueError(
                 "risk_per_trade_pct doit être dans ]0, 5%] : au-delà, ce n'est plus du trading "
@@ -412,6 +434,7 @@ class RiskDecision:
     effective_risk_pct: Decimal | None = None
 
     checks_passed: tuple[str, ...] = field(default_factory=tuple)
+    estimated_total_loss_quote: Decimal | None = None
 
     @property
     def ok(self) -> bool:
@@ -676,6 +699,30 @@ def _evaluate(
     if actual_distance <= 0:
         return _reject(RejectionCode.INVALID_STOP_LOSS_CALCULATION, "distance de stop nulle", passed)
 
+    budget_distance = actual_distance
+    if config.cost_aware:
+        budget_distance = planned_loss(
+            market.price, stop_price, config.execution_fee_pct,
+            config.execution_slippage_pct,
+        )
+        # Un scénario de comparaison, jamais une promesse de mouvement du marché.
+        target_r = (config.take_profit_r_multiple if config.take_profit_r_multiple > 0
+                    else config.opportunity_r_multiple)
+        target = _floor_to(market.price + target_r * actual_distance,
+                           constraints.price_tick)
+        reward = exit_proceeds(target, config.execution_fee_pct,
+                               config.execution_slippage_pct) - entry_cost(
+            market.price, config.execution_fee_pct, config.execution_slippage_pct,
+        )
+        if reward < config.min_net_reward_to_risk * budget_distance:
+            return _reject(
+                RejectionCode.RISK_LIMIT_EXCEEDED,
+                "coûts disproportionnés : gain net du scénario "
+                f"{target_r} R / perte prévue = {reward / budget_distance:.2f}, "
+                f"minimum {config.min_net_reward_to_risk}", passed,
+            )
+        passed.append("net_cost_scenario")
+
     if account.free_quote <= 0:
         return _reject(
             RejectionCode.INSUFFICIENT_FREE_BALANCE,
@@ -698,7 +745,7 @@ def _evaluate(
         # minimum notionnel de l'exchange. Sans lui, 1,75 % de 20 EUR avec un stop
         # à 5 % ne finance que 7 EUR et aucun ordre ne passe.
         minimum_amount = constraints.min_notional / market.price
-        required_risk = minimum_amount * actual_distance
+        required_risk = minimum_amount * budget_distance
         required_pct = required_risk / account.equity_quote
         if required_pct > config.small_account_max_risk_pct:
             return _reject(
@@ -712,7 +759,7 @@ def _evaluate(
     intended_risk = account.equity_quote * risk_pct
 
     # Trois plafonds concurrents : le risque nominal, l'exposition, le cash réel.
-    max_by_risk = intended_risk / actual_distance
+    max_by_risk = intended_risk / budget_distance
     if (config.small_account_full_allocation
             and account.equity_quote < config.small_account_threshold_quote):
         # Petit compte : le minimum notionnel de l'exchange est le vrai plancher.
@@ -754,7 +801,8 @@ def _evaluate(
     # -- 10. Vérification finale : jamais plus de risque que demandé ---------
     effective_risk = amount * actual_distance
     effective_risk_pct = effective_risk / account.equity_quote
-    if effective_risk_pct > risk_pct:
+    estimated_total_loss = amount * budget_distance
+    if estimated_total_loss > intended_risk:
         # Ne doit jamais arriver ; si ça arrive, le calcul est faux => on refuse.
         return _reject(
             RejectionCode.RISK_LIMIT_EXCEEDED,
@@ -780,5 +828,6 @@ def _evaluate(
         intended_risk_quote=intended_risk,
         effective_risk_quote=effective_risk,
         effective_risk_pct=effective_risk_pct,
+        estimated_total_loss_quote=estimated_total_loss,
         checks_passed=tuple(passed),
     )

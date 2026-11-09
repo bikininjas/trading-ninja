@@ -90,7 +90,7 @@ async def _serve(orchestrator: Orchestrator, timeframe: str, *, max_cycles: int 
 
 
 async def _run(args: argparse.Namespace) -> int:
-    settings: Settings = load_settings()
+    settings: Settings = load_settings(env_file=args.config)
     if settings.mode == "testnet":
         print(
             "REFUS : Kraken spot n'a pas de testnet dans CCXT 4.5.91. "
@@ -134,7 +134,10 @@ async def _run(args: argparse.Namespace) -> int:
             print("  modèle chargé" if ready else "  ATTENTION : préchauffage impossible, "
                   "les appels risquent de basculer en repli")
         broker = make_broker(settings, exchange, settings.exchange.allowed_symbols)
-        orchestrator = Orchestrator(settings, repo, exchange, client, broker)
+        orchestrator = Orchestrator(
+            settings, repo, exchange, client, broker,
+            settings_loader=lambda **kwargs: load_settings(env_file=args.config, **kwargs),
+        )
 
         if args.serve:
             await _serve(
@@ -157,6 +160,7 @@ async def _run(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Moteur de trading — mode papier")
+    parser.add_argument("--config", help="fichier de configuration explicite (les variables d'environnement restent prioritaires)")
     parser.add_argument("--once", action="store_true", help="un seul cycle (défaut)")
     parser.add_argument("--cycles", type=int, default=1, help="nombre de cycles")
     parser.add_argument("--interval", type=float, default=60.0,
