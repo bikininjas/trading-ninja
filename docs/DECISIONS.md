@@ -1669,3 +1669,43 @@ résultats et limites. La fenêtre courte reste perdante lorsqu'elle prend un tr
 aucune rentabilité démontrée et aucun ordre réel. Les défauts live de l'audit
 (kill-switch, fills partiels, états réseau inconnus) restent hors de cette étape et
 bloquent toujours une activation réelle.
+
+
+---
+
+## D-070 — Capital séparé, surplus réalisé et croissance par paliers (2026-11-09)
+
+**Demande** : rendre solide la progression d'une faible mise : protéger un petit
+surplus, accumuler une cagnotte et ne relever l'enveloppe que par petits pas.
+
+**Décision** : profil `progressif` papier, capital actif seul utilisé pour le sizing,
+30 % des nouveaux plus hauts de PnL global réalisé en réserve, 70 % en cagnotte.
+Affectation immédiate au quantum NUMERIC(28,10). Seuil 1 EUR, palier 0,25 EUR
+plafonné à 5 % du capital actif, intervalle minimal 7 jours, plafond actif 20 EUR
+configurable. Aucune recharge des pertes depuis les enveloppes mises de côté,
+aucune promotion sur panic ou avant récupération du drawdown réalisé.
+
+Migration additive 0010 : comptes, événements uniques par position, intentions
+de sortie et curseur papier. Les anciens comptes ne sont initialisés qu'à plat,
+avec reprise de leur réserve existante et sans historique de bénéfices redistribué.
+La désactivation d'un contrôleur existant exige une réconciliation explicite.
+Aucune migration passée n'est modifiée, aucun schéma déployé n'est touché ici.
+
+Clôtures atomiques et idempotence par position ; intention durable avant vente
+réelle, résultat confirmé avant comptabilité, aucune relance automatique d'une
+vente incertaine. Verrou de transaction sur une connexion distincte, compatible
+pooler transaction et sans annuler la durabilité des intentions. Frais effectifs
+partagés entre broker, sizing et trailing. Réserve virtuelle soustraite du cash
+exchange. Curseur et stop papier atomiques ; toutes les bougies non traitées sont
+rejouées et un trou bloque la reprise. Le contrôle de permissions Kraken est
+également branché au démarrage live, sans activer ce mode.
+
+Panic papier et rejeu H4 utilisent le même contrôleur. Dashboard : capital actif,
+réserve et cagnotte ; correction de l'accès à `resetButton` avant son initialisation,
+qui empêchait le chargement du client. Voir `PROGRESSION.md` pour les limites.
+
+**Validation** : 643 tests Python, dont 6 sur PostgreSQL 17 local (rollback de
+clôture, conservation du capital, idempotence, curseur, droits, concurrence et panic),
+26 tests Node, golden strictement inchangé, comparatif de budgets et Chromium
+bureau/mobile. Dix migrations appliquées depuis zéro sur une seconde base locale.
+Ces preuves valident la mécanique ; aucune rentabilité ni exécution réelle validée.

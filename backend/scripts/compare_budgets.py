@@ -49,6 +49,10 @@ async def compare(golden: Path, budgets: list[Decimal], profiles: list[str]) -> 
                 "equity_end": str(result.baseline_equity_end),
                 "max_drawdown_pct": str(result.baseline_max_drawdown_pct),
                 "rejections": dict(result.rejections),
+                "active_capital": str(result.baseline_capital.active_quote) if result.baseline_capital else str(result.baseline_equity_end),
+                "protected_reserve": str(result.baseline_capital.reserve_quote) if result.baseline_capital else "0",
+                "growth_pot": str(result.baseline_capital.growth_quote) if result.baseline_capital else "0",
+                "promotions": result.baseline_capital.promotions if result.baseline_capital else 0,
                 "warning": "Fenêtre courte, achats mécaniques sans LLM ; aucune validation de rentabilité.",
             })
     return rows

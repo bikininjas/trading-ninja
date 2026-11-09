@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import statistics
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, replace, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Awaitable, Callable
@@ -41,6 +41,7 @@ from app.engine.risk_gate import (
 from app.engine.entry_rule import evaluate_entry
 from app.execution.paper import Fill, PaperBroker
 from app.engine.exit_rule import advance_profit_stop
+from app.engine.capital import start_capital, allocate_close, CapitalState, CapitalPolicy
 from app.market.feed import (
     EMA_PERIOD,
     TIMEFRAME_MS,
@@ -119,6 +120,8 @@ class BacktestResult:
     sell: int = 0
     halt: int = 0
     llm_exits: int = 0
+    capital: CapitalState | None = None
+    baseline_capital: CapitalState | None = None
 
     # -- dérivés ---------------------------------------------------------
 
@@ -462,6 +465,7 @@ async def _simulate_trade(
     if amount is None or stop is None:
         raise ValueError("sortie simulée sans quantité ou sans stop")
 
+    config = replace(config, execution_fee_pct=broker.execution_fee_pct)
     replay = ReplayExchange(h4, h1)
     ceiling = len(h4) - 1 if stop_index is None else min(stop_index, len(h4) - 1)
     last_index = ceiling if max_hold_candles <= 0 else min(
@@ -555,6 +559,7 @@ async def run_backtest(
 
     config: RiskConfig = settings.risk
     paper_broker = broker or PaperBroker(info.taker_fee, settings.paper_slippage_bps)
+    config = replace(config, execution_fee_pct=paper_broker.execution_fee_pct)
     replay = ReplayExchange(h4, h1)
 
     first = start_index if start_index is not None else EMA_PERIOD + 1
@@ -578,6 +583,9 @@ async def run_backtest(
     baseline_equity = equity
     baseline_curve: list[tuple[datetime, Decimal]] = [(_close_time(h4[first - 1]), equity)]
     baseline_consecutive = 0
+    policy = getattr(settings, "capital_policy", CapitalPolicy())
+    capital = start_capital(equity, _close_time(h4[first-1])) if policy.enabled else None
+    baseline_capital = capital
 
     i = first
     while i <= last:
@@ -618,12 +626,12 @@ async def run_backtest(
                 market_regime=MarketRegime.TRENDING_UP,
             )
             account = AccountState(
-                equity_quote=baseline_equity,
-                free_quote=baseline_equity,
+                equity_quote=baseline_capital.active_quote if baseline_capital else baseline_equity,
+                free_quote=baseline_capital.active_quote if baseline_capital else baseline_equity,
                 consecutive_losses=baseline_consecutive,
                 daily_drawdown_pct=_drawdowns(baseline_curve, at)[0],
                 weekly_drawdown_pct=_drawdowns(baseline_curve, at)[1],
-                drawdown_from_hwm_pct=_drawdowns(baseline_curve, at)[2],
+                drawdown_from_hwm_pct=max(_drawdowns(baseline_curve, at)[2], baseline_capital.active_drawdown if baseline_capital else Decimal(0)),
             )
             decision = evaluate(intent, state.snapshot, account, info.constraints, config)
             if decision.approved:
@@ -633,9 +641,14 @@ async def run_backtest(
                     config=config, price_tick=info.constraints.price_tick,
                 )
                 pnl = _pnl(entry, exit_fill)
+                if baseline_capital is not None:
+                    pnl = pnl.quantize(Decimal("0.0000000001"))
                 _record_trade_curve(baseline_curve, h4, i, exit_index,
                                     baseline_equity, entry, exit_fill, paper_broker)
-                baseline_equity += pnl
+                if baseline_capital is not None:
+                    baseline_capital = allocate_close(baseline_capital, pnl.quantize(Decimal('0.0000000001')),
+                                                      _close_time(h4[exit_index]), policy)
+                baseline_equity = baseline_capital.total if baseline_capital else baseline_equity + pnl
                 baseline_consecutive = 0 if pnl > 0 else baseline_consecutive + 1
                 baseline_trades.append(
                     TradeRecord(
@@ -699,12 +712,12 @@ async def run_backtest(
             thesis=str(getattr(signal, "thesis", "")),
         )
         account = AccountState(
-            equity_quote=equity,
-            free_quote=equity,
+            equity_quote=capital.active_quote if capital else equity,
+            free_quote=capital.active_quote if capital else equity,
             consecutive_losses=consecutive_losses,
             daily_drawdown_pct=_drawdowns(curve, at)[0],
             weekly_drawdown_pct=_drawdowns(curve, at)[1],
-            drawdown_from_hwm_pct=_drawdowns(curve, at)[2],
+            drawdown_from_hwm_pct=max(_drawdowns(curve, at)[2], capital.active_drawdown if capital else Decimal(0)),
         )
         decision = evaluate(intent, state.snapshot, account, info.constraints, config)
 
@@ -732,8 +745,13 @@ async def run_backtest(
             if reason in ("LLM_SELL", "LLM_HALT"):
                 llm_exits += 1
             pnl = _pnl(entry, exit_fill)
+            if capital is not None:
+                pnl = pnl.quantize(Decimal("0.0000000001"))
             _record_trade_curve(curve, h4, i, exit_index, equity, entry, exit_fill, paper_broker)
-            equity += pnl
+            if capital is not None:
+                capital = allocate_close(capital, pnl.quantize(Decimal('0.0000000001')),
+                                         _close_time(h4[exit_index]), policy, allow_promotion=not halted_trade)
+            equity = capital.total if capital else equity + pnl
             consecutive_losses = 0 if pnl > 0 else consecutive_losses + 1
             trades.append(
                 TradeRecord(
@@ -769,7 +787,7 @@ async def run_backtest(
                     consecutive_losses=consecutive_losses,
                     daily_drawdown_pct=_drawdowns(curve, at)[0],
                     weekly_drawdown_pct=_drawdowns(curve, at)[1],
-                    drawdown_from_hwm_pct=_drawdowns(curve, at)[2],
+                    drawdown_from_hwm_pct=max(_drawdowns(curve, at)[2], capital.active_drawdown if capital else Decimal(0)),
                 ),
                 info.constraints,
                 config,
@@ -836,4 +854,5 @@ async def run_backtest(
         sell=sell,
         halt=halt,
         llm_exits=llm_exits,
+        capital=capital, baseline_capital=baseline_capital,
     )

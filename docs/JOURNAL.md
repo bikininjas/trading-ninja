@@ -6,6 +6,34 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-09 — Capital protégé et paliers vérifiés (D-070)
+
+Trois enveloppes et nouveau surplus réalisé, réserve immédiate, paliers bornés,
+comptabilité atomique des clôtures, reprise sans revente, frais partagés, curseur
+papier avec rejeu des bougies manquées, panic papier et comparatif H4 alignés.
+La migration 0010 reste à appliquer sur la base de déploiement. Aucun ordre réel,
+aucun secret ni réglage local existant changé.
+
+**Vérifié** : 643 tests Python dont 6 contre PostgreSQL 17 jetable local ; 26 tests
+Node ; golden identique sans bless ; comparatif hors ligne ; dix migrations
+appliquées par le coureur officiel sur une seconde base locale vide. Chromium
+bureau/mobile affiche les trois enveloppes sans erreur JS ni débordement horizontal.
+L'erreur préexistante `resetButton` avant initialisation est corrigée. Le contrôle
+global passe sur les bases locales ; seule alerte : AGENTS.md conserve son compteur
+historique à 603 tests. Les contrats
+SQL opt-in sont comptés comme collectés dans le contrôle documentaire lorsqu'ils
+sont sautés faute de base locale. Index régénéré et diff vérifié.
+
+La fenêtre reste sans trade à 9,37 EUR, et perdante lorsqu'elle trade. Aucun
+avantage statistique démontré ; le mode progressif demeure papier uniquement.
+
+## 2026-11-09 — Démarrage du durcissement du capital (2.17)
+
+Autorisé : rendre la progression par petits paliers solide, sur la branche de la
+PR #1. Réserve protégée, cagnotte, surplus réalisé et reprises après interruption
+sont traités ensemble ; aucune activation live ni migration de la base déployée.
+Validation à compléter par les tests et une base PostgreSQL locale.
+
 ## 2026-11-09 — Relecture documentaire de la PR #1
 
 Mise à jour de l'architecture sur BUY/SELL/HALT, du point d'entrée et des étapes

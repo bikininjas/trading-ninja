@@ -913,6 +913,11 @@
     setText('equity', money(status.equity));
     setText('free', money(status.free_quote));
     setText('reserve', money(status.reserve_quote));
+    setText('active-capital', money(status.active_equity ?? status.free_quote));
+    setText('growth-pot', money(status.growth_quote ?? '0'));
+    if (status.capital_steps?.next_review_at) {
+      setText('growth-step', `${status.capital_steps.promotions} palier(s) · ajout max. ${money(status.capital_steps.step_quote)} EUR, au plus tous les ${status.capital_steps.interval_days} jours`);
+    }
     const drawdown = toNumber(status.drawdowns?.from_hwm);
     setText('drawdown', percent(drawdown));
     const drawdownElement = $('drawdown');
@@ -1009,6 +1014,7 @@
   $('pause')?.addEventListener('click', () => control('pause'));
   $('resume')?.addEventListener('click', () => control('resume'));
   $('halt-resume')?.addEventListener('click', () => control('resume'));
+  const resetButton = $('reset-cb');
   resetButton?.addEventListener('click', async () => {
     const code = window.prompt('Code Authy à 6 chiffres') || '';
     if (!/^\d{6}$/.test(code.trim())) {
@@ -1056,10 +1062,6 @@
   });
   $('reconcile-close')?.addEventListener('click', () => $('reconcile-dialog')?.close());
 
-  const resetButton = $('reset-cb');
-  // Affiché uniquement si l'état est verrouillé ; mis à jour dans render().
-  const originalRender = render;
-  // no-op wrapper not needed
 
   const dialog = $('panic-dialog');
   $('panic')?.addEventListener('click', () => {

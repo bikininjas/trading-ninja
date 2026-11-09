@@ -42,6 +42,10 @@ class PaperBroker:
         self._taker = taker_fee
         self._slippage = Decimal(slippage_bps) / Decimal(10_000)
 
+    @property
+    def execution_fee_pct(self) -> Decimal:
+        return self._taker
+
     def fee(self, notional_quote: Decimal) -> Decimal:
         """Frais taker d'un notionnel donné, pour reconstruire un coût d'entrée."""
         return notional_quote * self._taker

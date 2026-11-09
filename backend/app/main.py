@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.core.settings import Settings, load_settings
 from app.db.repository import PostgresRepository
-from app.exchange.kraken import build_exchange
+from app.exchange.kraken import build_exchange, verify_key_permissions
 from app.execution.factory import make_broker
 from app.llm.client import SignalClient
 from app.runtime.orchestrator import CycleReport, Orchestrator
@@ -110,6 +110,7 @@ async def _run(args: argparse.Namespace) -> int:
         )
         exchange.load_markets()
         if settings.mode == "live":
+            verify_key_permissions(exchange)
             # On ne démarre jamais en live sur un état douteux : une position
             # sans stop couvrant doit être liquidée ou réconciliée avant tout.
             plan = await inspect_exchange(

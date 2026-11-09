@@ -11,6 +11,14 @@ Statuts : ⬜ à faire · 🟨 en cours · ✅ fait et vérifié · ⛔ bloqué 
 
 ## Vue d'ensemble
 
+- ✅ **2.17 — Capital protégé et croissance par paliers** *(2026-11-09)* :
+  journal comptable, surplus global réalisé, réserve immédiate, cagnotte de croissance,
+  reprise atomique des clôtures et stops papier, coûts partagés et rejeu de la politique.
+  Réservé au papier ; 643 tests Python dont 6 PostgreSQL locaux, 26 Node, golden
+  inchangé et contrôle navigateur bureau/mobile. La base déployée et la rentabilité
+  multi-années restent non validées. Détails : D-070 et `PROGRESSION.md`.
+
+
 - ✅ **2.16 — Progression à petit budget, mécanique papier** *(2026-11-09)* : profil
   papier à 9,37 EUR, budget de perte frais compris, stop suiveur commun au moteur
   et au rejeu, comparaison des budgets sans relâcher automatiquement le risque.

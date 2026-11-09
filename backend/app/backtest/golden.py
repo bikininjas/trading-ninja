@@ -110,6 +110,8 @@ def risk_fingerprint(settings: Any, info: Any) -> str:
         "slippage_bps": str(settings.paper_slippage_bps),
         "start_equity": str(settings.paper_start_equity),
     }
+    if getattr(settings, 'capital_policy', None) and settings.capital_policy.enabled:
+        payload['capital_policy'] = {key: str(value) for key, value in asdict(settings.capital_policy).items()}
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True).encode("utf-8")
     ).hexdigest()

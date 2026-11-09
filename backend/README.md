@@ -31,7 +31,7 @@ Le profil papier `progressif` et le comparatif de budgets sont décrits dans
 virtuels ; il ne modifie pas les réglages locaux existants.
 
 ```bash
-.venv/bin/python -m pytest                     # 617 tests du moteur, du schéma, des sondes et du backtest
+.venv/bin/python -m pytest                     # 643 tests du moteur, du schéma, des sondes et du backtest
 .venv/bin/python -m app.main --once            # un cycle papier complet (données réelles)
 .venv/bin/python -m app.main --serve           # une évaluation par bougie H4 clôturée
 .venv/bin/python -m app.main --status          # état + 3 dernières lignes par table
@@ -120,3 +120,22 @@ SUPABASE_POOLER_REGION=eu-west-1
 - Activer sur un nouveau clone : `git config core.hooksPath .githooks`.
 - Le mode réel exige deux gestes explicites : `TRADING_MODE=live` **et**
   `I_UNDERSTAND_REAL_MONEY=true`.
+
+
+## Vérification des enveloppes et de PostgreSQL
+
+La suite collecte 643 tests Python, dont 6 contrats SQL opt-in ; sans base locale,
+ces six tests sont sautés. Pour les exécuter, utiliser une base PostgreSQL 17
+**jetable locale**, migrée par `scripts/db_migrate.py apply`, avec les rôles
+`anon` et `authenticated` créés pour le contrôle des droits. Les tests refusent
+une cible autre que localhost:55432 et annulent chaque transaction.
+
+```bash
+TN_TEST_DATABASE_URL='postgresql://postgres:mot_de_passe_local@127.0.0.1:55432/base_test' .venv/bin/python -m pytest tests/test_capital_postgres.py
+# Navigateur optionnel : Python avec Playwright et Chromium installés.
+python scripts/check_dashboard_browser.py /tmp/captures-capital  # depuis la racine du dépôt
+```
+
+Les règles, l'initialisation d'un compte papier existant et les limites des paliers
+sont dans `docs/PROGRESSION.md`. Le plafond actif de l'exemple est 20 EUR ; il ne
+force aucune réduction d'une enveloppe initiale plus grande, mais bloque sa promotion.

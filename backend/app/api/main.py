@@ -112,6 +112,7 @@ async def _default_liquidate(repo: PostgresRepository, config: Settings) -> list
         repo, exchange, broker, config.execution_mode,
         quote_currency=config.exchange.quote_currency,
         starting_equity=config.paper_start_equity,
+        capital_policy=config.capital_policy,
     )
 
 

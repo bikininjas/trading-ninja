@@ -131,22 +131,24 @@ async def test_runtime_raises_the_same_stop_as_the_replay(monkeypatch):
     from app.engine.machine import StateMachine, IN_POSITION
     pos = PositionRow(id=uuid.uuid4(),symbol='BTC/EUR',entry_price=D(100),
         amount=D('.05'),stop_loss_price=D(95),take_profit_price=None,
-        opened_at=NOW-timedelta(hours=1),risk_amount_quote=D('.25'))
+        opened_at=NOW-timedelta(hours=1),risk_amount_quote=D('.25'),
+        monitor_cursor_at=NOW-timedelta(hours=4))
     repo = FakeRepo(state=IN_POSITION,position=pos)
-    repo.update_position_stop = AsyncMock()
+    repo.advance_paper_position = AsyncMock(wraps=repo.advance_paper_position)
     settings = load_settings(use_environment=False, overrides={
         'RISK_PROFILE':'progressif','EXCHANGE_ID':'kraken','PAPER_START_EQUITY':'9.37'})
     monkeypatch.setattr(module,'build_snapshot',lambda *a,**kw:symbol_state(price='115'))
-    monkeypatch.setattr(module,'closed_candles',lambda *a,**kw:[[0,100,116,96,115,1]])
+    monkeypatch.setattr(module,'closed_candles',lambda *a,**kw:[[int((NOW-timedelta(hours=4)).timestamp()*1000),100,116,96,115,1]])
     monkeypatch.setattr(module,'last_price',lambda *a,**kw:D(115))
     bot = module.Orchestrator(settings,repo,object(),FakeLLM(llm_signal('HOLD')),
                                PaperBroker(D('.008'),5),now=lambda:NOW)
     report = module.CycleReport('PAPER',IN_POSITION,IN_POSITION)
     await bot._monitor(StateMachine(repo,'PAPER',IN_POSITION),pos,repo.account_snapshot,report)
-    repo.update_position_stop.assert_awaited_once_with(pos.id,D(110))
+    assert repo.position.stop_loss_price == D(110)
+    repo.advance_paper_position.assert_awaited_once()
     assert repo.closed is None
     await bot._monitor(StateMachine(repo,'PAPER',IN_POSITION),
-                       replace(pos,stop_loss_price=D(110)),repo.account_snapshot,report)
+                       repo.position,repo.account_snapshot,report)
     assert repo.closed is None  # Ne pas rejouer le low=96 contre le nouveau stop.
 
 

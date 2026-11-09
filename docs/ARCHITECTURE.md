@@ -31,7 +31,7 @@ choisit ni quantité, ni prix, ni stop : toute la géométrie vient du code.
 
 ## 2. Ce qui existe, ce qui n'existe pas
 
-**617 tests** Python et **26 tests** Node (643 au total), répartis ci-dessous.
+**643 tests** Python et **26 tests** Node (669 au total), répartis ci-dessous.
 
 | Composant | Fichier | État |
 |---|---|---|

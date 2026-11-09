@@ -25,6 +25,7 @@ from typing import Mapping
 from app.core.db import DatabaseConfig
 from app.core.db import from_env as database_from_env
 from app.core.env import load_env, read_dotenv
+from app.engine.capital import CapitalPolicy
 from app.engine.risk_gate import EntryMode, RiskConfig, StopMode, SwingExitMode
 
 __all__ = ["Settings", "ExchangeSettings", "LLMSettings", "load_settings", "RISK_PRESETS"]
@@ -279,6 +280,7 @@ class Settings:
     admin_password_hash: str = field(default="", repr=False)
     paper_start_equity: Decimal = Decimal("0")
     paper_slippage_bps: int = 5
+    capital_policy: CapitalPolicy = field(default_factory=CapitalPolicy)
     sweep_ratio: Decimal = Decimal("0.30")
     sweep_min_transfer_quote: Decimal = Decimal("1.00")
     halt_auto_resume_hours: int = 24
@@ -467,6 +469,23 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
         min_halt_confidence=Decimal(merged.get("MIN_HALT_CONFIDENCE", "0.80")),
     )
 
+    try:
+        capital_policy = CapitalPolicy(
+            enabled=_env_bool(merged, "CAPITAL_STEPS_ENABLED", "true" if profile == "progressif" else "false"),
+            reserve_ratio=Decimal(merged.get("SWEEP_RATIO", "0.30")),
+            growth_trigger=Decimal(merged.get("CAPITAL_GROWTH_TRIGGER", "1")),
+            step_quote=Decimal(merged.get("CAPITAL_STEP_QUOTE", "0.25")),
+            step_max_pct=Decimal(merged.get("CAPITAL_STEP_MAX_PCT", "0.05")),
+            interval_days=int(merged.get("CAPITAL_INTERVAL_DAYS", "7")),
+            max_active_quote=Decimal(merged.get("CAPITAL_MAX_ACTIVE_QUOTE", "20")),
+        )
+    except ValueError as exc:
+        raise RuntimeError(f"Politique de capital invalide (SWEEP_RATIO / CAPITAL_*) : {exc}") from exc
+    if capital_policy.enabled and mode != "paper":
+        raise RuntimeError("Les paliers de capital restent réservés au mode paper")
+    if capital_policy.enabled and not risk.cost_aware:
+        raise RuntimeError("Les paliers exigent COST_AWARE=true pour borner les pertes frais compris")
+
     sandbox = _env_bool(merged, "EXCHANGE_SANDBOX_MODE", "true")
 
     # Cohérence mode / sandbox. Sans ce contrôle, `TRADING_MODE=testnet` avec
@@ -568,6 +587,7 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
         admin_password_hash=_env(merged, "ADMIN_PASSWORD_HASH", ""),
         paper_start_equity=Decimal(merged.get("PAPER_START_EQUITY", "0")),
         paper_slippage_bps=slippage_bps,
+        capital_policy=capital_policy,
         sweep_ratio=sweep_ratio,
         sweep_min_transfer_quote=sweep_min,
         halt_auto_resume_hours=halt_auto_resume_hours,

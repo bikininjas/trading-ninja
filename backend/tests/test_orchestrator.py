@@ -9,6 +9,10 @@ le stop ferme la position puis pose un cooldown.
 from __future__ import annotations
 
 import uuid
+from contextlib import asynccontextmanager
+from copy import deepcopy
+from dataclasses import replace
+from app.engine.capital import start_capital, allocate_close
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -78,6 +82,9 @@ class FakeRepo:
         self.after_close: dict | None = None
         self.sweeps: list[dict] = []
         self.deferred = Decimal(0)
+        self.capital = None
+        self.capital_event_ids = set()
+        self.pending = {}
         self.forced_halt: str | None = None
         self.forced_halt_auto_resume_at: datetime | None = None
         self.halt_detail: str | None = None
@@ -129,6 +136,7 @@ class FakeRepo:
             amount=kwargs["amount"], stop_loss_price=kwargs["stop_loss_price"],
             take_profit_price=kwargs["take_profit_price"], opened_at=NOW,
             risk_amount_quote=kwargs["risk_amount_quote"],
+            monitor_cursor_at=NOW,
         )
         return self.position.id
 
@@ -170,6 +178,46 @@ class FakeRepo:
 
     async def active_lessons(self, mode):
         return self.lessons
+
+
+    @asynccontextmanager
+    async def cycle_lock(self, mode):
+        yield
+
+    @asynccontextmanager
+    async def transaction(self):
+        previous = deepcopy(self.__dict__)
+        try:
+            yield
+        except Exception:
+            self.__dict__.update(previous)
+            raise
+
+    async def capital_state(self, mode): return self.capital
+
+    async def ensure_capital(self, mode, quote, equity, reserve, at):
+        if self.capital is None: self.capital = start_capital(equity, at, reserve=reserve)
+        return self.capital
+
+    async def allocate_capital(self, mode, position_id, pnl, at, policy, *, allow_promotion):
+        if position_id in self.capital_event_ids: raise ValueError('clôture déjà affectée')
+        self.capital = allocate_close(self.capital, pnl, at, policy, allow_promotion=allow_promotion)
+        self.capital_event_ids.add(position_id)
+        return self.capital
+
+    async def advance_paper_position(self, position, stop, close_at):
+        self.position = replace(position, stop_loss_price=stop, monitor_cursor_at=close_at)
+
+    async def pending_exit(self, position_id): return self.pending.get(position_id)
+
+    async def prepare_exit(self, mode, position_id, reason, purpose, halt):
+        self.pending[position_id] = dict(reason=reason,purpose=purpose,halt=halt,fill=None)
+
+    async def confirm_exit(self, position_id, fill):
+        from dataclasses import asdict
+        self.pending[position_id]['fill'] = asdict(fill)
+
+    async def clear_exit(self, position_id): self.pending.pop(position_id,None)
 
 
 class FakeLLM:
@@ -356,6 +404,7 @@ async def test_open_position_is_recovered_after_a_restart(tmp_path, monkeypatch)
         amount=Decimal("0.046"), stop_loss_price=Decimal("96"),
         take_profit_price=Decimal("105"), opened_at=NOW - timedelta(hours=1),
         risk_amount_quote=Decimal("0.115"),
+        monitor_cursor_at=NOW - timedelta(hours=4),
     )
     repo = FakeRepo(state=IN_POSITION, position=position)
     candle = [(NOW - timedelta(hours=4)).timestamp() * 1000, "100", "102", "98", "101", "1"]
@@ -386,6 +435,7 @@ async def test_candle_hitting_the_stop_closes_the_position_and_cools_down(tmp_pa
         amount=Decimal("0.046"), stop_loss_price=Decimal("96"),
         take_profit_price=Decimal("105"), opened_at=opened,
         risk_amount_quote=Decimal("0.115"),
+        monitor_cursor_at=NOW - timedelta(hours=4),
     )
     repo = FakeRepo(state=IN_POSITION, position=position, free_quote="5.32")
     candle = [(NOW - timedelta(hours=4)).timestamp() * 1000, "100", "101", "95", "99", "1"]
@@ -449,6 +499,7 @@ def live_position() -> PositionRow:
         amount=Decimal("0.046"), stop_loss_price=Decimal("96"),
         take_profit_price=Decimal("105"), opened_at=NOW - timedelta(hours=1),
         risk_amount_quote=Decimal("0.115"),
+        monitor_cursor_at=NOW - timedelta(hours=4),
     )
 
 
@@ -511,6 +562,7 @@ async def test_winning_trade_sweeps_thirty_percent(tmp_path, monkeypatch):
         amount=Decimal("0.046"), stop_loss_price=Decimal("96"),
         take_profit_price=Decimal("105"), opened_at=opened,
         risk_amount_quote=Decimal("0.115"),
+        monitor_cursor_at=NOW - timedelta(hours=4),
     )
     repo = FakeRepo(state=IN_POSITION, position=position, free_quote="5.32")
     candle = [(NOW - timedelta(hours=4)).timestamp() * 1000, "100", "110", "99", "108", "1"]
@@ -546,6 +598,7 @@ async def test_small_win_is_recorded_as_skipped(tmp_path, monkeypatch):
         amount=Decimal("0.046"), stop_loss_price=Decimal("96"),
         take_profit_price=Decimal("105"), opened_at=opened,
         risk_amount_quote=Decimal("0.115"),
+        monitor_cursor_at=NOW - timedelta(hours=4),
     )
     repo = FakeRepo(state=IN_POSITION, position=position, free_quote="5.32")
     candle = [(NOW - timedelta(hours=4)).timestamp() * 1000, "100", "110", "99", "108", "1"]
@@ -570,6 +623,7 @@ async def test_deferred_sweeps_accumulate_until_the_threshold(tmp_path, monkeypa
         amount=Decimal("0.046"), stop_loss_price=Decimal("96"),
         take_profit_price=Decimal("105"), opened_at=NOW - timedelta(hours=5),
         risk_amount_quote=Decimal("0.115"),
+        monitor_cursor_at=NOW - timedelta(hours=4),
     )
     repo = FakeRepo(state=IN_POSITION, position=position, free_quote="5.32")
     repo.deferred = Decimal("0.06")  # report d'un trade précédent
@@ -603,6 +657,7 @@ def open_position(opened_hours_ago: int = 5) -> PositionRow:
         take_profit_price=Decimal("105"),
         opened_at=NOW - timedelta(hours=opened_hours_ago),
         risk_amount_quote=Decimal("0.115"),
+        monitor_cursor_at=NOW - timedelta(hours=4),
     )
 
 

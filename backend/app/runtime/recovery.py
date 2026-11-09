@@ -12,12 +12,14 @@ broker : une liquidation n'est jamais gratuite, et le ledger doit le refléter.
 from __future__ import annotations
 
 import uuid
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from inspect import isawaitable
 from typing import Any
 
+from app.engine.capital import CapitalPolicy
 from app.db.repository import PostgresRepository
 from app.market.feed import last_price
 
@@ -79,7 +81,15 @@ class PanicRecord:
     tracked: bool
 
 
-async def liquidate_open_positions(
+async def liquidate_open_positions(repo, exchange, broker, mode, **kwargs):
+    # Partage le verrou du bot : un panic papier ne solde pas la même position
+    # pendant qu'un cycle normal l'évalue. Les doubles historiques n'ont pas de verrou.
+    lock = repo.cycle_lock(mode) if hasattr(repo, 'cycle_lock') else nullcontext()
+    async with lock:
+        return await _liquidate_open_positions(repo, exchange, broker, mode, **kwargs)
+
+
+async def _liquidate_open_positions(
     repo: PostgresRepository,
     exchange: Any,
     broker: Any,
@@ -90,6 +100,7 @@ async def liquidate_open_positions(
     reason: str = EMERGENCY_REASON,
     now: datetime | None = None,
     only_symbols: set[str] | None = None,
+    capital_policy: CapitalPolicy | None = None,
 ) -> list[Liquidation]:
     """Solde toutes les positions ouvertes, annule leurs ordres, puis halte le bot."""
     ensure = getattr(repo, "ensure_mode", None)
@@ -98,8 +109,12 @@ async def liquidate_open_positions(
     moment = now or datetime.now(timezone.utc)
     account = await repo.account(mode, starting_equity)
     live = hasattr(broker, "free_quote")
-    cash = (await _maybe_await(broker.free_quote())) if live else account.free_quote
-    reserve = Decimal(0) if live else account.reserve_quote
+    reserve = account.reserve_quote
+    growth = account.growth_quote
+    cash = ((await _maybe_await(broker.free_quote())) - reserve - growth) if live else account.free_quote
+    capital = await repo.capital_state(mode) if hasattr(repo, 'capital_state') else None
+    if capital is not None and (capital_policy is None or not capital_policy.enabled):
+        raise ValueError("politique de capital requise pour la liquidation de cette enveloppe")
     consecutive = account.consecutive_losses
     results: list[Liquidation] = []
 
@@ -122,45 +137,54 @@ async def liquidate_open_positions(
         fees = entry_fee + fill.fee_quote
         net = gross - fees
 
-        canceled = 0
-        for order in await repo.open_orders(mode):
-            if order["position_id"] == position.id or order["symbol"] == position.symbol:
-                await repo.update_order_status(
-                    order["id"], "CANCELED", f"{reason} : position liquidée"
-                )
-                canceled += 1
+        transaction = repo.transaction() if hasattr(repo, 'transaction') else nullcontext()
+        async with transaction:
+            canceled = 0
+            for order in await repo.open_orders(mode):
+                if order["position_id"] == position.id or order["symbol"] == position.symbol:
+                    await repo.update_order_status(
+                        order["id"], "CANCELED", f"{reason} : position liquidée"
+                    )
+                    canceled += 1
 
-        await repo.insert_order(
-            mode, client_order_id=f"{mode}-{position.symbol.replace('/', '')}-KILL-"
-                                  f"{uuid.uuid4().hex[:8]}",
-            symbol=position.symbol, side="SELL", order_type="MARKET",
-            purpose="EMERGENCY_EXIT", status="FILLED",
-            requested_amount=position.amount, filled_amount=position.amount,
-            requested_price=None, stop_price=None, average_fill_price=fill.price,
-            fee_amount=fill.fee_quote, fee_currency=quote_currency,
-            slippage_quote=fill.slippage_quote, position_id=position.id,
-        )
-        await repo.close_position(
-            position.id, exit_price=fill.price, closed_amount=position.amount,
-            gross_pnl_quote=gross, total_fees_quote=fees, net_pnl_quote=net,
-            exit_reason=reason, status="EMERGENCY_LIQUIDATED",
-        )
+            await repo.insert_order(
+                mode, client_order_id=f"{mode}-{position.symbol.replace('/', '')}-KILL-"
+                                      f"{uuid.uuid4().hex[:8]}",
+                symbol=position.symbol, side="SELL", order_type="MARKET",
+                purpose="EMERGENCY_EXIT", status="FILLED",
+                requested_amount=position.amount, filled_amount=position.amount,
+                requested_price=None, stop_price=None, average_fill_price=fill.price,
+                fee_amount=fill.fee_quote, fee_currency=quote_currency,
+                slippage_quote=fill.slippage_quote, position_id=position.id,
+            )
+            await repo.close_position(
+                position.id, exit_price=fill.price, closed_amount=position.amount,
+                gross_pnl_quote=gross, total_fees_quote=fees, net_pnl_quote=net,
+                exit_reason=reason, status="EMERGENCY_LIQUIDATED",
+            )
 
-        cash = cash + fill.notional_quote - fill.fee_quote
-        if live:
-            cash = await _maybe_await(broker.free_quote())
-        consecutive = consecutive + 1 if net < 0 else 0
-        await repo.update_after_close(
-            mode, consecutive_losses=consecutive, equity=cash + reserve
-        )
-        await repo.snapshot_equity(
-            mode, equity=cash + reserve, free_quote=cash,
-            position_value_quote=Decimal(0), symbol=position.symbol, source="KILL_SWITCH",
-        )
-        results.append(Liquidation(
-            symbol=position.symbol, amount=position.amount, exit_price=fill.price,
-            net_pnl_quote=net, fees_quote=fees, orders_canceled=canceled,
-        ))
+            if capital is not None:
+                net = net.quantize(Decimal('0.0000000001'))
+                capital = await repo.allocate_capital(mode, position.id, net, moment, capital_policy, allow_promotion=False)
+                cash, reserve, growth = capital.active_quote, capital.reserve_quote, capital.growth_quote
+            else:
+                cash = cash + fill.notional_quote - fill.fee_quote
+            if live:
+                cash = await _maybe_await(broker.free_quote()) - reserve - growth
+            consecutive = consecutive + 1 if net < 0 else 0
+            await repo.update_after_close(
+                mode, consecutive_losses=consecutive, equity=cash + reserve + growth
+            )
+            await repo.snapshot_equity(
+                mode, equity=cash + reserve + growth, free_quote=cash,
+                position_value_quote=Decimal(0), symbol=position.symbol, source="KILL_SWITCH",
+            )
+            results.append(Liquidation(
+                symbol=position.symbol, amount=position.amount, exit_price=fill.price,
+                net_pnl_quote=net, fees_quote=fees, orders_canceled=canceled,
+            ))
+
+            await repo.force_halt(mode, f"{reason} à {moment:%Y-%m-%d %H:%M:%S} UTC")
 
     # Même sans position, un kill-switch est une panne volontaire : le bot doit
     # rester arrêté jusqu'à une intervention humaine.
@@ -252,12 +276,12 @@ async def record_panic_exits(
     # Un solde illisible ne doit pas écrire une équité fausse (0 EUR) : on halte
     # et on signale, mais on laisse la dernière valeur connue intacte.
     if free_quote_after is not None:
-        equity = free_quote_after + reserve
+        equity = free_quote_after
         await repo.update_after_close(
             mode, consecutive_losses=consecutive, equity=equity
         )
         await repo.snapshot_equity(
-            mode, equity=equity, free_quote=free_quote_after,
+            mode, equity=equity, free_quote=max(Decimal(0), free_quote_after - reserve),
             position_value_quote=Decimal(0), symbol=None, source="PANIC_SELL",
         )
 

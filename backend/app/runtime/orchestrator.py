@@ -22,6 +22,7 @@ Invariants tenus ici :
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from dataclasses import dataclass, field, replace
@@ -45,7 +46,7 @@ from app.engine.risk_gate import (
     evaluate,
 )
 from app.execution.live import LiveExecutionError
-from app.execution.paper import PaperBroker
+from app.execution.paper import PaperBroker, Fill
 from app.llm.client import LLMSignal, SignalClient
 from app.market.feed import (
     FeedError, SymbolState, build_snapshot, closed_candles, last_price,
@@ -92,7 +93,8 @@ class Orchestrator:
     def __init__(self, settings: Settings, repo: PostgresRepository, exchange: Any,
                  signal_client: SignalClient, broker: Any,
                  *, now: Any = None, settings_loader: Any = None):
-        self._settings = settings
+        fee = getattr(broker, "execution_fee_pct", settings.risk.execution_fee_pct)
+        self._settings = replace(settings, risk=replace(settings.risk, execution_fee_pct=fee))
         self._repo = repo
         self._exchange = exchange
         self._llm = signal_client
@@ -132,7 +134,7 @@ class Orchestrator:
 
     def _account_state(self, account: AccountSnapshot, open_symbols: tuple[str, ...] = ()) -> AccountState:
         return AccountState(
-            equity_quote=account.equity,
+            equity_quote=account.trading_equity,
             free_quote=account.free_quote,
             open_position_symbols=open_symbols,
             daily_drawdown_pct=account.daily_drawdown_pct,
@@ -183,7 +185,8 @@ class Orchestrator:
             return False, f"réglages en base refusés : {exc}"
         if fresh.execution_mode != self._settings.execution_mode:
             return False, "réglages en base ignorés : le mode ne peut pas changer à chaud"
-        self._settings = fresh
+        fee = getattr(self._broker, "execution_fee_pct", fresh.risk.execution_fee_pct)
+        self._settings = replace(fresh, risk=replace(fresh.risk, execution_fee_pct=fee))
         self._settings_updated_at = updated_at
         return True, None
 
@@ -279,6 +282,10 @@ class Orchestrator:
     # -- cycle -----------------------------------------------------------
 
     async def run_once(self) -> CycleReport:
+        async with self._repo.cycle_lock(self._mode):
+            return await self._run_once()
+
+    async def _run_once(self) -> CycleReport:
         started = time.perf_counter()
         await self._repo.ensure_mode(self._mode)
         reloaded, reload_error = await self._refresh_settings()
@@ -322,6 +329,11 @@ class Orchestrator:
         if auto_resumed:
             report.actions.append("reprise automatique après arrêt du modèle")
 
+        if state == POST_TRADE_SWEEP:
+            await self._repo.force_halt(self._mode, "ancienne clôture incomplète : réconciliation comptable requise")
+            report.errors.append("clôture historique incomplète : aucune vente ni reprise automatique")
+            report.state_after = HALT
+            return report
         if state in (LOCKED, HALT):
             report.actions.append(f"état {state} : aucune action automatique")
             report.elapsed_ms = int((time.perf_counter() - started) * 1000)
@@ -361,9 +373,17 @@ class Orchestrator:
                     # son stop exchange.
                     live_value = Decimal(0)
             account = replace(
-                account, free_quote=live_free,
-                equity=live_free + live_value, reserve_quote=Decimal(0),
+                account, free_quote=max(Decimal(0), live_free - account.reserve_quote - account.growth_quote),
+                equity=live_free + live_value,
             )
+        capital = await self._repo.capital_state(self._mode)
+        if capital is not None and not self._settings.capital_policy.enabled:
+            raise RuntimeError("capital par paliers existant : désactivation interdite sans clôture comptable")
+        if self._settings.capital_policy.enabled:
+            capital = await self._repo.ensure_capital(
+                self._mode, self._settings.exchange.quote_currency, account.equity,
+                account.reserve_quote, now)
+            account = replace(account, reserve_quote=capital.reserve_quote, growth_quote=capital.growth_quote)
         position = await self._repo.open_position(self._mode)
 
         if position is not None:
@@ -382,6 +402,22 @@ class Orchestrator:
         if machine.current != IN_POSITION:
             # Redémarrage pendant une position : la base fait autorité sur l'état.
             await machine.go(IN_POSITION, "position ouverte retrouvée en base")
+
+        if self._mode == "LIVE":
+            pending = await self._repo.pending_exit(position.id)
+            if pending:
+                if pending["fill"] is None:
+                    await self._repo.force_halt(self._mode, "sortie réelle au résultat inconnu : réconciliation obligatoire")
+                    machine.current = HALT
+                    report.errors.append("sortie incertaine : aucune seconde vente envoyée")
+                    return
+                values = json.loads(pending["fill"]) if isinstance(pending["fill"], str) else dict(pending["fill"])
+                for key in ("price", "amount", "notional_quote", "fee_quote", "slippage_quote"):
+                    values[key] = Decimal(values[key])
+                fill = Fill(**values)
+                await self._close_trade(machine, position, account, fill.price, pending["reason"], report,
+                                        purpose=pending["purpose"], halt=pending["halt"], fill=fill)
+                return
 
         # En live, l'exchange fait autorité avant toute décision locale. Sans
         # cette lecture, un stop déclenché pendant l'arrêt du bot ferait envoyer
@@ -437,26 +473,8 @@ class Orchestrator:
                 )
                 return
             if not live_state.stop_ok:
-                try:
-                    fill = await self._broker.emergency_exit(
-                        position.amount, symbol=position.symbol,
-                        stop_price=position.stop_loss_price,
-                    )
-                except LiveExecutionError as exc:
-                    report.errors.append(f"{position.symbol} : {exc}")
-                    return
-                await self._close_trade(
-                    machine, position, account, fill.price, "STOP_MISSING", report,
-                    purpose="EMERGENCY_EXIT", fill=fill,
-                )
-                await self._repo.force_halt(
-                    self._mode,
-                    f"stop distant absent sur {position.symbol} : position soldée",
-                )
-                machine.current = HALT
-                report.actions.append(
-                    f"ARRÊT : stop distant absent sur {position.symbol}, position soldée"
-                )
+                await self._close_trade(machine, position, account, Decimal(0), "STOP_MISSING", report,
+                                        purpose="EMERGENCY_EXIT", halt=True)
                 return
 
         try:
@@ -473,7 +491,7 @@ class Orchestrator:
 
         candles = closed_candles(
             self._exchange, position.symbol,
-            self._settings.exchange.daily_timeframe_decision, 2,
+            self._settings.exchange.daily_timeframe_decision, 720,
         )
         if not candles:
             report.errors.append(f"{position.symbol} : aucune bougie clôturée")
@@ -482,51 +500,41 @@ class Orchestrator:
         if state.last_close_at <= position.opened_at:
             report.actions.append("aucune bougie clôturée depuis l'entrée")
             return
-
-        # Une nouvelle protection calculée à la clôture ne doit jamais être
-        # testée contre le plus bas de cette même bougie lors d'un second cycle.
-        # Le signal de surveillance est persisté : ce garde survit au redémarrage.
-        monitored_at = (await self._repo.last_signal_at(self._mode, position.symbol)
-                        if self._settings.risk.profit_trailing_enabled else None)
-        already_monitored = monitored_at is not None and monitored_at >= state.last_close_at
-
-        # Le stop et le take-profit vivent dans la bougie : ils passent avant toute
-        # décision du modèle, qui ne voit que la clôture. En live, le stop est
-        # chez l'exchange : on ne le rejoue pas localement, sinon une même
-        # position pourrait être vendue deux fois. Le TP, lui, reste local tant
-        # que l'ordre TP distant n'est pas posé.
-        if live_state is not None:
-            trigger = None
-            if (position.take_profit_price is not None
-                    and Decimal(str(last[2])) >= position.take_profit_price):
-                trigger = (position.take_profit_price, "TAKE_PROFIT")
-        else:
-            trigger = self._broker.exit_trigger(
-                position.stop_loss_price, position.take_profit_price, last
-            )
-        if already_monitored:
-            trigger = None
-        if trigger is not None:
-            exit_price, reason = trigger
-            await self._close_trade(
-                machine, position, account, exit_price, reason, report,
-                purpose="STOP_LOSS" if reason == "STOP_LOSS" else "TAKE_PROFIT",
-            )
+        if live_state is None:
+            # Stop et curseur forment une seule écriture. Aucun signal LLM ne sert
+            # de preuve d'application d'un stop ; les bougies manquées sont rejouées.
+            if position.monitor_cursor_at is None:
+                raise RuntimeError("position papier historique sans curseur : réconciliation requise")
+            from app.market.feed import TIMEFRAME_MS
+            period_ms = TIMEFRAME_MS[self._settings.exchange.daily_timeframe_decision]
+            cursor = position.monitor_cursor_at
+            pending_candles = [c for c in candles if datetime.fromtimestamp((c[0]+period_ms)/1000, timezone.utc) > cursor]
+            for candle in pending_candles:
+                close_at = datetime.fromtimestamp((candle[0]+period_ms)/1000, timezone.utc)
+                # Un trou ne peut pas être interprété comme une absence de stop touché.
+                expected = datetime.fromtimestamp(((int(cursor.timestamp()*1000)//period_ms)+1)*period_ms/1000, timezone.utc)
+                if close_at != expected:
+                    raise RuntimeError("trou de surveillance papier : historique à réconcilier avant reprise")
+                trigger = self._broker.exit_trigger(position.stop_loss_price, position.take_profit_price, candle)
+                if trigger:
+                    exit_price, reason = trigger
+                    await self._close_trade(machine, position, account, exit_price, reason, report,
+                                            purpose="STOP_LOSS" if reason == "STOP_LOSS" else "TAKE_PROFIT")
+                    return
+                candidate = advance_profit_stop(
+                    entry_price=position.entry_price,
+                    initial_distance=position.risk_amount_quote / position.amount,
+                    current_stop=position.stop_loss_price, close=Decimal(str(candle[4])),
+                    price_tick=state.info.constraints.price_tick, config=self._settings.risk)
+                await self._repo.advance_paper_position(position, candidate, close_at)
+                if candidate > position.stop_loss_price:
+                    report.actions.append(f"{position.symbol} : stop remonté à {candidate}")
+                position = replace(position, stop_loss_price=candidate, monitor_cursor_at=close_at)
+                cursor = close_at
+        elif position.take_profit_price is not None and Decimal(str(last[2])) >= position.take_profit_price:
+            await self._close_trade(machine, position, account, position.take_profit_price,
+                                    "TAKE_PROFIT", report, purpose="TAKE_PROFIT")
             return
-
-        if self._settings.risk.profit_trailing_enabled and not already_monitored:
-            candidate = advance_profit_stop(
-                entry_price=position.entry_price,
-                initial_distance=position.risk_amount_quote / position.amount,
-                current_stop=position.stop_loss_price,
-                close=Decimal(str(last[4])), price_tick=state.info.constraints.price_tick,
-                config=self._settings.risk,
-            )
-            moved = await self._move_stop(
-                position, candidate, report, live_state=live_state,
-                label="protection progressive des gains",
-            )
-            position = replace(position, stop_loss_price=moved)
 
         # -- gestion swing D1 : seuil de rentabilité puis sortie de tendance ----
         if self._settings.risk.entry_mode is EntryMode.SWING_MACRO_D1:
@@ -640,7 +648,7 @@ class Orchestrator:
         price = last_price(self._exchange, position.symbol)
         value = position.amount * price
         await self._repo.snapshot_equity(
-            self._mode, equity=account.free_quote + value + account.reserve_quote,
+            self._mode, equity=account.free_quote + value + account.reserve_quote + account.growth_quote,
             free_quote=account.free_quote,
             position_value_quote=value, symbol=position.symbol, source="MONITOR",
         )
@@ -689,17 +697,32 @@ class Orchestrator:
                            report: CycleReport, *, purpose: str,
                            halt: bool = False, fill: Any = None) -> None:
         """Séquence unique de clôture : stop, TP, SELL LLM et HALT LLM."""
+        live = self._mode == "LIVE"
         if fill is None:
-            fill = await self._maybe_await(
-                self._broker.exit(
-                    position.amount, exit_price, symbol=position.symbol,
-                    stop_price=position.stop_loss_price,
-                )
-            )
+            if live:
+                await self._repo.prepare_exit(self._mode, position.id, reason, purpose, halt)
+            if reason == "STOP_MISSING":
+                fill = await self._broker.emergency_exit(position.amount, symbol=position.symbol,
+                                                         stop_price=position.stop_loss_price)
+            else:
+                fill = await self._maybe_await(self._broker.exit(
+                    position.amount, exit_price, symbol=position.symbol, stop_price=position.stop_loss_price))
+            if live:
+                await self._repo.confirm_exit(position.id, fill)
+        if fill.amount != position.amount:
+            raise RuntimeError("fill partiel : réconciliation requise, aucune comptabilité complète inventée")
+        live_cash = await self._maybe_await(self._broker.free_quote()) if hasattr(self._broker, "free_quote") else None
+        async with self._repo.transaction():
+            await self._book_close(machine, position, account, reason, report,
+                                   purpose=purpose, halt=halt, fill=fill, live_cash=live_cash)
+
+    async def _book_close(self, machine, position, account, reason, report, *, purpose, halt, fill, live_cash):
         entry_fee = await self._entry_fee(position)
         gross = (fill.price - position.entry_price) * position.amount
         fees = entry_fee + fill.fee_quote
         net = gross - fees
+        if self._settings.capital_policy.enabled:
+            net = net.quantize(Decimal("0.0000000001"))
 
         await machine.go(POST_TRADE_SWEEP, f"sortie {reason}", code="NONE",
                          context={"exit_price": str(fill.price), "reason": reason})
@@ -719,40 +742,36 @@ class Orchestrator:
             exit_reason=reason,
         )
         consecutive = account.consecutive_losses + 1 if net < 0 else 0
-        if hasattr(self._broker, "free_quote"):
-            cash = await self._maybe_await(self._broker.free_quote())
-            reserve = Decimal(0)
-        else:
-            cash = account.free_quote + fill.notional_quote - fill.fee_quote
-            reserve = account.reserve_quote
+        reserve = account.reserve_quote
+        growth = account.growth_quote
+        cash = (live_cash - reserve - growth if live_cash is not None
+                else account.free_quote + fill.notional_quote - fill.fee_quote)
         sweep_note = ""
-
-        deferred = await self._repo.deferred_sweep_quote(self._mode)
-        plan = plan_sweep(net, self._settings.sweep_ratio,
-                          self._settings.sweep_min_transfer_quote,
-                          deferred_quote=deferred)
-        if plan.applies:
-            # SUCCESS/SIMULATED : l'argent a quitté le capital de trading.
-            # PENDING : le virement reste à faire, le cash ne bouge pas encore.
-            if plan.status in ("SIMULATED", "SUCCESS"):
+        if self._settings.capital_policy.enabled:
+            capital = await self._repo.allocate_capital(
+                self._mode, position.id, net, self._now(), self._settings.capital_policy,
+                allow_promotion=not halt)
+            cash, reserve, growth = capital.active_quote, capital.reserve_quote, capital.growth_quote
+            sweep_note = f" · réserve {reserve} · cagnotte {growth} · paliers {capital.promotions}"
+        else:
+            deferred = await self._repo.deferred_sweep_quote(self._mode)
+            plan = plan_sweep(net, self._settings.sweep_ratio,
+                              self._settings.sweep_min_transfer_quote, deferred_quote=deferred)
+            if plan.applies:
                 cash -= plan.swept_quote
                 reserve += plan.swept_quote
-            await self._repo.insert_sweep(
-                self._mode, position_id=position.id,
-                quote_currency=self._settings.exchange.quote_currency,
-                realized_net_pnl=net, sweep_ratio=self._settings.sweep_ratio,
-                computed_sweep_quote=plan.computed_quote,
-                swept_amount=plan.swept_quote, retained_trading_capital=cash,
-                status=plan.status,
-                next_retry_at=(self._now() + timedelta(days=1))
-                if plan.status == "SKIPPED_BELOW_MINIMUM" else None,
-                error_message=plan.reason,
-            )
-            sweep_note = (f" · écrémé {plan.swept_quote}"
-                          if plan.swept_quote > 0
-                          else f" · écrémage reporté ({plan.reason})")
-
-        equity = cash + reserve
+                await self._repo.insert_sweep(
+                    self._mode, position_id=position.id,
+                    quote_currency=self._settings.exchange.quote_currency,
+                    realized_net_pnl=net, sweep_ratio=self._settings.sweep_ratio,
+                    computed_sweep_quote=plan.computed_quote, swept_amount=plan.swept_quote,
+                    retained_trading_capital=cash, status=plan.status,
+                    next_retry_at=(self._now()+timedelta(days=1)) if plan.status == "SKIPPED_BELOW_MINIMUM" else None,
+                    error_message=plan.reason)
+                sweep_note = f" · écrémé {plan.swept_quote}" if plan.swept_quote > 0 else f" · écrémage reporté ({plan.reason})"
+        if cash < 0:
+            raise RuntimeError("réserve supérieure au cash : réconciliation requise")
+        equity = cash + reserve + growth
         await self._repo.update_after_close(
             self._mode, consecutive_losses=consecutive, equity=equity
         )
@@ -760,6 +779,8 @@ class Orchestrator:
             self._mode, equity=equity, free_quote=cash, position_value_quote=Decimal(0),
             symbol=position.symbol, source="EXIT",
         )
+        if self._mode == "LIVE":
+            await self._repo.clear_exit(position.id)
         report.position_closed = (
             f"{position.symbol} {reason} @ {fill.price} · net {net:.4f} "
             f"{self._settings.exchange.quote_currency}{sweep_note}"
@@ -767,12 +788,12 @@ class Orchestrator:
 
         if halt:
             auto_resume_at = None
-            if self._settings.halt_auto_resume_hours > 0:
+            if reason == "LLM_HALT" and self._settings.halt_auto_resume_hours > 0:
                 auto_resume_at = self._now() + timedelta(
                     hours=self._settings.halt_auto_resume_hours
                 )
             await self._repo.force_halt(
-                self._mode, f"LLM HALT : {position.symbol} soldé à {fill.price}",
+                self._mode, f"{'LLM HALT' if reason == 'LLM_HALT' else reason} : {position.symbol} soldé à {fill.price}",
                 auto_resume_at=auto_resume_at,
             )
             machine.current = HALT
@@ -993,7 +1014,7 @@ class Orchestrator:
         cash = account.free_quote - fill.notional_quote - fill.fee_quote
         value = fill.amount * price
         await self._repo.snapshot_equity(
-            self._mode, equity=cash + value + account.reserve_quote,
+            self._mode, equity=cash + value + account.reserve_quote + account.growth_quote,
             free_quote=cash, position_value_quote=value,
             symbol=state.symbol, source="ENTRY",
         )
