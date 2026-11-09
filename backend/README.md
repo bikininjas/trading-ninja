@@ -63,7 +63,7 @@ virtuels ; il ne modifie pas les réglages locaux existants.
 .venv/bin/python scripts/shadow_report.py --evaluate  # rejoue les bougies et ferme les OPEN
 .venv/bin/python scripts/lessons.py show       # leçons actives
 .venv/bin/python scripts/lessons.py review     # un appel LLM, stocke 1 à 5 leçons
-.venv/bin/python scripts/check_exchange.py     # clé Binance : permissions + filtres (lecture seule)
+.venv/bin/python scripts/check_exchange.py     # sonde historique Binance (lecture seule), pas le contrôle Kraken
 .venv/bin/python scripts/check_kraken.py       # marchés, permissions, équité requise (lecture seule)
 PYTHONPATH=. .venv/bin/python scripts/demo_guardrails.py
 ```

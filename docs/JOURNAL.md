@@ -6,6 +6,19 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-09 — Relecture documentaire de la PR #1
+
+Mise à jour de l'architecture sur BUY/SELL/HALT, du point d'entrée et des étapes
+1.1, 1.6 et 1.7 de la roadmap : Kraken remplace Binance comme référence courante,
+les chemins live et de réconciliation existent mais leur validation réelle reste
+à faire. Les anciennes mesures du journal sont conservées comme historique.
+`PROGRESSION.md` décrit désormais le défaut reproduit de reprise après persistance
+du stop et avant journalisation du signal ; cette mise à jour ne corrige pas le code.
+
+**Vérifié** : relecture contre `app.main`, `verify_key_permissions()`, l'orchestrateur
+et les commandes de réconciliation ; `git diff --check` et index documentaire à jour.
+Documentation uniquement, aucun réglage ni schéma modifié, aucun ordre réel.
+
 ## 2026-11-09 — Objectif de progression modeste (D-069)
 
 Demande : préserver le petit capital, rechercher une progression nette de frais

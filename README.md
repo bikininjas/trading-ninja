@@ -66,6 +66,7 @@ cookie de session `HttpOnly`.
 
 ## Secrets
 
-`.env.local` (racine) contient les identifiants Supabase et Binance. Il est ignoré par
-git et bloqué par un crochet `pre-commit`. Sur un nouveau clone :
+`.env.local` (racine) peut contenir les identifiants PostgreSQL et Kraken, ainsi que
+les anciennes clés Binance. Il est ignoré par git et bloqué par un crochet
+`pre-commit`. Sur un nouveau clone :
 `git config core.hooksPath .githooks`.

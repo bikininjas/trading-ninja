@@ -31,7 +31,14 @@ Aucun changement de schéma n'est nécessaire.
 
 Le stop suiveur couvre au minimum les frais et le glissement de sortie prévus.
 Il ne peut que monter, se calcule sur la clôture disponible et ne s'applique
-qu'aux bougies suivantes. La même fonction sert au moteur et au rejeu H4.
+qu'aux bougies suivantes dans le rejeu H4. La même fonction calcule le niveau
+pour le moteur et le rejeu, mais la reprise du moteur présente une limite connue :
+si le processus s'interrompt après la persistance du stop et avant celle du signal
+LLM, le cycle suivant peut tester le nouveau stop sur la bougie qui l'a produit et
+clôturer rétroactivement la position papier. Défaut reproduit lors de la revue du
+2026-11-09, encore à corriger ; la protection contre ce rejeu n'est donc pas
+atomique au redémarrage.
+
 Le LLM conserve sa capacité de vendre ou d'arrêter ; son score minimal de 0,60
 n'est pas une probabilité de réussite. Deux pertes consécutives divisent le risque
 par deux. La décision est revalidée au prix utilisé pour le fill papier.
