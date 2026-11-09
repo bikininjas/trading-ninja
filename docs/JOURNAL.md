@@ -6,6 +6,25 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-09 — Nettoyage documentaire et dix briefs techniques (D-072)
+
+**Réalisé** : suppression des trois spécifications d'origine périmées et du handoff
+D1 remplacé. Leurs choix et mesures utiles restent dans les décisions et le journal.
+Conservation de l'audit `AMELIORATIONS_2026-11-09.md` et de `PROGRESSION.md`, qui
+portent encore des limites actives. Rédaction des dix propositions I-01 à I-10,
+actualisation des instructions de reprise et des renvois.
+
+**Périmètre** : documentation uniquement, sur le `master` distant `77092c6` ; aucune
+implémentation de ces propositions et aucune modification applicative. Les travaux
+locaux non commités des sessions précédentes sont conservés dans leur espace initial.
+
+**Validation** : `python /tmp/verify_trading_docs.py <worktree>` → 15 documents,
+43 liens locaux valides, dix briefs complets avec critères de validation, IDs de
+roadmap uniques et différences exclusivement Markdown. `git diff --check` → code 0.
+Les fichiers applicatifs et migrations sont identiques au `master` de départ.
+`scripts/index_codebase.py --check` → index à jour. Aucun test métier ni
+déploiement exécuté pour ce changement documentaire.
+
 ## 2026-11-09 — Capital protégé et paliers vérifiés (D-070)
 
 Trois enveloppes et nouveau surplus réalisé, réserve immédiate, paliers bornés,

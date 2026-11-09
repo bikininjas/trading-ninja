@@ -11,27 +11,11 @@ Statuts : ⬜ à faire · 🟨 en cours · ✅ fait et vérifié · ⛔ bloqué 
 
 ## Vue d'ensemble
 
-- ✅ **2.17 — Capital protégé et croissance par paliers** *(2026-11-09)* :
-  journal comptable, surplus global réalisé, réserve immédiate, cagnotte de croissance,
-  reprise atomique des clôtures et stops papier, coûts partagés et rejeu de la politique.
-  Réservé au papier ; 643 tests Python dont 6 PostgreSQL locaux, 26 Node, golden
-  inchangé et contrôle navigateur bureau/mobile. La base déployée et la rentabilité
-  multi-années restent non validées. Détails : D-070 et `PROGRESSION.md`.
-
-
-- ✅ **2.16 — Progression à petit budget, mécanique papier** *(2026-11-09)* : profil
-  papier à 9,37 EUR, budget de perte frais compris, stop suiveur commun au moteur
-  et au rejeu, comparaison des budgets sans relâcher automatiquement le risque.
-  Aucun rendement régulier promis ; le cash et l'absence de trade sont acceptables.
-  *Vérifié* : 617 tests Python, 26 Node, golden inchangé et comparatif hors ligne.
-  La rentabilité multi-années et la base déployée restent non validées dans cette
-  étape ; les critères de passage en réel ne changent pas.
-
 | Phase | Objectif | Statut | Avancement |
 |---|---|---|---|
 | **0. Fondations** | Le socle sur lequel rien ne peut perdre d'argent par accident | ✅ | 9 / 9 |
 | **1. Moteur** | Le bot existe et tourne, mais sans argent | 🟨 | 6 / 12 |
-| **2. Simulation** | Prouver la mécanique sur des centaines de trades fictifs | 🟨 | 2 / 5 |
+| **2. Simulation** | Prouver la mécanique sur des centaines de trades fictifs | 🟨 | 11 / 19 |
 | **3. Pré-live** | Prouver l'exécution réelle avec un canary minuscule (Kraken n'a pas de testnet) | 🟨 | 1 / 3 |
 | **4. Argent réel** | Engager le minimum, profil prudent, sous surveillance | ⬜ | 0 / 3 |
 
@@ -513,6 +497,36 @@ Objectif : mesurer, pas espérer.
   25 %). Lab-only, non activé. Prochain levier : sortie de risque plus rapide ou
   ciblage de volatilité, pas un filtre d'entrée de plus.
 
+- ✅ **2.16 — Control plane étendu et télémétrie (D-068)** *(2026-11-05)*
+  *Fait* : routes `kill-switch`, `circuit-breaker/reset`, `reconcile`, `system/health`,
+  `portfolio/position`, inspection prompt LLM ; métriques avancées et ventilation du
+  capital dans `/api/stats` ; dashboard branché (badges santé, KPIs, modale panic double
+  garde, tiroir prompt).
+  *Validé par* : 603 tests Python, 26 tests Node, `bash scripts/check.sh` vert.
+  *Conclusion* : aucun changement de mode ; `TRADING_MODE=paper`, live verrouillé.
+
+- ✅ **2.17 — Progression à petit budget, mécanique papier** *(2026-11-09)* : profil
+  papier à 9,37 EUR, budget de perte frais compris, stop suiveur commun au moteur
+  et au rejeu, comparaison des budgets sans relâcher automatiquement le risque.
+  Aucun rendement régulier promis ; le cash et l'absence de trade sont acceptables.
+  *Vérifié* : 617 tests Python, 26 Node, golden inchangé et comparatif hors ligne.
+  La rentabilité multi-années et la base déployée restent non validées dans cette
+  étape ; les critères de passage en réel ne changent pas.
+
+- ✅ **2.18 — Capital protégé et croissance par paliers** *(2026-11-09)* :
+  journal comptable, surplus global réalisé, réserve immédiate, cagnotte de croissance,
+  reprise atomique des clôtures et stops papier, coûts partagés et rejeu de la politique.
+  Réservé au papier ; 643 tests Python dont 6 PostgreSQL locaux, 26 Node, golden
+  inchangé et contrôle navigateur bureau/mobile. La base déployée et la rentabilité
+  multi-années restent non validées. Détails : D-070 et `PROGRESSION.md`.
+
+- ✅ **2.19 — Nettoyage documentaire et briefs des nouvelles idées (D-072)** *(2026-11-09)*
+  Retirer les spécifications et le handoff remplacés ; créer le catalogue
+  [IDEES_ET_BRIEFS_TECHNIQUES.md](IDEES_ET_BRIEFS_TECHNIQUES.md). Les dix idées
+  sont proposées, sans commencer leur implémentation.
+  *Validé par* : 43 liens locaux vérifiés, dix briefs complets, IDs uniques et
+  différences exclusivement Markdown par rapport à `master` ; code applicatif inchangé.
+
 **Critère de passage en phase 3** : au moins **100 trades simulés**, drawdown maximal
 sous le seuil configuré, espérance positive. En dessous, on corrige ou on abandonne —
 les deux sont des résultats utiles. **Non atteint** : 2.9 plafonne à 39 trades par
@@ -588,15 +602,7 @@ Seb. Le risque par trade (0,5 %) reste inchangé quel que soit le capital.
 | # | Question | Impact |
 |---|---|---|
 | 1 | ✅ **Répondu le 2026-11-04** : clés **mainnet**, lecture + trading spot, retraits désactivés, IP restreinte. **Kraken spot n'a pas de testnet** dans CCXT 4.5.91 : la phase 3 devra être redéfinie (ordres minuscules en réel, ou exchange de simulation) | Sans cette redéfinition, la phase 3 telle qu'écrite est infaisable |
-| 2 | Quel montant acceptes-tu de perdre **entièrement** ? | Détermine la taille de tout le reste (phase 4) |
-| 3 | Ollama est-il installé sur la machine, et avec quel modèle ? | Détermine la phase 1.5 (le LLM local) |
+| 2 | Budget déjà documenté : **9,37 EUR de perte totale acceptable** ; vérifier sa compatibilité avec les minima et les frais avant un canary | Aucun relèvement automatique du risque ou du budget pour financer un ordre |
+| 3 | Modèle déjà documenté : **qwen3.5:9b** ; disponibilité et runner à vérifier sur la machine cible | Les mesures historiques ne prouvent pas la disponibilité actuelle du service |
 | 4 | ✅ **Résolu le 2026-11-04** : clé Kraken remplacée puis vérifiée — 7 permissions, aucun droit de retrait, IP restreinte. Le garde-fou passe | — |
 | 5 | Créer une **seconde paire de clés Kraken** pour le kill-switch (le code lit déjà `KILL_SWITCH_API_KEY` / `KILL_SWITCH_SECRET` et retombe sur la clé du bot avec un avertissement), ou accepter que le kill-switch ne puisse pas signer en parallèle du bot (nonces strictement croissants par clé) | Sans elle, le kill-switch réel ne peut pas tourner pendant que le bot tourne |
-
-- ✅ **2.16 — Control plane étendu et télémétrie (D-068)** *(2026-11-05)*
-  *Fait* : routes `kill-switch`, `circuit-breaker/reset`, `reconcile`, `system/health`,
-  `portfolio/position`, inspection prompt LLM ; métriques avancées et ventilation du
-  capital dans `/api/stats` ; dashboard branché (badges santé, KPIs, modale panic double
-  garde, tiroir prompt).
-  *Validé par* : 603 tests Python, 26 tests Node, `bash scripts/check.sh` vert.
-  *Conclusion* : aucun changement de mode ; `TRADING_MODE=paper`, live verrouillé.

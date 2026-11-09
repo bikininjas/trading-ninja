@@ -1348,8 +1348,9 @@ Le modèle **filtre 81 % des perdants** (98/121), bien au-delà des 25 % demand�
 **rejette 69,6 % des gagnants** (16/23) : rétention 30,4 %, très en dessous des 90 %
 exigés. Verdict `KO rétention<90%`. Il est donc trop sélectif, pas assez discriminant :
 la confiance moyenne des BUY (0,62) ne sépare pas gagnants (0,65) et perdants (0,62), et
-le seuil de confiance n'est pas le levier. La mesure est reproductible avec la commande
-du `HANDOFF_SWING_D1.md` §4. Ollama système reste cassé (`llama-server` absent de
+le seuil de confiance n'est pas le levier. La commande de cette mesure est conservée
+dans `JOURNAL.md`, entrée du 2026-11-05 « LLM D1 mesuré ». À cette date, Ollama système
+reste cassé (`llama-server` absent de
 `/usr/local/lib/ollama`) ; le serveur local est un contournement documenté, pas une
 réparation de l'installation système.
 
@@ -1709,3 +1710,26 @@ clôture, conservation du capital, idempotence, curseur, droits, concurrence et 
 26 tests Node, golden strictement inchangé, comparatif de budgets et Chromium
 bureau/mobile. Dix migrations appliquées depuis zéro sur une seconde base locale.
 Ces preuves valident la mécanique ; aucune rentabilité ni exécution réelle validée.
+
+
+---
+
+## D-072 — Retirer les documents remplacés et structurer les dix nouvelles idées
+
+**Demande** : supprimer les documents obsolètes et fournir un brief technique pour
+chacune des idées proposées, sans développement applicatif.
+
+**Décision** : retirer les trois spécifications d'origine `PROMPT_BACKEND.md`,
+`PROMPT_DATABASE.md`, `PROMPT_RISK_GW.md`, explicitement périmées, et le handoff
+`HANDOFF_SWING_D1.md`, remplacé par le code, D-060/D-061 et les mesures datées du
+journal. Conserver `AMELIORATIONS_2026-11-09.md` : cet audit reste pertinent pour
+les points ouverts de `master`. Conserver `PROGRESSION.md`, ses limites de capital
+et ses mesures négatives. Les renvois actifs et les instructions de reprise sont
+actualisés ; les références historiques ne valent pas spécification actuelle.
+
+`IDEES_ET_BRIEFS_TECHNIQUES.md` rassemble I-01 à I-10, avec périmètre, points
+d'intégration, données proposées, contraintes, dépendances et preuves attendues.
+Les coûts nets et les enveloppes déjà présents sont reconnus comme socle existant.
+Aucune idée n'est présentée comme implémentée et aucun critère d'activation réelle
+n'est levé. Publication documentaire seulement, sur le `master` distant courant,
+sans incorporer les modifications applicatives locales non commitées.

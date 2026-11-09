@@ -184,3 +184,5 @@ de marché ; un refus précoce peut ne pas l'avoir).
 
 Ce qui **ne** protège de rien : le LLM. Il n'a pas d'avantage statistique démontré. Sa
 seule utilité est de dire « je ne vois rien » la plupart du temps.
+
+Nouvelles propositions et briefs techniques : [IDEES_ET_BRIEFS_TECHNIQUES.md](IDEES_ET_BRIEFS_TECHNIQUES.md).

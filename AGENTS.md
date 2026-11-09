@@ -14,32 +14,34 @@ dimensionne ou la refuse ; l'exécution passe par un exchange via CCXT — aujou
 **simulée en papier**. Le LLM peut déclencher, mais il ne dimensionne rien : taille,
 prix et stop sont toujours calculés par le code.
 
-## 2. État réel au dernier journal (voir `docs/JOURNAL.md`)
+## 2. État de reprise — 9 novembre 2026
 
-- **Phase 0 terminée**, **phase 1 en cours** : 6 étapes terminées sur 11, 5 en cours.
-  La **phase 2** a commencé : 2.1, 2.2 et 2.11 sont terminées, les étapes 2.3 à 2.9
-  restent en cours. Le mode **`SWING_MACRO_D1`** (D-060) est implémenté et mesuré :
-  négatif sur 2021-2026, positif seulement sur l'historique complet, non activé.
-- **Historique multi-années en base** (migration 0008, étape 2.8) : BTC/EUR depuis
-  2013, ETH/EUR depuis 2015, SOL/EUR depuis 2021 en H1 et H4 (~158 600 bougies),
-  importé des archives OHLCVT publiques de Kraken **par requêtes HTTP Range**
-  (`scripts/ingest_history.py`). Cohérence H1 → H4 vérifiée, trous signalés et jamais
-  interpolés.
-- Le moteur **papier** tourne par défaut sur une **équité virtuelle de 1 000 EUR**
-  (`PAPER_START_EQUITY`), découplée du solde réel : le sizing est éprouvable sans
-  engager un centime. Point d'entrée : `python -m app.main --once` (un cycle) ou
-  `--serve` (cycles alignés sur les H4).
-- **Le chemin réel existe mais n'est pas activé.** `app/execution/live.py` envoie un
-  ordre marché avec stop bracket, vérifie le stop après le fill et solde si le stop
-  manque. `main.py` exige `TRADING_MODE=live` + `EXCHANGE_SANDBOX_MODE=false` +
-  `I_UNDERSTAND_REAL_MONEY=true`, **et** une réconciliation propre au démarrage.
-  Aucun ordre réel n'a été envoyé à ce jour ; le sous-compte dédié reste à créer.
-- La base PostgreSQL existe et est à jour (8 migrations appliquées sur Supabase).
+- Le bot reste en **simulation spot long uniquement** ; aucun capital réel engagé.
+  Le chemin live exige les trois verrous de configuration et une réconciliation
+  propre. Ne pas confondre une sonde de validation et une exécution réelle.
+- Les résultats récents ne démontrent pas de rentabilité robuste. La disponibilité
+  d'un exécuteur ne constitue pas une autorisation d'activation. Les historiques
+  datés et résultats négatifs sont conservés dans le journal et les décisions.
+- Le profil `progressif` est réservé au papier. Il inclut un risque prévu net
+  de frais/glissement, un trailing et trois enveloppes : capital actif, réserve et
+  cagnotte. Seul le capital actif dimensionne ; les pertes ne sont pas rechargées
+  depuis la réserve ou la cagnotte. Voir `docs/PROGRESSION.md`, D-069 et D-070.
+- Dix migrations sont versionnées, dont `0010_capital_ledger.sql`. Leur validation
+  locale ne prouve pas leur déploiement sur Supabase ; vérifier la base cible avant
+  exploitation. Les défauts ouverts restent dans `AMELIORATIONS_2026-11-09.md`.
+- Les dix nouvelles propositions de `docs/IDEES_ET_BRIEFS_TECHNIQUES.md` sont des
+  briefs, pas des fonctionnalités livrées. Ne pas présenter leurs prérequis manquants
+  comme déjà implémentés.
+- Le budget de perte totale de 9,37 EUR et le modèle `qwen3.5:9b` sont déjà
+  documentés. Les minima Kraken peuvent empêcher les achats ; ne pas relâcher le
+  risque ni augmenter le budget pour les financer sans décision explicite.
+- `docs/ROADMAP.md` donne l'avancement ; `docs/JOURNAL.md` les preuves datées.
+  `docs/CODE_INDEX.md` est généré depuis le code, jamais rédigé manuellement.
 
 ## 3. Ordre d'autorité — en cas de contradiction
 
-Les documents se contredisent ; c'est normal, ils viennent d'époques différentes. Quand
-deux sources s'opposent, celle du haut gagne :
+Les résultats datés décrivent leur version du code. En cas de contradiction sur
+le comportement actuel, appliquer cet ordre :
 
 | Rang | Source | Portée |
 |---|---|---|
@@ -47,7 +49,7 @@ deux sources s'opposent, celle du haut gagne :
 | 2 | `backend/app/engine/risk_gate.py` | Logique de risque et codes de rejet |
 | 3 | `docs/DECISIONS.md` | Le pourquoi de chaque choix |
 | 4 | `docs/ROADMAP.md` | Avancement et critères de passage |
-| 5 | `PROMPT_*.md` | **Historique et périmé.** Ne jamais appliquer tel quel. |
+| 5 | `docs/IDEES_ET_BRIEFS_TECHNIQUES.md` | Propositions futures, sans autorité sur le comportement livré |
 
 Le rang 1 et le rang 2 doivent rester **identiques** : le test
 `backend/tests/test_schema_contract.py` compare mécaniquement l'énumération
@@ -94,11 +96,11 @@ c'est rouge, le message dit quoi faire. C'est la première commande à lancer en
 ```
 README.md                  porte d'entrée
 AGENTS.md                  ce fichier
-PROMPT_*.md                specs d'origine — PÉRIMÉES, voir §3
 docs/ROADMAP.md            étapes, statuts, critères de passage
 docs/JOURNAL.md            historique daté + commande de vérification
-docs/DECISIONS.md          D-001 … D-042, le pourquoi
+docs/DECISIONS.md          décisions datées, le pourquoi
 docs/ARCHITECTURE.md       couches, modules, modèle de données
+docs/IDEES_ET_BRIEFS_TECHNIQUES.md  dix propositions, non implémentées
 scripts/check.sh           vérification globale
 scripts/manage.sh          start/stop/restart api|dashboard|all
 scripts/backtest_watch.sh  veille hebdomadaire (cron, silencieuse)
@@ -130,7 +132,7 @@ backend/
   scripts/shadow_report.py achats non pris : résumé + évaluation stop/TP
   scripts/lessons.py      relecture des résultats → leçons actives
   scripts/verify_drawdowns.py  drawdowns sur jeu figé, transaction annulée
-  tests/                   603 tests Python (+ golden de backtest)
+  tests/                   tests Python et golden ; décompte dans CODE_INDEX.md
 ```
 
 ## 7. Pièges connus de cet environnement
@@ -166,52 +168,8 @@ backend/
 
 ## 8. Prochaine action
 
-`docs/ROADMAP.md`, phase 2 : **2.9 — balayage statistique** est mesuré et négatif,
-deux fois. 48 scénarios sur 24 mois (3 paires × 2 modes d'entrée × 4 pentes × 2 niveaux
-de frais) : **aucun positif**, PF de 0,11 à 0,62, N de 14 à 39 trades par paire. Le
-repli H1 (D-058) ne débloque ni N ni le signe. Deux artefacts ont été corrigés en
-route : la bande RSI 38–45 du brief était **vide par construction** (un reclaim
-d'EMA50 H1 a un RSI de 45–60), et les coupe-circuits permanents tronquaient la fenêtre
-(D-059 — d'où la colonne `gel` et les options qui les lèvent). Le levier n'est ni la
-profondeur d'historique (2.8 est fait : 13 ans en base), ni les frais, ni la géométrie
-de sortie, ni un troisième filtre : c'est la **cadence de décision** (une clôture H4 ne
-voit qu'une opportunité H1 sur quatre) ou la **couverture multi-paires** (95 trades sur
-les 3 paires à pente 0, contre 39 au mieux sur une seule). Protocole inchangé :
-
-```bash
-cd backend && .venv/bin/python scripts/backtest.py sweep --months 24 \
-  --entry-modes EMA50_H4,PULLBACK_H1 --max-consecutive-losses 9999 --max-hwm-drawdown 1.0
-```
-
-Ne pas figer un filtre sur 4 à 39 trades. Le chantier 4 (ordres Maker) reste **gelé**
-tant que le PF ne dépasse pas 1,30 : optimiser l'exécution d'une stratégie perdante ne
-fait que perdre plus lentement. **2.3 est fait** (table `shadow_trades`, rapport
-`scripts/shadow_report.py`), **2.5** (LLM autonome BUY/SELL/HALT) et **2.6** (mémoire
-de leçons) restent en cours de mesure, **2.7** (short) est un laboratoire isolé.
-Ensuite 2.4 (rapport de phase).
-
-**2.11 — swing macro D1** est implémenté (`ENTRY_MODE=SWING_MACRO_D1`,
-`STOP_MODE=STRUCTURAL_D1`, preset `swing`, `backtest.py swing`). Mesure 2021-11 →
-2026-11, 80 pb/côté, coupe-circuits levés : BTC PF 0,44, ETH 0,57, SOL 0,19 —
-**aucun scénario positif sur la fenêtre demandée**. Tout l'historique : BTC `both`
-PF 2,20 (87 trades, 7,1/an, réussite 17,2 %), BTC Donchian PF 4,23 (37 trades, 3,0/an),
-ETH `value` PF 1,67 — mais la réussite de 40 % n'est jamais atteinte et l'avantage
-disparaît sur la fenêtre récente. **Le mode n'est pas activé.** Prochain levier : un
-filtre de régime ou une sortie moins whipsaw que l'EMA20, pas un quatrième filtre
-d'entrée.
-
-Le chemin live est écrit : `app/execution/live.py` (bracket + stop vérifié + sortie
-d'urgence), `app/execution/factory.py`, `main.py` avec réconciliation obligatoire au
-démarrage, `scripts/reconcile.py --apply --confirm` et `kill_switch.py --confirm-live`.
-**Il n'est pas activé** : aucun ordre réel n'a été envoyé. Pour l'activer il faut un
-sous-compte dédié (aucun solde manuel sur les paires), le montant que Seb accepte de
-perdre, puis les trois verrous `TRADING_MODE=live` + `EXCHANGE_SANDBOX_MODE=false` +
-`I_UNDERSTAND_REAL_MONEY=true`, et une réconciliation propre.
-
-**Décision en attente** : la mesure v3 avec les frais réels (0,80 %/côté) donne 4
-trades, 0 gagnant, −0,6951 EUR ; aucun scénario testé n'est positif. Le prochain
-levier est l'entrée, pas l'exécution. Ne pas activer le réel avant une mesure positive
-nette de frais.
-
-Décisions déjà prises : Kraken spot, 9,37 EUR (perte totale acceptable), Ollama présent
-(qwen3.5:9b, ~1 s avec `think=false`).
+Lire la roadmap et le dernier journal avant d'agir. Les mesures économiques restent
+bloquantes pour l'argent réel. Les idées I-01 à I-10 sont un catalogue de travaux
+possibles : ouvrir une étape et fixer ses critères avant toute implémentation.
+Ne pas réintroduire de brief périmé comme spécification du code actuel ; les choix
+historiques sont conservés dans `docs/DECISIONS.md` et `docs/JOURNAL.md`.

@@ -139,3 +139,5 @@ python scripts/check_dashboard_browser.py /tmp/captures-capital  # depuis la rac
 Les règles, l'initialisation d'un compte papier existant et les limites des paliers
 sont dans `docs/PROGRESSION.md`. Le plafond actif de l'exemple est 20 EUR ; il ne
 force aucune réduction d'une enveloppe initiale plus grande, mais bloque sa promotion.
+
+Nouvelles propositions et briefs techniques : [IDEES_ET_BRIEFS_TECHNIQUES.md](../docs/IDEES_ET_BRIEFS_TECHNIQUES.md).

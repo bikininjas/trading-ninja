@@ -23,6 +23,9 @@ virtuels** ; un budget insuffisant peut empêcher tout achat. Règles et limites
 | [`dashboard/README.md`](dashboard/README.md) | Dashboard de supervision (Node.js, zéro dépendance) |
 | [`docs/DASHBOARD.md`](docs/DASHBOARD.md) | Architecture, panneaux, contrat API et sécurité du dashboard |
 | [`docs/BACKTEST.md`](docs/BACKTEST.md) | Backtest historique, golden et tests récurrents |
+| [`docs/IDEES_ET_BRIEFS_TECHNIQUES.md`](docs/IDEES_ET_BRIEFS_TECHNIQUES.md) | Dix propositions : périmètre, conception, dépendances et critères de validation |
+| [`docs/PROGRESSION.md`](docs/PROGRESSION.md) | Profil progressif papier, enveloppes de capital et limites |
+| [`AMELIORATIONS_2026-11-09.md`](AMELIORATIONS_2026-11-09.md) | Audit daté des défauts et validations encore nécessaires |
 
 ## Démarrage rapide
 
