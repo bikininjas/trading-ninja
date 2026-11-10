@@ -8,10 +8,13 @@ def rank_candidates(candidates, *, now, max_age_seconds=120):
     for item in candidates:
         age = (now - item["observed_at"]).total_seconds()
         cost = item.get("cost") or {}
+        as_of=cost.get('as_of')
+        book_fresh=as_of is not None and 0<=(now-as_of).total_seconds()<=5
         eligible = (
             0 <= age <= max_age_seconds
             and bool(item.get("approved"))
             and cost.get("available") is True
+            and book_fresh
         )
         ranked.append(
             {
@@ -21,7 +24,8 @@ def rank_candidates(candidates, *, now, max_age_seconds=120):
                 if eligible
                 else "STALE_CANDIDATE"
                 if not 0 <= age <= max_age_seconds
-                else "COST_UNAVAILABLE"
+                else "STALE_OR_UNKNOWN_COST"
+                if not book_fresh else "COST_UNAVAILABLE"
                 if not cost.get("available")
                 else "RISK_REJECTED",
                 "policy_version": "lexicographic-v1",

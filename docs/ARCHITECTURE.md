@@ -31,8 +31,8 @@ choisit ni quantité, ni prix, ni stop : toute la géométrie vient du code.
 
 ## 2. Ce qui existe, ce qui n'existe pas
 
-**698 tests** Python (673 hors base et 25 contrats PostgreSQL locaux opt-in)
-et **31 tests** Node (729 au total), répartis ci-dessous.
+**703 tests** Python (677 hors base et 26 contrats PostgreSQL locaux opt-in)
+et **31 tests** Node (734 au total), répartis ci-dessous.
 
 | Composant | Fichier | État |
 |---|---|---|

@@ -6,6 +6,16 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-09 — Lot 2 : compte courant, données et recherche (en cours)
+
+Compte exchange resynchronisé avant chaque évaluation finale, clôture attendue
+obligatoire, timestamp ticker contrôlé lorsqu’il est fourni, raison HALT préservée,
+coût revalidé au choix et fills partiels annulés inclus dans les diagnostics.
+
+Vérification : 703 tests Python dont 26 PostgreSQL locaux, golden inchangé.
+La nouvelle garde refuse aussi un achat suspendu pendant l’écriture SUBMITTED.
+Lot 2 terminé et destiné à un push master distinct.
+
 ## 2026-11-09 — Corrections pré go live par lots (en cours)
 
 Demande explicite : corriger les constats et pousser chaque étape sur master avec

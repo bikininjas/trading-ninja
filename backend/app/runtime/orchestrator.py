@@ -180,6 +180,18 @@ class Orchestrator:
             "exchange en lecture"
         )
 
+    async def _current_account(self):
+        account=await self._repo.account(self._mode,await self._starting_equity())
+        if self._mode=='LIVE' and hasattr(self._broker,'free_quote'):
+            free=await self._maybe_await(self._broker.free_quote())
+            positions=await self._repo.open_positions(self._mode)
+            value=sum((p.amount*last_price(self._exchange,p.symbol) for p in positions),Decimal(0))
+            cash=max(Decimal(0),free-account.reserve_quote-account.growth_quote)
+            await self._repo.snapshot_equity(self._mode,equity=free+value,free_quote=cash,
+                position_value_quote=value,source='LIVE_REFRESH')
+            account=await self._repo.account(self._mode,await self._starting_equity())
+        return account
+
     async def _refresh_settings(self) -> tuple[bool, str | None]:
         """Relit les réglages en base et les applique si le payload a changé.
 
@@ -561,27 +573,7 @@ class Orchestrator:
                 return report
             await machine.go(IDLE, "cooldown expiré")
 
-        account = await self._repo.account(self._mode, await self._starting_equity())
-        if hasattr(self._broker, "free_quote"):
-            # En live, le solde qui compte est celui de l'exchange, pas le ledger
-            # papier. Sans cette lecture, le pare-feu dimensionnerait sur 9,37 EUR
-            # même si le sous-compte contient autre chose.
-            live_free = await self._maybe_await(self._broker.free_quote())
-            live_position = await self._repo.open_position(self._mode)
-            live_value = Decimal(0)
-            if live_position is not None:
-                try:
-                    live_value = live_position.amount * last_price(
-                        self._exchange, live_position.symbol
-                    )
-                except Exception:  # noqa: BLE001 — un prix indisponible ne doit pas
-                    # empêcher la lecture du solde ; la position reste protégée par
-                    # son stop exchange.
-                    live_value = Decimal(0)
-            account = replace(
-                account, free_quote=max(Decimal(0), live_free - account.reserve_quote - account.growth_quote),
-                equity=live_free + live_value,
-            )
+        account = await self._current_account()
         capital = await self._repo.capital_state(self._mode)
         if capital is not None and not self._settings.capital_policy.enabled:
             raise RuntimeError("capital par paliers existant : désactivation interdite sans clôture comptable")
@@ -1057,6 +1049,14 @@ class Orchestrator:
                 report.errors.append(f"{symbol} : {exc}")
                 continue
 
+            from app.market.feed import TIMEFRAME_MS
+            period=TIMEFRAME_MS[self._settings.exchange.daily_timeframe_decision]
+            expected=int(self._now().timestamp()*1000)//period*period
+            if int(state.last_close_at.timestamp()*1000)<expected:
+                await self._event('DATA_UNAVAILABLE',symbol=symbol,terminal=True,body={'reason':'clôture attendue absente'})
+                report.errors.append(f'{symbol} : clôture attendue absente ; achat refusé')
+                continue
+
             # Une bougie clôturée = une évaluation. Sans ce garde, une boucle qui
             # tourne toutes les minutes redemande au modèle la même bougie, pollue
             # les statistiques et peut rouvrir une position sitôt la précédente
@@ -1239,7 +1239,7 @@ class Orchestrator:
             state.snapshot, price=price, tick_at=self._now(), now=self._now()
         )
         # Every candidate, including the selected ranked candidate, is evaluated again.
-        latest = await self._repo.account(self._mode, await self._starting_equity())
+        latest = await self._current_account()
         position = await self._repo.open_position(self._mode)
         decision = evaluate(
             TradeIntent(
@@ -1282,6 +1282,10 @@ class Orchestrator:
         await self._event(
             "SUBMITTED", symbol=state.symbol, body={"policy_id": policy["id"]}
         )
+        if not await self._entry_enabled():
+            await machine.go(IDLE,'achat suspendu avant autorisation de l’envoi')
+            await self._event('ENTRY_DISABLED',symbol=state.symbol,terminal=True)
+            return
         self._submission = True
         try:
             fill = await self._maybe_await(

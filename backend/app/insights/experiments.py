@@ -67,13 +67,14 @@ class MemoryLedger:
     async def force_halt(self, mode, reason, code=None, auto_resume_at=None):
         self.current = "EMERGENCY_HALT"
         self.cooldown = auto_resume_at
+        self.halt_reason=reason
 
     async def force_resume(self, *a, **k):
         self.current = "IDLE"
         self.cooldown = None
 
     async def halt_details(self, *a):
-        return "LLM" if self.cooldown else "EXPERIMENT_HALT"
+        return getattr(self,"halt_reason","EXPERIMENT_HALT")
 
     async def set_cooldown(self, mode, until):
         self.cooldown = until

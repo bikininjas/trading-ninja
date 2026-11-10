@@ -277,7 +277,7 @@ class InsightsStore:
         if not position:
             return None
         orders = await self._conn.fetch(
-            "SELECT * FROM orders WHERE position_id=$1 AND filled_amount>0 AND status IN ('FILLED','PARTIALLY_FILLED') ORDER BY created_at,id LIMIT 5001",
+            "SELECT * FROM orders WHERE position_id=$1 AND filled_amount>0 ORDER BY created_at,id LIMIT 5001",
             position_id,
         )
         end = position["closed_at"] or datetime.now(timezone.utc)

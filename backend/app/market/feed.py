@@ -398,6 +398,11 @@ def build_snapshot(
 def last_price(exchange: Any, symbol: str) -> Decimal:
     """Prix courant, pour la vérification de fraîcheur juste avant `evaluate()`."""
     ticker = exchange.fetch_ticker(symbol)
+    stamp=ticker.get('timestamp')
+    if stamp is not None:
+        observed=exchange.milliseconds() if hasattr(exchange,'milliseconds') else int(datetime.now(timezone.utc).timestamp()*1000)
+        if not 0<=observed-int(stamp)<=5000:
+            raise FeedError(f'{symbol} : ticker source périmé ou futur')
     price = ticker.get("last")
     if price is None:
         raise FeedError(f"{symbol} : prix indisponible")

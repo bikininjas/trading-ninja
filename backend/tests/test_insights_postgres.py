@@ -288,3 +288,9 @@ async def test_public_cannot_execute_privileged_maintenance(pg):
         assert not await conn.fetchval("SELECT has_function_privilege($1,'public.ensure_partitions(integer)','EXECUTE')",role)
     with pytest.raises(asyncpg.RaiseError):
         async with repo.transaction():await conn.fetchval('SELECT public.ensure_partitions(25)')
+
+async def test_canceled_partial_fills_remain_in_trade_diagnostics(pg):
+    repo,conn=pg;pid=await add_position(repo)
+    await conn.execute("INSERT INTO orders(position_id,client_order_id,symbol,mode,side,order_type,purpose,status,requested_amount,filled_amount,average_fill_price,fee_amount,fee_currency) VALUES($1,'canceled-partial','BTC/EUR','PAPER','SELL','MARKET','LLM_EXIT','CANCELED',1,.4,110,.1,'EUR')",pid)
+    data=await repo.diagnostics_input('PAPER',pid)
+    assert len(data['orders'])==1 and data['orders'][0]['filled_amount']==D('.4')
