@@ -265,8 +265,12 @@ immédiatement pour empêcher une nouvelle entrée. Un HALT humain/surveillance 
 STALE après `2 × intervalle + 5` secondes : un surveillant mort n'est jamais vert.
 
 La notification HTTPS ne suit pas les redirections et expire après cinq secondes.
-La déduplication des envois est locale au processus ; un redémarrage peut renotifier
-un incident persistant. Il reste à qualifier le canal réel et installer une sonde
+Un échec est réessayé à chaque observation, même si l'incident a disparu entre-temps ;
+le message conserve les faits initiaux. La file et la déduplication sont locales au
+processus : une panne avant livraison peut perdre un incident déjà résolu et un
+redémarrage peut renotifier un incident persistant. Un délai ou une réponse perdue
+peut aussi produire un doublon : le destinataire doit les tolérer. Il reste à
+qualifier le canal réel et installer une sonde
 externe de disponibilité du surveillant. Aucun service, clé ou alerte réelle n'a
 été créé par cette livraison.
 

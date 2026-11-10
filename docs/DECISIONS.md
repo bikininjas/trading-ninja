@@ -1838,3 +1838,13 @@ d’observation ; CORRECTIONS_PRE_GO_LIVE.md et DEPLOIEMENT_SUPABASE_2026-11-10.
 dans JOURNAL.md. Les preuves JSON, montants, critères, limitations et besoins non
 réalisés restent conservés. Le contrôle documentaire vérifie désormais les portes
 R0–R7. Aucun changement du moteur, des données ou du risque.
+
+---
+
+## D-077 — Réessayer les notifications de surveillance (2026-11-10)
+
+Les incidents nouvellement observés restent en attente en mémoire jusqu'à une
+réponse HTTPS réussie. Le prochain cycle retente même si l'incident a disparu ; le
+message conserve l'observation initiale. Une réponse perdue peut provoquer un
+doublon et un arrêt du processus peut perdre une notification non livrée. Une
+surveillance externe et un canal qualifié restent nécessaires avant R3.

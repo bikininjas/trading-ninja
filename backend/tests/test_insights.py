@@ -706,6 +706,59 @@ async def test_observer_notification_uses_read_only_payload_and_does_not_follow_
         )
 
 
+@pytest.mark.asyncio
+async def test_failed_alert_is_retried_even_if_incident_resolves_before_delivery():
+    from scripts.insights import PendingNotifications
+
+    queue = PendingNotifications()
+    issue = {"key": "STOP:1", "reason": "protection insuffisante"}
+    first = {"observation": {"observed_at": NOW}, "issues": [issue]}
+    queue.observe(first)
+    calls = []
+
+    async def fail(url, payload):
+        calls.append(payload)
+        raise TimeoutError("webhook unavailable")
+
+    with pytest.raises(TimeoutError):
+        await queue.deliver("https://alerts.example", first, fail)
+
+    resolved = {"observation": {"observed_at": NOW + timedelta(seconds=15)}, "issues": []}
+    queue.observe(resolved)
+
+    async def succeed(url, payload):
+        calls.append(payload)
+
+    await queue.deliver("https://alerts.example", resolved, succeed)
+    assert len(calls) == 2
+    assert calls[1]["new_incidents"] == ["STOP:1"]
+    assert calls[1]["pending_incidents"] == [{"issue": issue, "observed_at": NOW}]
+    assert calls[1]["issues"] == []
+    assert not queue.pending
+
+
+@pytest.mark.asyncio
+async def test_delivered_alert_is_deduplicated_until_incident_reopens():
+    from scripts.insights import PendingNotifications
+
+    queue = PendingNotifications()
+    result = {"observation": {"observed_at": NOW}, "issues": [{"key": "STOP:1"}]}
+    sent = []
+
+    async def send(url, payload):
+        sent.append(payload)
+
+    queue.observe(result)
+    await queue.deliver("https://alerts.example", result, send)
+    queue.observe(result)
+    await queue.deliver("https://alerts.example", result, send)
+    assert len(sent) == 1
+    queue.observe({"observation": {"observed_at": NOW}, "issues": []})
+    queue.observe(result)
+    await queue.deliver("https://alerts.example", result, send)
+    assert len(sent) == 2
+
+
 def test_confidence_does_not_mix_exit_policies_or_certify_unknown_versions():
     base = {
         "action": "BUY",

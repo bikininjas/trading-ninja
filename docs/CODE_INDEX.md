@@ -3,18 +3,18 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `f763ef8641f1d106`
+Empreinte des sources : `100c72e029edb8fa`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
 | Modules Python | 132 |
-| Lignes Python | 31817 |
-| Classes | 144 |
-| Fonctions et méthodes | 1011 |
-| Cas de test collectés par pytest | 744 |
-| Fonctions de test (comptage statique) | 596 |
+| Lignes Python | 31900 |
+| Classes | 145 |
+| Fonctions et méthodes | 1013 |
+| Cas de test collectés par pytest | 746 |
+| Fonctions de test (comptage statique) | 598 |
 | Migrations SQL | 13 |
 | Scripts shell | 3 |
 
@@ -97,7 +97,7 @@ Empreinte des sources : `f763ef8641f1d106`
 | `backend/scripts/eval_llm_swing.py` | 269 | Évalue le LLM sur les signaux swing D1, sans ordre ni écriture en base. |
 | `backend/scripts/hash_password.py` | 35 | Génère un hash de mot de passe administrateur (scrypt). |
 | `backend/scripts/ingest_history.py` | 471 | Ingestion de l'historique OHLCVT multi-années de Kraken. |
-| `backend/scripts/insights.py` | 151 | Observation et recherche : aucun chemin d'ordre ni d'armement live. |
+| `backend/scripts/insights.py` | 181 | Observation et recherche : aucun chemin d'ordre ni d'armement live. |
 | `backend/scripts/kill_switch.py` | 122 | Kill-switch autonome — solde la position et halte le bot, backend arrêté ou non. |
 | `backend/scripts/lab_rotation.py` | 294 | Laboratoire de rotation momentum D1 — aucun ordre, aucune écriture. |
 | `backend/scripts/lessons.py` | 168 | Mémoire de leçons — relecture des résultats, affichage, purge. |
@@ -128,7 +128,7 @@ Empreinte des sources : `f763ef8641f1d106`
 | `backend/tests/test_exit_rule.py` | 67 | Tests du Chandelier Exit : niveau, cliquet et sortie à la clôture. |
 | `backend/tests/test_feed.py` | 167 | Tests du flux de marché et des indicateurs, sur bougies synthétiques. |
 | `backend/tests/test_history.py` | 255 | Historique OHLCVT : analyse pure du CSV Kraken, trous, agrégation, cohérence. |
-| `backend/tests/test_insights.py` | 807 | Contrats des dix briefs : calculs purs, frontières de rejeu et runtime réel. |
+| `backend/tests/test_insights.py` | 860 | Contrats des dix briefs : calculs purs, frontières de rejeu et runtime réel. |
 | `backend/tests/test_insights_api.py` | 205 | Parcours administratifs privés : observation, révisions et aucune exécution. |
 | `backend/tests/test_insights_postgres.py` | 382 | Preuves SQL des contrôles, paquets, incidents et révisions ; cible locale stricte. |
 | `backend/tests/test_kraken_adapter.py` | 307 | Tests de la passerelle Kraken, hors réseau. |
@@ -1254,9 +1254,13 @@ le code, pas une copie de celui-ci.
 
 *Observation et recherche : aucun chemin d'ordre ni d'armement live.*
 
+- **class PendingNotifications** (l.22) — Incidents observés mais non encore confirmés par le destinataire.
+  - `def __init__(self)` (l.29)
+  - `def observe(self, result)` (l.33)
+  - `async def deliver(self, url, result, notify)` (l.42)
 - `def read_json(path)` (l.15)
-- `async def run(args)` (l.22)
-- `def main(argv=None)` (l.114)
+- `async def run(args)` (l.55)
+- `def main(argv=None)` (l.144)
 
 ### `backend/scripts/kill_switch.py`
 
@@ -1766,9 +1770,11 @@ le code, pas une copie de celui-ci.
 - `async def test_observation_failure_blocks_new_entries_but_keeps_existing_stop_management()` (l.613)
 - `def test_recording_limit_cannot_interrupt_an_already_executed_side_effect()` (l.661)
 - `async def test_observer_notification_uses_read_only_payload_and_does_not_follow_redirects()` (l.679)
-- `def test_confidence_does_not_mix_exit_policies_or_certify_unknown_versions()` (l.709)
-- `async def test_replay_preserves_model_identity_and_already_applied_settings_on_later_cycles()` (l.740)
-- `async def test_uncertain_live_entry_blocks_retry_without_sending_a_compensating_sell()` (l.779)
+- `async def test_failed_alert_is_retried_even_if_incident_resolves_before_delivery()` (l.710)
+- `async def test_delivered_alert_is_deduplicated_until_incident_reopens()` (l.741)
+- `def test_confidence_does_not_mix_exit_policies_or_certify_unknown_versions()` (l.762)
+- `async def test_replay_preserves_model_identity_and_already_applied_settings_on_later_cycles()` (l.793)
+- `async def test_uncertain_live_entry_blocks_retry_without_sending_a_compensating_sell()` (l.832)
 
 ### `backend/tests/test_insights_api.py`
 
@@ -2447,7 +2453,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_exit_rule.py` | 10 |
 | `backend/tests/test_feed.py` | 12 |
 | `backend/tests/test_history.py` | 22 |
-| `backend/tests/test_insights.py` | 25 |
+| `backend/tests/test_insights.py` | 27 |
 | `backend/tests/test_insights_api.py` | 9 |
 | `backend/tests/test_insights_postgres.py` | 26 |
 | `backend/tests/test_kraken_adapter.py` | 25 |
@@ -2473,7 +2479,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_shadow.py` | 5 |
 | `backend/tests/test_sweep.py` | 13 |
 | `backend/tests/test_swing_backtest.py` | 7 |
-| **Total** | **744** |
+| **Total** | **746** |
 
 ## 5. Schéma SQL
 

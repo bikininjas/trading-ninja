@@ -19,6 +19,39 @@ def read_json(path):
     return json.loads(p.read_text())
 
 
+class PendingNotifications:
+    """Incidents observés mais non encore confirmés par le destinataire.
+
+    Conservé en mémoire : une sonde externe doit détecter l'arrêt du surveillant.
+    Une réponse perdue peut entraîner un doublon, jamais une livraison certaine.
+    """
+
+    def __init__(self):
+        self.active = set()
+        self.pending = {}
+
+    def observe(self, result):
+        issues = {issue["key"]: issue for issue in result["issues"]}
+        for key in issues.keys() - self.active:
+            self.pending[key] = {
+                "issue": issues[key],
+                "observed_at": result["observation"]["observed_at"],
+            }
+        self.active = set(issues)
+
+    async def deliver(self, url, result, notify):
+        if not self.pending:
+            return
+        keys = sorted(self.pending)
+        await notify(url, {
+            "new_incidents": keys,
+            "pending_incidents": [self.pending[key] for key in keys],
+            **result,
+        })
+        for key in keys:
+            del self.pending[key]
+
+
 async def run(args):
     if args.action == "replay":
         from app.insights.replay import replay_cycle
@@ -77,7 +110,7 @@ async def run(args):
                 api_key=config.observer_api_key, secret=config.observer_secret
             )
             await asyncio.to_thread(exchange.load_markets)
-        previous = set()
+        notifications = PendingNotifications()
         while True:
             result = await observe_protection(
                 repo,
@@ -87,14 +120,12 @@ async def run(args):
                 timeframe=config.exchange.daily_timeframe_decision,
                 universe=config.exchange.allowed_symbols,
             )
+            notifications.observe(result)
             active = {i["key"] for i in result["issues"]}
-            fresh = active - previous
             print(json.dumps(public(result), ensure_ascii=False), flush=True)
-            if args.webhook and fresh:
+            if args.webhook and notifications.pending:
                 try:
-                    await notify_incident(
-                        args.webhook, {"new_incidents": sorted(fresh), **result}
-                    )
+                    await notifications.deliver(args.webhook, result, notify_incident)
                 except Exception as exc:
                     print(
                         json.dumps(
@@ -103,7 +134,6 @@ async def run(args):
                         file=sys.stderr,
                         flush=True,
                     )
-            previous = active
             if not args.serve:
                 return {"status": "OBSERVED", "issues": len(active)}
             await asyncio.sleep(config.observer_interval_seconds)

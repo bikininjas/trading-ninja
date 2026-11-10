@@ -6,6 +6,18 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Fiabilisation des alertes : début du lot R3
+
+Le surveillant réessaie une notification échouée à chaque observation, même si
+l'incident est résolu avant livraison. La file reste en mémoire : une sonde externe
+et la recette d'un canal réel restent indispensables.
+
+Vérification avec Python 3.13.17 et requirements.lock : 711 tests Python réussis,
+35 contrats PostgreSQL ignorés faute de base locale demandée ; 31 tests Node réussis.
+Les nouveaux tests couvrent le nouvel essai après résolution et la déduplication.
+
+---
+
 ## 2026-11-10 — Dossier de preuves des correctifs et du déploiement SQL
 
 Les deux rapports séparés sont regroupés ici. Les dates, limites de sauvegarde,
