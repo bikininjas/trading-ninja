@@ -108,6 +108,9 @@ class FeatureLedger(MemoryLedger):
     async def protection_health(self, *a):
         return self.protection
 
+    async def runtime_heartbeat(self, *a):
+        return self.now
+
     async def record_protection(self, mode, observation, issues):
         self.protection = {"latest": observation, "incidents": issues}
 

@@ -419,7 +419,8 @@ class InsightsStore:
                 mode,
             )
         ]
-        return {"latest": latest, "incidents": incidents}
+        return {"latest": latest, "incidents": incidents,
+                "runtime_heartbeat_at": await self.runtime_heartbeat(mode)}
 
     async def record_protection(self, mode, observation, issues):
         async with self._conn.transaction():

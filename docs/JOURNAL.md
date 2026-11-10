@@ -6,6 +6,41 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Heartbeat continu : second lot R3 vérifié localement
+
+Le lot d'alertes durables est publié sur master `da76438`, référence distante
+vérifiée ; sa CI a réussi ([42818549350](https://github.com/bikininjas/trading-ninja/actions/runs/42818549350)). Début du heartbeat du moteur sur une connexion distincte, avec lecture
+par surveillant, sonde et API. Réutilisation de `bot_state.last_heartbeat_at` :
+aucune nouvelle migration ni modification de la cible Supabase prévue.
+
+**Second lot vérifié — D-082.** Heartbeat dix secondes, expiration trente secondes,
+connexion distincte bornée, travail suspendu si le renouvellement échoue et
+nettoyage conditionnel à la sortie. Les snapshots d'équité ne peuvent plus fabriquer
+une preuve de vie. Sonde et API lisent directement le heartbeat et partagent leur
+verdict ; un cycle échoué/incomplet ne vaut pas succès. Le navigateur invalide son
+état sain à l'expiration source ou après échec d'actualisation.
+
+Python 3.13.17, PostgreSQL 17 local jetable : **798 tests réussis**, dont 40 SQL.
+Les nouveaux contrats exercent une veille active, un vrai SIGKILL du processus
+heartbeat, la destruction réelle de sa session SQL, le nettoyage sans effacement
+d'un successeur et l'absence de renouvellement par un snapshot financier. La preuve
+d'expiration après SIGKILL avance l'horloge du lecteur de 31 secondes ; ce n'est
+pas une mesure de délai réel sur la cible. Le golden est inchangé (-34,8828 EUR).
+Chromium + Playwright : expiration de preuve et réponse 503 simulée sans faux vert,
+recette desktop/mobile réussie, captures dans `/tmp/tn-r3-dashboard`.
+`scripts/check.sh` entièrement vert : 758 tests hors base, 40 ignorés, 31 Node,
+13 migrations locales conformes, drawdowns et index vérifiés. La suite distincte
+ci-dessus a bien exécuté les 40 contrats SQL. Diff relu, sans erreur d'espacement.
+
+Limite conservée : un heartbeat prouve la vie de l'event loop, pas la progression
+de toute attente asynchrone ; le délai de cycle bloqué reste dix minutes. La
+recette d'une alerte critique en 60 secondes sur la cible, les services, le canal
+réel, la synchronisation des horloges et la sauvegarde/restauration sont ouverts.
+Les conditions économiques restent insuffisantes ; statut NO-GO inchangé. Aucun
+ordre réel, démarrage du moteur de trading ou accès Supabase pendant ces lots.
+
+---
+
 ## 2026-11-10 — Reprise : alertes durables et vie du moteur, lot commencé
 
 `master` récupéré et checkout synchronisé sur `0e34d43`. Sa CI a réussi :

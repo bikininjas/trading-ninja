@@ -1903,3 +1903,22 @@ Ce stockage évite une migration cible avant sauvegarde complète. Il exige sa
 propre conservation et un contrôle externe du processus et de son volume. Une
 réponse 2xx prouve l'acceptation HTTP, pas la lecture humaine de l'alerte. Le canal
 et les délais de la cible restent à qualifier ; aucun service n'est installé.
+
+---
+
+## D-082 — Heartbeat moteur et verdict de santé partagé (2026-11-10)
+
+Le moteur renouvelle la colonne existante `bot_state.last_heartbeat_at` toutes
+les dix secondes, depuis son event loop sur une connexion dédiée et bornée.
+Les snapshots financiers cessent de s'en servir. Premier renouvellement obligatoire
+avant travail, erreur bloquante, nettoyage conditionné à sa propre dernière date.
+La sonde relit le heartbeat directement ; API et sonde partagent le même verdict,
+avec expiration à trente secondes. Un cycle échoué/incomplet ou une lecture
+incomplète ne vaut pas succès. Le navigateur expire l'état sain selon les dates
+sources et l'invalide après une lecture échouée, en conservant les derniers faits.
+
+La colonne existante évite toute migration cible avant sauvegarde complète. Une
+preuve récente n'est pas une garantie instantanée ; un blocage asynchrone peut
+laisser avancer l'event loop, et le délai de cycle historique de dix minutes reste
+distinct. Mesures sous charge, horloges, contention et canal cible sont nécessaires
+avant qualification R3. Aucune installation ni activation réelle n'est implicite.

@@ -4,7 +4,7 @@ python scripts/check_dashboard_browser.py [répertoire_des_captures]
 Toutes les réponses HTTP sont factices ; aucun compte ni serveur de trading.
 """
 import asyncio,json,sys,shutil
-from datetime import datetime,timezone
+from datetime import datetime,timezone,timedelta
 from pathlib import Path
 from playwright.async_api import async_playwright
 ROOT=Path(__file__).resolve().parents[1]/'dashboard/public'
@@ -22,6 +22,8 @@ async def main():
   controls={'enabled':True,'revision':0}
   sent=[]
   cycle_id='00000000-0000-0000-0000-000000000001'
+  protection={'latest':None,'incidents':[],'freshness':'UNKNOWN','status':'UNKNOWN','reason':'OBSERVER_MISSING'}
+  overview_down=False
   async def dialog(d):
    await d.accept('123456' if d.type=='prompt' else None)
   page.on('dialog',dialog)
@@ -29,6 +31,8 @@ async def main():
   page.on('console',lambda m:print('CONSOLE',m.type,m.text) if m.type=='error' else None)
   async def route(r):
    path=r.request.url.split('tn.test',1)[1].split('?',1)[0]
+   if path=='/api/insights/overview' and overview_down:
+    return await r.fulfill(status=503,content_type='application/json',body='{"detail":"service indisponible"}')
    if path=='/events': return await r.fulfill(status=200,content_type='text/event-stream',body='data: '+json.dumps(STATUS)+'\n\n')
    if path=='/api/status': payload=STATUS
    elif path.startswith('/api/history'): payload={'rows':[]}
@@ -42,7 +46,7 @@ async def main():
    elif path=='/api/insights/overview':payload={'entries':controls,'opportunities':{'unique_opportunities':4,'terminal_attempts':5,
      'terminal_reasons':{'NO_SETUP':3,'NOT_SELECTED':1,'FILLED':1},'truncated':False},
      'cycles':[{'id':cycle_id,'started_at':datetime.now(timezone.utc).isoformat(),'status':'COMPLETE'}],
-     'experiments':[],'protection':{'latest':None,'incidents':[],'freshness':'UNKNOWN'},
+     'experiments':[],'protection':protection,
      'settings':{'revision':0,'applied_revision':0,'apply_error':None}}
    elif path=='/api/insights/policy':payload={'next_position':{'id':'a'*64},'legacy_adoption':{'id':'b'*64},'positions':[]}
    elif path.endswith('/events') and path.startswith('/api/insights/cycles/'):
@@ -65,6 +69,18 @@ async def main():
   for selector,expected in [('#active-capital','9,62'),('#reserve','0,60'),('#growth-pot','1,15')]:
    assert expected in await page.locator(selector).inner_text()
   await page.wait_for_function("document.querySelector('#entries-toggle').disabled === false")
+  await page.wait_for_function("document.querySelector('#protection-results').textContent.includes('Surveillance inconnue')")
+  protection.update(status='OK',reason='OBSERVER_CURRENT',valid_until=(datetime.now(timezone.utc)+timedelta(seconds=1)).isoformat())
+  await page.locator('#insights-refresh').click()
+  await page.wait_for_function("document.querySelector('#protection-results').textContent.includes('Surveillance à jour')")
+  await page.wait_for_function("document.querySelector('#protection-results').textContent.includes('preuve de surveillance expirée')")
+  protection['valid_until']=(datetime.now(timezone.utc)+timedelta(seconds=30)).isoformat()
+  await page.locator('#insights-refresh').click()
+  await page.wait_for_function("document.querySelector('#protection-results').textContent.includes('Surveillance à jour')")
+  overview_down=True
+  await page.locator('#insights-refresh').click()
+  await page.wait_for_function("document.querySelector('#protection-results').textContent.includes('actualisation impossible')")
+  overview_down=False
   await page.locator('#entries-toggle').click()
   await page.wait_for_function("document.querySelector('#entries-status').textContent.includes('suspendus')")
   assert sent[-1][1]['enabled'] is False and sent[-1][1]['expected_revision']==0
@@ -85,6 +101,6 @@ async def main():
   assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth')
   await page.screenshot(path=str(OUT/'capital-mobile.png'),full_page=True)
   assert not errors,errors
-  print('Dashboard : capital, suspension/réautorisation avec TOTP, rejeu, diagnostics et mobile sans débordement.')
+  print('Dashboard : expiration/panne de surveillance sans faux vert, capital, suspension/réautorisation avec TOTP, rejeu, diagnostics et mobile sans débordement.')
   await browser.close()
 asyncio.run(main())

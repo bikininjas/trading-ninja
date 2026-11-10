@@ -256,6 +256,11 @@ class PostgresRepository(InsightsStore):
             raise StateTransitionError(f"aucune ligne bot_state pour le mode {mode}")
         return row["state"], row["cooldown_until"]
 
+    async def runtime_heartbeat(self, mode: str) -> datetime | None:
+        return await self._conn.fetchval(
+            "SELECT last_heartbeat_at FROM bot_state WHERE mode=$1::execution_mode", mode,
+        )
+
     async def transition(self, mode: str, expected: str, target: str, reason: str,
                          code: str | None = None, context: dict | None = None) -> None:
         async with self._conn.transaction():
@@ -384,7 +389,7 @@ class PostgresRepository(InsightsStore):
             )
             await self._conn.execute(
                 "UPDATE bot_state SET equity_hwm_quote = GREATEST(equity_hwm_quote, $2), "
-                "last_heartbeat_at = CLOCK_TIMESTAMP(), updated_at = CLOCK_TIMESTAMP() "
+                "updated_at = CLOCK_TIMESTAMP() "
                 "WHERE mode = $1::execution_mode",
                 mode, equity,
             )

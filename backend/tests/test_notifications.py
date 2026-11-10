@@ -126,7 +126,8 @@ async def test_watchdog_retries_database_outage_after_restart_and_recovery(tmp_p
         raise OSError("secret")
 
     async def healthy_read(config, mode):
-        return {"observed_at": NOW, "body": {"complete": True, "issues": 0, "runtime_expected": True}}
+        return {"observed_at": NOW, "runtime_heartbeat_at": NOW,
+                "body": {"complete": True, "issues": 0, "runtime_expected": True}}
 
     calls = []
 
@@ -184,6 +185,9 @@ async def test_incident_is_durable_before_remote_persistence_fails(tmp_path):
     from app.insights.watch import observe_protection
 
     class FailedStore:
+        async def runtime_heartbeat(self, mode):
+            return NOW
+
         async def open_positions(self, mode):
             return []
 

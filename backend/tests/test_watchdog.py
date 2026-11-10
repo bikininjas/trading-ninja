@@ -12,7 +12,7 @@ DB_ENV = {"DATABASE_URL": "postgresql://postgres:test@127.0.0.1/test?sslmode=dis
 
 
 def observation(body=HEALTHY, at=NOW):
-    return {"observed_at": at, "body": body}
+    return {"observed_at": at, "body": body, "runtime_heartbeat_at": NOW}
 
 
 @pytest.mark.parametrize(("record", "reason"), [
@@ -92,8 +92,10 @@ async def test_watchdog_reads_a_real_observation_from_disposable_postgres(postgr
             "INSERT INTO protection_observations(mode, observed_at, body) "
             "VALUES('TESTNET', $1, $2::jsonb)", NOW, json.dumps(HEALTHY)
         )
+        await conn.execute("UPDATE bot_state SET last_heartbeat_at=$1 WHERE mode='TESTNET'", NOW)
         row = await read_observation(from_env({"DATABASE_URL": postgres_test_url}), "TESTNET")
         assert classify(row, now=NOW, max_age_seconds=35)["status"] == "OK"
     finally:
         await conn.execute("DELETE FROM protection_observations WHERE mode='TESTNET'")
+        await conn.execute("UPDATE bot_state SET last_heartbeat_at=NULL WHERE mode='TESTNET'")
         await conn.close()

@@ -9,6 +9,9 @@
   const rejectionLabels = { SIZING_BELOW_EXCHANGE_MINIMUM: 'Quantité finançable inférieure au minimum', EXCHANGE_MIN_NOTIONAL_FAILED: 'Montant inférieur au minimum de la paire', INSUFFICIENT_FREE_BALANCE: 'Disponible insuffisant', RISK_LIMIT_EXCEEDED: 'Budget de risque dépassé', CONFIDENCE_TOO_LOW: 'Score sous le seuil configuré', REJECTED_COUNTER_TREND_EMA200: 'Tendance longue défavorable' };
   let control = null;
   let busy = false;
+  let refreshing = false;
+  let lastProtection = null;
+  let protectionExpiry = null;
   function status(message) { if ($('insights-status')) $('insights-status').textContent = message; }
   async function api(path, body) {
     const response = await fetch(path, body === undefined ? {} : {
@@ -36,6 +39,8 @@
     const a = document.createElement('a'); a.href = href; a.download = name; a.click(); URL.revokeObjectURL(href);
   }
   async function refresh() {
+    if (refreshing) return;
+    refreshing = true;
     try {
       const data = await api('/api/insights/overview');
       control = data.entries;
@@ -76,7 +81,10 @@
       const applied = data.settings;
       status(`Observations à jour. Réglages demandés : ${applied.revision} ; appliqués : ${applied.applied_revision ?? 'aucune preuve'}${applied.apply_error ? ` · ${applied.apply_error}` : ''}.`);
       await policies();
-    } catch (error) { status(`Observations indisponibles : ${error.message}`); }
+    } catch (error) {
+      if (lastProtection) renderProtection({ ...lastProtection, status: 'UNKNOWN', reason: 'OBSERVATION_UNAVAILABLE' });
+      status(`Observations indisponibles : ${error.message}`);
+    } finally { refreshing = false; }
   }
   async function policies() {
     const data = await api('/api/insights/policy'); const box = clear('position-policies');
@@ -93,8 +101,18 @@
     }
   }
   function renderProtection(data) {
+    clearTimeout(protectionExpiry);
+    const remaining = Math.min(30000, Date.parse(data.valid_until) - Date.now());
+    if (data.status === 'OK' && !(remaining > 0)) data = { ...data, status: 'UNKNOWN', reason: 'PROOF_EXPIRED' };
+    lastProtection = data;
     const box = clear('protection-results');
-    line(box, data.latest ? `${data.freshness === 'FRESH' ? 'Observation récente' : 'Observation périmée, protection actuelle inconnue'} : ${data.latest.observed_at}` : 'Aucune preuve récente du surveillant indépendant.');
+    const health = data.status === 'OK' ? 'Surveillance à jour' : data.status === 'ALERT' ? 'Surveillance en alerte' : 'Surveillance inconnue';
+    const reasons = { RUNTIME_HEARTBEAT_STALE: 'moteur sans signe de vie récent', RUNTIME_HEARTBEAT_MISSING: 'aucune preuve de vie du moteur',
+      RUNTIME_NOT_MONITORED: 'moteur non surveillé', OBSERVER_STALE: 'observation trop ancienne', OBSERVER_MISSING: 'aucune observation',
+      INCOMPLETE_OBSERVATION: 'observation incomplète', ACTIVE_INCIDENT: 'incident ouvert',
+      OBSERVATION_UNAVAILABLE: 'actualisation impossible', PROOF_EXPIRED: 'preuve de surveillance expirée' };
+    line(box, `${health}${data.status !== 'OK' ? ` · ${reasons[data.reason] || 'preuve insuffisante'}` : ''}${data.latest ? ` · observation ${data.latest.observed_at}` : ''}`);
+    if (data.status === 'OK') protectionExpiry = setTimeout(() => renderProtection({ ...data, status: 'UNKNOWN', reason: 'PROOF_EXPIRED' }), remaining + 1);
     if (data.latest) detail(box, 'État observé des protections', data.latest.body);
     for (const incident of data.incidents) {
       line(box, `${incident.incident_key} · ${incident.resolved_at ? 'résolu' : incident.acknowledged_at ? 'acquitté, encore ouvert' : 'ouvert'}`);

@@ -24,38 +24,7 @@ from app.core.db import from_env
 from app.core.env import load_env
 from app.insights.watch import notify_incident
 from app.insights.notifications import NotificationOutbox, notification_path
-
-
-def classify(record, *, now, max_age_seconds, require_runtime=True):
-    """Traite l'absence de preuve comme UNKNOWN, jamais comme un état sain."""
-    if not record:
-        return {"status": "UNKNOWN", "reason": "OBSERVER_MISSING"}
-    observed_at = record["observed_at"]
-    if not isinstance(observed_at, datetime) or observed_at.utcoffset() is None:
-        return {"status": "UNKNOWN", "reason": "INVALID_TIMESTAMP"}
-    age = (now - observed_at).total_seconds()
-    if age < -5:
-        return {"status": "UNKNOWN", "reason": "CLOCK_SKEW"}
-    if age > max_age_seconds:
-        return {"status": "UNKNOWN", "reason": "OBSERVER_STALE"}
-    body = record["body"]
-    if isinstance(body, str):
-        try:
-            body = json.loads(body)
-        except (TypeError, ValueError):
-            return {"status": "UNKNOWN", "reason": "INVALID_OBSERVATION"}
-    if not isinstance(body, dict) or type(body.get("complete")) is not bool:
-        return {"status": "UNKNOWN", "reason": "INVALID_OBSERVATION"}
-    issues = body.get("issues")
-    if type(issues) is not int or issues < 0:
-        return {"status": "UNKNOWN", "reason": "INVALID_OBSERVATION"}
-    if not body["complete"]:
-        return {"status": "ALERT", "reason": "INCOMPLETE_OBSERVATION"}
-    if issues:
-        return {"status": "ALERT", "reason": "ACTIVE_INCIDENT", "issues": issues}
-    if require_runtime and body.get("runtime_expected") is not True:
-        return {"status": "UNKNOWN", "reason": "RUNTIME_NOT_MONITORED"}
-    return {"status": "OK", "reason": "OBSERVER_CURRENT"}
+from app.insights.health import classify
 
 
 async def read_observation(config, mode):
@@ -64,7 +33,9 @@ async def read_observation(config, mode):
     conn = await asyncpg.connect(**kwargs)
     try:
         return await conn.fetchrow(
-            "SELECT observed_at,body FROM protection_observations WHERE mode=$1::execution_mode",
+            "SELECT p.observed_at,p.body,b.last_heartbeat_at AS runtime_heartbeat_at "
+            "FROM protection_observations p LEFT JOIN bot_state b ON b.mode=p.mode "
+            "WHERE p.mode=$1::execution_mode",
             mode,
         )
     finally:
@@ -74,20 +45,22 @@ async def read_observation(config, mode):
 async def check(mode, *, interval, webhook, read=read_observation,
                 notify=notify_incident, now=None, env=None, require_runtime=True,
                 notification_state=None):
-    now = now or datetime.now(timezone.utc)
+    checked_at = now
     try:
         config = from_env(env if env is not None else load_env())
         record = await read(config, mode)
-        report = classify(record, now=now, max_age_seconds=2 * interval + 5,
+        checked_at = now or datetime.now(timezone.utc)
+        report = classify(record, now=checked_at, max_age_seconds=2 * interval + 5,
                           require_runtime=require_runtime)
     except Exception as exc:
         report = {"status": "UNKNOWN", "reason": "DATABASE_UNAVAILABLE",
                   "error_type": type(exc).__name__}
-    report.update(mode=mode, checked_at=now.isoformat())
+    checked_at = checked_at or datetime.now(timezone.utc)
+    report.update(mode=mode, checked_at=checked_at.isoformat())
     path = notification_state or notification_path("watchdog", mode)
     with NotificationOutbox(path, source="observer_watchdog", mode=mode) as outbox:
         outbox.observe({
-            "observation": {"observed_at": now},
+            "observation": {"observed_at": checked_at},
             "issues": [] if report["status"] == "OK" else [{"key": report["reason"], **report}],
         })
         if outbox.pending:

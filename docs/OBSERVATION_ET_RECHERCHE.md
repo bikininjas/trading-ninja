@@ -254,7 +254,8 @@ pas les soldes réels pour juger une position virtuelle.
 Les écarts de quantité, les actifs configurés non suivis et un stop de type,
 quantité restante, statut ou niveau insuffisants ouvrent un incident. Un timeout
 reste inconnu et ne clôt pas les incidents précédents. Un cycle bloqué ou absent
-est détecté avec `--expect-runtime`, en respectant la cadence H4/D1. Les incidents
+est détecté avec `--expect-runtime`, en respectant la cadence H4/D1. Un dernier
+cycle échoué ou incomplet n'est jamais considéré sain. Les incidents
 sont persistés, dédupliqués et historisés ; l'acquittement ne vaut pas résolution.
 Seule une observation complète sans l'écart peut le résoudre.
 
@@ -279,6 +280,33 @@ qualifier le canal réel et installer une sonde
 externe de disponibilité du surveillant. Aucun service, clé ou alerte réelle n'a
 été créé par cette livraison.
 
+### Vie continue du moteur
+
+`python -m app.main --serve` renouvelle `bot_state.last_heartbeat_at` toutes les
+dix secondes depuis le même event loop, sur une connexion SQL distincte avec
+timeout de cinq secondes. Les snapshots d'équité ne renouvellent plus cette
+preuve. Sans premier heartbeat réussi, le travail ne commence pas ; une erreur
+ultérieure arrête le travail du moteur. La sortie normale efface uniquement son
+propre heartbeat ; après arrêt brutal ou event loop bloqué, il expire après
+trente secondes. L'arrêt ne retire aucun stop exchange. La reprise conserve les
+contrôles de réconciliation des intentions, sans relance aveugle d'un ordre.
+
+Le surveillant avec `--expect-runtime`, la sonde et l'API exigent tous une preuve
+de vie récente. La sonde relit directement cette colonne : une observation encore
+fraîche du surveillant ne masque pas la mort du moteur. Le dashboard expire son
+état sain à la date source fournie par l'API et l'invalide après un échec de lecture,
+sans effacer les derniers faits affichés. Aucun rafraîchissement ne rajeunit la
+preuve. Les horloges des services doivent être synchronisées.
+
+Ce heartbeat prouve l'avancement de l'event loop, pas la progression de toute
+opération asynchrone : le contrôle d'un cycle RUNNING conserve son délai historique
+de dix minutes. Les dépassements de cycle, la charge, la contention SQL et les
+délais bout en bout restent à qualifier sur la cible. Un cron `--once` ne fournit
+pas une présence continue : utiliser le moteur `--serve` pour cette supervision.
+Déployer la même version partout, démarrer le moteur puis le surveillant après
+un premier cycle vérifié ; ne pas masquer un démarrage impossible par une période
+verte artificielle. Un HALT de surveillance exige toujours une reprise contrôlée.
+
 ### Sonde séparée du surveillant
 
 `backend/scripts/watchdog.py` lit la dernière observation et alerte par HTTPS si
@@ -300,9 +328,8 @@ invalide. La sonde conserve ses alertes dans `state/watchdog-paper.sqlite3`
 de stockage que le surveillant. Une notification échouée reste réessayable même
 après résolution ; tant qu'elle attend, le code de sortie reste 1. Une récidive
 est une nouvelle notification, un incident inchangé déjà livré est dédupliqué.
-Elle vérifie que le surveillant est configuré avec `--expect-runtime`, mais son
-observation ne prouve pas que le moteur est vivant à chaque seconde : le contrôle
-du moteur repose encore sur la cadence des cycles. `--allow-idle` est réservé au
+Elle exige `--expect-runtime` et une lecture directe récente du heartbeat moteur.
+`--allow-idle` est réservé au
 PAPER. L'absence d'appel de la sonde elle-même exige un contrôle externe distinct.
 Le webhook, le planning, les délais et l'indépendance des services doivent être
 exercés sur la cible avant R3 ; aucune installation n'est faite automatiquement.

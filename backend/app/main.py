@@ -24,6 +24,7 @@ from app.llm.client import SignalClient
 from app.runtime.orchestrator import CycleReport, Orchestrator
 from app.runtime.reconciliation import inspect_exchange
 from app.runtime.scheduler import decision_delay_seconds, next_candle_close
+from app.runtime.heartbeat import run_with_heartbeat
 
 __all__ = ["main"]
 
@@ -145,20 +146,23 @@ async def _run(args: argparse.Namespace) -> int:
             settings_loader=lambda **kwargs: load_settings(env_file=args.config, **kwargs),
         )
 
-        if args.serve:
-            await _serve(
-                orchestrator, settings.exchange.daily_timeframe_decision,
-                max_cycles=args.serve_cycles,
-            )
-            return 0
+        async def work():
+            if args.serve:
+                await _serve(
+                    orchestrator, settings.exchange.daily_timeframe_decision,
+                    max_cycles=args.serve_cycles,
+                )
+                return
 
-        for cycle in range(1, args.cycles + 1):
-            report = await orchestrator.run_once()
-            print(f"\n=== cycle {cycle}/{args.cycles} ({report.elapsed_ms} ms) ===")
-            for line in report.lines():
-                print(line)
-            if cycle < args.cycles:
-                await asyncio.sleep(args.interval)
+            for cycle in range(1, args.cycles + 1):
+                report = await orchestrator.run_once()
+                print(f"\n=== cycle {cycle}/{args.cycles} ({report.elapsed_ms} ms) ===")
+                for line in report.lines():
+                    print(line)
+                if cycle < args.cycles:
+                    await asyncio.sleep(args.interval)
+
+        await run_with_heartbeat(work, settings.database(), settings.execution_mode)
         return 0
     finally:
         await repo.close()

@@ -8,6 +8,7 @@ import httpx
 
 from app.execution.live import LiveBroker
 from app.insights.codec import public
+from app.insights.health import heartbeat_health
 
 
 def verify_observer_key(exchange):
@@ -134,11 +135,21 @@ async def observe_protection(
             for p in positions
         ]
     cycles = await repo.recent_cycles(mode, 1)
+    runtime = None
     if expect_runtime:
+        heartbeat = await repo.runtime_heartbeat(mode)
+        runtime = heartbeat_health(heartbeat, now=now)
+        runtime["heartbeat_at"] = heartbeat
+        if runtime["status"] != "OK":
+            complete = False
+            issue(runtime["reason"], "preuve de vie continue du moteur inconnue")
         if not cycles:
             issue("RUNTIME_MISSING", "aucune preuve de cycle")
         else:
             cycle = cycles[0]
+            if cycle["status"] not in {"RUNNING", "COMPLETE"}:
+                complete = False
+                issue("RUNTIME_INCOMPLETE", "dernier cycle échoué ou incomplet")
             if cycle["status"] == "RUNNING" and now - cycle["started_at"] > timedelta(
                 minutes=10
             ):
@@ -164,6 +175,7 @@ async def observe_protection(
         "mode": mode,
         "positions": observations,
         "runtime_expected": expect_runtime,
+        "runtime": runtime,
         "issues": len(issues),
     }
     result = {"observation": observed, "issues": issues}
