@@ -294,3 +294,44 @@ async def test_canceled_partial_fills_remain_in_trade_diagnostics(pg):
     await conn.execute("INSERT INTO orders(position_id,client_order_id,symbol,mode,side,order_type,purpose,status,requested_amount,filled_amount,average_fill_price,fee_amount,fee_currency) VALUES($1,'canceled-partial','BTC/EUR','PAPER','SELL','MARKET','LLM_EXIT','CANCELED',1,.4,110,.1,'EUR')",pid)
     data=await repo.diagnostics_input('PAPER',pid)
     assert len(data['orders'])==1 and data['orders'][0]['filled_amount']==D('.4')
+
+async def test_live_partial_fills_are_cumulative_idempotent_and_keep_remaining_quantity(pg):
+    from app.execution.paper import Fill
+    repo,conn=pg;pid=await add_position(repo)
+    partial=Fill(price=D(110),amount=D('.4'),notional_quote=D(44),fee_quote=D('.1'),slippage_quote=D(0),order_id='partial-exchange-order')
+    result=await repo.account_exit('PAPER','BTC/EUR',partial,purpose='LLM_EXIT',reason='TEST',quote='EUR',taker_fee=D('.008'))
+    assert result['remaining']==D('.6') and (await repo.open_position('PAPER')).amount==D('.6')
+    assert await repo.account_exit('PAPER','BTC/EUR',partial,purpose='LLM_EXIT',reason='TEST',quote='EUR',taker_fee=D('.008')) is None
+    from dataclasses import replace
+    final=replace(partial,amount=D(1),notional_quote=D(110),fee_quote=D('.25'))
+    result=await repo.account_exit('PAPER','BTC/EUR',final,purpose='LLM_EXIT',reason='TEST',quote='EUR',taker_fee=D('.008'))
+    assert result['remaining']==0 and await repo.open_position('PAPER') is None
+    assert await conn.fetchval('SELECT COUNT(*) FROM orders WHERE exchange_order_id=$1',partial.order_id)==1
+
+async def test_unresolved_intent_blocks_human_resume(pg):
+    repo,conn=pg
+    await conn.execute("INSERT INTO execution_requests(client_id,mode,symbol,request,state) VALUES('unknown-request','PAPER','BTC/EUR','{}','UNKNOWN')")
+    await repo.force_halt('PAPER','incertain')
+    with pytest.raises(StateTransitionError,match='non rapprochées'):await repo.force_resume('PAPER','reprise')
+    assert (await repo.state('PAPER'))[0]=='EMERGENCY_HALT'
+
+async def test_prepared_execution_survives_ledger_transaction_rollback(postgres_test_url):
+    from app.core.db import from_env
+    repo=await PostgresRepository.connect(from_env({'DATABASE_URL':postgres_test_url}))
+    rid=None
+    try:
+        await repo.ensure_mode('PAPER')
+        async with repo.cycle_lock('PAPER'):
+            rid=await repo.prepare_request('PAPER','BTC/EUR',{'type':'market','side':'buy','amount':'1'})
+            await repo.update_request(rid,'ACKNOWLEDGED',response={'id':'audit-durable-order'})
+            with pytest.raises(RuntimeError):
+                async with repo.transaction():
+                    await repo.book_request('PAPER','audit-durable-order')
+                    raise RuntimeError('bookkeeping rollback')
+            assert (await repo.pending_requests('PAPER'))[0]['state']=='ACKNOWLEDGED'
+            async with repo.transaction():
+                with pytest.raises(StateTransitionError,match='avant'):
+                    await repo.prepare_request('PAPER','BTC/EUR',{'type':'market','side':'buy'})
+    finally:
+        if rid:await repo._conn.execute('DELETE FROM execution_requests WHERE client_id=$1',rid)
+        await repo.close()

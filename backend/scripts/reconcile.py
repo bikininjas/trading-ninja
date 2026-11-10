@@ -65,7 +65,7 @@ async def _run(args: argparse.Namespace) -> int:
                 )
                 return 2
             await repo.ensure_mode(mode)
-            broker = make_broker(settings, exchange, mode="live")
+            broker = make_broker(settings, exchange, mode="live",repo=repo)
             actions = await apply_reconciliation(
                 plan, repo, exchange, broker,
                 starting_equity=settings.paper_start_equity,

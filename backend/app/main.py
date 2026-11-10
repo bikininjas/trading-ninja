@@ -113,6 +113,11 @@ async def _run(args: argparse.Namespace) -> int:
             verify_key_permissions(exchange)
             # On ne démarre jamais en live sur un état douteux : une position
             # sans stop couvrant doit être liquidée ou réconciliée avant tout.
+            from app.core.coordination import financial_guard
+            from app.runtime.execution_recovery import recover_executions
+            recovery_broker=make_broker(settings,exchange,settings.exchange.allowed_symbols,repo=repo)
+            async with financial_guard(repo,settings.execution_mode):
+                await recover_executions(repo,recovery_broker,settings.execution_mode,settings.exchange.quote_currency,include_trades=True)
             plan = await inspect_exchange(
                 repo, exchange, settings.execution_mode,
                 settings.exchange.allowed_symbols,
@@ -134,7 +139,7 @@ async def _run(args: argparse.Namespace) -> int:
             ready = await client.warmup()
             print("  modèle chargé" if ready else "  ATTENTION : préchauffage impossible, "
                   "les appels risquent de basculer en repli")
-        broker = make_broker(settings, exchange, settings.exchange.allowed_symbols)
+        broker = make_broker(settings, exchange, settings.exchange.allowed_symbols, repo=repo)
         orchestrator = Orchestrator(
             settings, repo, exchange, client, broker,
             settings_loader=lambda **kwargs: load_settings(env_file=args.config, **kwargs),

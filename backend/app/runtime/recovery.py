@@ -11,6 +11,8 @@ broker : une liquidation n'est jamais gratuite, et le ledger doit le refléter.
 
 from __future__ import annotations
 
+from app.core.coordination import serialized_financial
+
 import uuid
 from contextlib import nullcontext
 from dataclasses import dataclass
@@ -81,6 +83,7 @@ class PanicRecord:
     tracked: bool
 
 
+@serialized_financial(halt_reason='urgence financière')
 async def liquidate_open_positions(repo, exchange, broker, mode, **kwargs):
     # Partage le verrou du bot : un panic papier ne solde pas la même position
     # pendant qu'un cycle normal l'évalue. Les doubles historiques n'ont pas de verrou.
@@ -129,6 +132,17 @@ async def _liquidate_open_positions(
                 stop_price=position.stop_loss_price,
             )
         )
+        if live and hasattr(repo,'account_exit'):
+            result=await repo.account_exit(mode,position.symbol,fill,purpose='EMERGENCY_EXIT',reason=reason,
+                quote=quote_currency,taker_fee=broker.fee(Decimal(1)),emergency=True)
+            free=await broker.free_quote()
+            remaining=result['remaining'] if result else Decimal(0)
+            await repo.snapshot_equity(mode,equity=free+remaining*price,free_quote=max(Decimal(0),free-reserve-growth),
+                position_value_quote=remaining*price,symbol=position.symbol,source='EMERGENCY_EXIT')
+            results.append(Liquidation(position.symbol,fill.amount,fill.price,result['net'] if result else Decimal(0),result['fees'] if result else fill.fee_quote,0))
+            await repo.force_halt(mode,'liquidation réelle : vérification humaine requise')
+            if remaining>0:raise PanicLiquidationError('liquidation partielle, reliquat protégé à contrôler',liquidated=results,errors=['reliquat non nul'])
+            continue
         getter = getattr(repo, "entry_fee", None)
         entry_fee = await _maybe_await(getter(position.id)) if getter else None
         if entry_fee is None or entry_fee <= 0:
@@ -192,6 +206,7 @@ async def _liquidate_open_positions(
     return results
 
 
+@serialized_financial(halt_reason='urgence financière')
 async def record_panic_exits(
     repo: PostgresRepository,
     exits: Any,
@@ -226,6 +241,9 @@ async def record_panic_exits(
     for item in exits:
         fill = getattr(item, "fill", None)
         if fill is None:
+            continue
+        if mode=='LIVE' and hasattr(repo,'account_exit'):
+            await repo.account_exit(mode,str(item.symbol),fill,purpose='EMERGENCY_EXIT',reason=reason,quote=quote_currency,taker_fee=taker_fee,emergency=True)
             continue
         symbol = str(item.symbol)
         position = by_symbol.pop(symbol, None)

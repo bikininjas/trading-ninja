@@ -84,7 +84,7 @@ async def _run(dry_run: bool, confirm_live: bool) -> int:
             )
         exchange = build_exchange(api_key=api_key, secret=secret)
         exchange.load_markets()
-        broker = make_broker(settings, exchange, settings.exchange.allowed_symbols)
+        broker = make_broker(settings, exchange, settings.exchange.allowed_symbols, repo=repo)
 
         results = await liquidate_open_positions(
             repo, exchange, broker, mode,

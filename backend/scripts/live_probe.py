@@ -1,25 +1,10 @@
 #!/usr/bin/env python3
-"""Sonde 3.1 — vérifier qu'un ordre réel rejeté ne fait pas planter le bot.
+"""Sonde Kraken AddOrder en validation seulement (aucun ordre créé).
 
-    .venv/bin/python scripts/live_probe.py --confirm-live
-
-Envoie **un seul ordre volontairement invalide** à Kraken : une quantité sous le
-minimum du marché, pour un notionnel plafonné à 0,05 EUR. L'ordre ne peut pas
-être exécuté ; l'objectif est de lire l'erreur réelle de l'exchange et de vérifier
-que le processus la capture proprement.
-
-Ce script ne passe **pas** par `LiveBroker.entry` : fabriquer une `RiskDecision`
-approuvée pour un ordre factice serait un mauvais précédent. Il teste le rejet
-brut de l'exchange ; les tests unitaires couvrent déjà l'enrobage
-`LiveExecutionError` de l'exécuteur.
-
-Sécurités :
-  - `--confirm-live` obligatoire, aucun mode par défaut ;
-  - quantité construite sous `min_amount` **et** sous `min_cost`, avec un
-    notionnel maximal de 0,05 EUR ;
-  - si l'ordre était accepté malgré tout, il est revendu immédiatement et le
-    script sort en erreur ;
-  - aucune modification de réglage, aucun `.env` touché.
+La quantité est volontairement sous les minima. Le paramètre Kraken
+``validate=True`` est obligatoire, même en mode papier : la sonde ne doit jamais
+constituer un chemin d'exécution hors du verrou et du journal de LiveBroker.
+Une réponse ambiguë n'autorise ni renvoi automatique ni vente compensatoire.
 """
 
 from __future__ import annotations
@@ -112,21 +97,16 @@ def _run(symbol: str | None) -> int:
     rejection: Exception | None = None
     accepted = None
     try:
-        accepted = exchange.create_order(symbol, "market", "buy", str(amount), None, {})
+        accepted = exchange.create_order(symbol, "market", "buy", str(amount), None, {"validate": True})
     except Exception as exc:  # noqa: BLE001 — c'est précisément ce qu'on mesure
         rejection = exc
 
     if accepted is not None:
-        # Ne devrait jamais arriver : la quantité est sous les deux minimums.
-        print("CRITIQUE : l'ordre a été accepté malgré une quantité sous le minimum.",
-              file=sys.stderr)
-        filled = _decimal((accepted or {}).get("filled") or amount)
-        try:
-            exchange.create_order(symbol, "market", "sell", str(filled), None, {})
-            print("position revendue immédiatement.", file=sys.stderr)
-        except Exception as exc:  # noqa: BLE001
-            print(f"REVENTE IMPOSSIBLE : {type(exc).__name__}: {exc}", file=sys.stderr)
-        return 1
+        print("Validation retournée sans rejet ; aucun ordre demandé (validate=true).")
+        if (accepted or {}).get('id'):
+            print("CRITIQUE : identifiant inattendu en mode validation ; inspecter le compte sans renvoi.", file=sys.stderr)
+            return 1
+        return 0
 
     message = f"{type(rejection).__name__}: {rejection}" if rejection else "aucune erreur"
     lowered = message.lower()
@@ -143,22 +123,27 @@ def _run(symbol: str | None) -> int:
               file=sys.stderr)
         return 1
     print("ordres ouverts après le test : 0")
-    print("RÉSULTAT : la capture d'erreur est propre, aucun ordre n'a été créé.")
+    if rejection is not None:
+        import ccxt
+        if not isinstance(rejection, ccxt.ExchangeError):
+            print("RÉSULTAT INCONNU : la réponse ne prouve pas un rejet de validation.", file=sys.stderr)
+            return 1
+    print("RÉSULTAT : rejet de validation confirmé ; aucun ordre demandé.")
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Sonde 3.1 : ordre réel volontairement invalide"
+        description="Sonde Kraken : validation seule, sans création d’ordre"
     )
     parser.add_argument("--confirm-live", action="store_true",
-                        help="confirme l'envoi d'un ordre réel (rejeté par construction)")
+                        help="confirme la validation avec la clé privée Kraken (sans ordre)")
     parser.add_argument("--symbol", default=None, help="paire à sonder (défaut: TRADING_SYMBOL)")
     args = parser.parse_args()
     if not args.confirm_live:
         print(
-            "REFUS : la sonde envoie un ordre réel (invalide) et exige --confirm-live.\n"
-            "Elle ne peut pas être exécutée en mode papier par accident.",
+            "REFUS : la sonde utilise la validation privée Kraken et exige --confirm-live.\n"
+            "Aucun ordre n’est créé : validate=true est systématique.",
             file=sys.stderr,
         )
         return 2

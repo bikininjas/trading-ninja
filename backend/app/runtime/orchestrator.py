@@ -120,6 +120,7 @@ class Orchestrator:
         self._opportunities = {}
         self._legacy_policy = False
         self._model_digest = None
+        self._stop_ids = {}
         self._submission = False
         self._observation_error = None
         self._recorder = None
@@ -503,6 +504,9 @@ class Orchestrator:
     async def _run_once(self) -> CycleReport:
         started = self._perf()
         await self._repo.ensure_mode(self._mode)
+        if self._mode=='LIVE' and hasattr(self._broker,'recover_requests'):
+            from app.runtime.execution_recovery import recover_executions
+            await recover_executions(self._repo,self._broker,self._mode,self._settings.exchange.quote_currency,include_trades=True)
         commands = getattr(self._repo, "consume_observation_commands", None)
         if commands:
             await commands(self._mode)
@@ -886,7 +890,7 @@ class Orchestrator:
         if new_stop <= position.stop_loss_price:
             return position.stop_loss_price
         if live_state is not None:
-            stop_id = getattr(live_state, "stop_order_id", None)
+            stop_id = self._stop_ids.get(position.id) or getattr(live_state, "stop_order_id", None)
             update = getattr(self._broker, "update_stop_loss_order", None)
             if not stop_id or not callable(update):
                 report.errors.append(
@@ -895,9 +899,11 @@ class Orchestrator:
                 )
                 return position.stop_loss_price
             try:
-                await self._maybe_await(
-                    update(position.symbol, position.amount, stop_id, new_stop)
-                )
+                new_id=await self._maybe_await(update(position.symbol,position.amount,stop_id,new_stop))
+                self._stop_ids[position.id]=new_id
+                persist=getattr(self._repo,'update_protective_stop',None)
+                if persist:await persist(position.id,new_stop,new_id)
+
             except LiveExecutionError as exc:
                 report.errors.append(
                     f"{position.symbol} : {label} — stop distant inchangé : {exc}"
@@ -926,6 +932,35 @@ class Orchestrator:
                     position.amount, exit_price, symbol=position.symbol, stop_price=position.stop_loss_price))
             if live:
                 await self._repo.confirm_exit(position.id, fill)
+        if live and hasattr(self._repo,'account_exit'):
+            live_cash=await self._broker.free_quote()
+            async with self._repo.transaction():
+                result=await self._repo.account_exit(self._mode,position.symbol,fill,purpose=purpose,reason=reason,
+                    quote=self._settings.exchange.quote_currency,taker_fee=self._broker.fee(Decimal(1)),emergency=halt)
+                await self._repo.clear_exit(position.id)
+                reserve=account.reserve_quote
+                if result and result['remaining']==0:
+                    deferred=await self._repo.deferred_sweep_quote(self._mode)
+                    plan=plan_sweep(result['total_net'],self._settings.sweep_ratio,self._settings.sweep_min_transfer_quote,deferred_quote=deferred)
+                    if plan.applies:
+                        reserve+=plan.swept_quote
+                        await self._repo.insert_sweep(self._mode,position_id=position.id,quote_currency=self._settings.exchange.quote_currency,
+                            realized_net_pnl=result['total_net'],sweep_ratio=self._settings.sweep_ratio,computed_sweep_quote=plan.computed_quote,
+                            swept_amount=plan.swept_quote,retained_trading_capital=live_cash-reserve,status=plan.status,
+                            next_retry_at=None,error_message=plan.reason)
+                remaining=result['remaining'] if result else Decimal(0)
+                value=remaining*fill.price
+                await self._repo.snapshot_equity(self._mode,equity=live_cash+value,free_quote=max(Decimal(0),live_cash-reserve),
+                    position_value_quote=value,symbol=position.symbol,source='LIVE_EXIT')
+                if remaining>0 or halt:
+                    await self._repo.force_halt(self._mode,'sortie partielle ou arrêt : vérifier les protections et le compte')
+                    machine.current=HALT
+                else:
+                    await machine.go(POST_TRADE_SWEEP,'sortie réelle comptabilisée')
+                    await self._repo.set_cooldown(self._mode,self._now()+timedelta(minutes=COOLDOWN_MINUTES))
+                    await machine.go(COOLDOWN,'refroidissement après sortie réelle')
+                report.position_closed=f'{position.symbol} : fill {fill.amount}, reliquat {remaining}'
+            return
         if fill.amount != position.amount:
             raise RuntimeError("fill partiel : réconciliation requise, aucune comptabilité complète inventée")
         live_cash = await self._maybe_await(self._broker.free_quote()) if hasattr(self._broker, "free_quote") else None
@@ -1334,6 +1369,7 @@ class Orchestrator:
                     fee_amount=fill.fee_quote,
                     fee_currency=self._settings.exchange.quote_currency,
                     slippage_quote=fill.slippage_quote,
+                    exchange_order_id=fill.order_id,
                     position_id=position_id,
                     risk_evaluation_id=evaluation_id,
                 )
@@ -1366,6 +1402,8 @@ class Orchestrator:
                     symbol=state.symbol,
                     source="ENTRY",
                 )
+                book=getattr(self._repo,'book_request',None)
+                if book and fill.order_id:await book(self._mode,fill.order_id)
                 await machine.go(IN_POSITION, f"position ouverte sur {state.symbol}")
         except Exception:
             if self._mode == "LIVE":

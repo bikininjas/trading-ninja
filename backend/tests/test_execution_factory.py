@@ -35,10 +35,15 @@ def test_paper_mode_builds_the_paper_broker():
 
 
 def test_live_mode_builds_the_real_broker():
-    broker = make_broker(settings("live"), FeeExchange())
+    broker = make_broker(settings("live"), FeeExchange(), repo=object())
     assert isinstance(broker, LiveBroker)
 
 
 def test_testnet_is_refused_because_kraken_has_no_testnet_in_ccxt():
     with pytest.raises(RuntimeError, match="testnet"):
         make_broker(settings("testnet"), FeeExchange())
+
+
+def test_live_factory_refuses_missing_durable_repository():
+    with pytest.raises(RuntimeError,match='journal durable'):
+        make_broker(settings('live'),FeeExchange())

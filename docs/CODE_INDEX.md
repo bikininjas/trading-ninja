@@ -3,19 +3,19 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `25724f6e4b737a1d`
+Empreinte des sources : `09269ecbe0d7087f`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
-| Modules Python | 126 |
-| Lignes Python | 30100 |
-| Classes | 139 |
-| Fonctions et méthodes | 972 |
-| Cas de test collectés par pytest | 703 |
-| Fonctions de test (comptage statique) | 562 |
-| Migrations SQL | 12 |
+| Modules Python | 131 |
+| Lignes Python | 31541 |
+| Classes | 144 |
+| Fonctions et méthodes | 1002 |
+| Cas de test collectés par pytest | 732 |
+| Fonctions de test (comptage statique) | 587 |
+| Migrations SQL | 13 |
 | Scripts shell | 3 |
 
 ## 2. Carte des fichiers
@@ -25,7 +25,7 @@ Empreinte des sources : `25724f6e4b737a1d`
 | `backend/app/__init__.py` | 1 |  |
 | `backend/app/api/__init__.py` | 1 | API d'administration (lecture, pause, panic-sell). |
 | `backend/app/api/insights.py` | 393 | API privée des observations ; aucune route analytique n'envoie d'ordre. |
-| `backend/app/api/main.py` | 675 | API d'administration — observation, pause, reprise, panic-sell. |
+| `backend/app/api/main.py` | 680 | API d'administration — observation, pause, reprise, panic-sell. |
 | `backend/app/api/security.py` | 227 | Authentification de l'API d'administration. |
 | `backend/app/api/service.py` | 122 | Vue « administration » : lecture de l'état et actions de contrôle. |
 | `backend/app/api/settings_store.py` | 142 | Réglages pilotables depuis le dashboard, stockés en base. |
@@ -39,11 +39,12 @@ Empreinte des sources : `25724f6e4b737a1d`
 | `backend/app/backtest/short_lab.py` | 260 | Laboratoire du mandat short — mesure hors production. |
 | `backend/app/backtest/swing.py` | 491 | Rejeu du moteur swing Daily — le vrai pare-feu, le vrai broker, aucune I/O. |
 | `backend/app/core/__init__.py` | 1 |  |
+| `backend/app/core/coordination.py` | 92 | Verrou transactionnel interprocessus, indépendant des transactions du ledger. |
 | `backend/app/core/db.py` | 166 | Résolution de la connexion PostgreSQL (Supabase). |
 | `backend/app/core/env.py` | 57 | Lecture des fichiers d'environnement, sans dépendance externe. |
 | `backend/app/core/settings.py` | 611 | Configuration centralisée — chargée depuis l'environnement, sans dépendance externe. |
 | `backend/app/db/__init__.py` | 1 | app/db |
-| `backend/app/db/repository.py` | 1045 | Persistance PostgreSQL — état, signaux, décisions, positions, ordres. |
+| `backend/app/db/repository.py` | 1197 | Persistance PostgreSQL — état, signaux, décisions, positions, ordres. |
 | `backend/app/engine/__init__.py` | 1 |  |
 | `backend/app/engine/affordability.py` | 119 | Faisabilité d'un ordre avec un petit capital — calcul pur, sans I/O. |
 | `backend/app/engine/capital.py` | 93 | Capital actif, réserve protégée et croissance : calcul pur, partagé au rejeu. |
@@ -57,8 +58,9 @@ Empreinte des sources : `25724f6e4b737a1d`
 | `backend/app/exchange/__init__.py` | 1 | Package des passerelles exchange. Aucune I/O à l'import. |
 | `backend/app/exchange/kraken.py` | 356 | Passerelle Kraken spot — préparation de l'étape 1.6. |
 | `backend/app/execution/__init__.py` | 1 | app/execution |
-| `backend/app/execution/factory.py` | 45 | Choix du broker selon le mode — un seul endroit, pour ne pas se tromper. |
-| `backend/app/execution/live.py` | 767 | Exécution réelle Kraken — un ordre ne part que d'une décision approuvée. |
+| `backend/app/execution/factory.py` | 48 | Choix du broker selon le mode — un seul endroit, pour ne pas se tromper. |
+| `backend/app/execution/journal.py` | 20 | Une intention persistée avant envoi ; aucune répétition après un doute. |
+| `backend/app/execution/live.py` | 1234 | Exécution réelle Kraken — un ordre ne part que d'une décision approuvée. |
 | `backend/app/execution/paper.py` | 95 | Exécution papier — un fill simulé, jamais un ordre réel. |
 | `backend/app/insights/__init__.py` | 1 | Observation, rejeu et recherche isolés de l’exécution financière. |
 | `backend/app/insights/calibration.py` | 113 | Rapport de discrimination ; probabilités uniquement avec contrat explicite. |
@@ -74,15 +76,16 @@ Empreinte des sources : `25724f6e4b737a1d`
 | `backend/app/llm/__init__.py` | 1 | Client LLM local. Aucune I/O à l'import. |
 | `backend/app/llm/client.py` | 568 | Client LLM local (Ollama) — auditeur de confluences, jamais exécutant. |
 | `backend/app/llm/lessons.py` | 190 | Mémoire de leçons — apprendre des résultats, pas du bruit de marché. |
-| `backend/app/main.py` | 191 | Point d'entrée du moteur — papier par défaut, live sous verrous explicites. |
+| `backend/app/main.py` | 196 | Point d'entrée du moteur — papier par défaut, live sous verrous explicites. |
 | `backend/app/market/__init__.py` | 1 | Couche marché : flux Kraken et indicateurs. Aucune I/O à l'import. |
 | `backend/app/market/feed.py` | 409 | Flux de marché Kraken et indicateurs — bougies **clôturées** uniquement. |
 | `backend/app/market/history.py` | 479 | Historique de marché persistant — le carburant du backtest multi-années. |
 | `backend/app/market/kraken_archive.py` | 313 | Lecture partielle d'une archive ZIP Kraken par requêtes HTTP Range. |
 | `backend/app/runtime/__init__.py` | 1 | app/runtime |
-| `backend/app/runtime/orchestrator.py` | 1397 | Boucle d'exécution : un cycle = une décision, jamais deux. |
-| `backend/app/runtime/reconciliation.py` | 416 | Réconciliation au démarrage — la base et l'exchange doivent décrire le même état. |
-| `backend/app/runtime/recovery.py` | 297 | Liquidation d'urgence — le seul chemin qui ferme une position sans pare-feu. |
+| `backend/app/runtime/execution_recovery.py` | 133 | Rapproche les reçus durables sans renvoyer les ordres retrouvés. |
+| `backend/app/runtime/orchestrator.py` | 1435 | Boucle d'exécution : un cycle = une décision, jamais deux. |
+| `backend/app/runtime/reconciliation.py` | 419 | Réconciliation au démarrage — la base et l'exchange doivent décrire le même état. |
+| `backend/app/runtime/recovery.py` | 315 | Liquidation d'urgence — le seul chemin qui ferme une position sans pare-feu. |
 | `backend/app/runtime/scheduler.py` | 62 | Cadence d'évaluation : une décision par bougie clôturée, pas par minute. |
 | `backend/app/runtime/shadow.py` | 178 | Mesure des achats que le bot n'a pas pris. |
 | `backend/scripts/backtest.py` | 1237 | Backtest historique — enregistrement, rejeu de régression, veille de dérive. |
@@ -98,7 +101,7 @@ Empreinte des sources : `25724f6e4b737a1d`
 | `backend/scripts/kill_switch.py` | 122 | Kill-switch autonome — solde la position et halte le bot, backend arrêté ou non. |
 | `backend/scripts/lab_rotation.py` | 294 | Laboratoire de rotation momentum D1 — aucun ordre, aucune écriture. |
 | `backend/scripts/lessons.py` | 168 | Mémoire de leçons — relecture des résultats, affichage, purge. |
-| `backend/scripts/live_probe.py` | 172 | Sonde 3.1 — vérifier qu'un ordre réel rejeté ne fait pas planter le bot. |
+| `backend/scripts/live_probe.py` | 157 | Sonde Kraken AddOrder en validation seulement (aucun ordre créé). |
 | `backend/scripts/probe_backtest.py` | 92 | Sonde : combien de décisions LLM un backtest coûterait-il sur BTC/EUR ? |
 | `backend/scripts/reconcile.py` | 123 | Audit de réconciliation — lecture seule, aucun ordre, aucune écriture. |
 | `backend/scripts/shadow_report.py` | 93 | Rapport des shadow trades — les achats que le bot n'a pas pris. |
@@ -118,18 +121,20 @@ Empreinte des sources : `25724f6e4b737a1d`
 | `backend/tests/test_check_exchange.py` | 90 | Tests du verdict de la sonde exchange — la logique qui protège la clé. |
 | `backend/tests/test_db_config.py` | 75 | Tests de la résolution de connexion base (aucun accès réseau). |
 | `backend/tests/test_entry_rule.py` | 314 | Tests de la règle d'entrée déterministe — pure, sans réseau ni base. |
-| `backend/tests/test_execution_factory.py` | 44 | Tests du choix de broker : papier par défaut, live seulement sur demande. |
+| `backend/tests/test_execution_factory.py` | 49 | Tests du choix de broker : papier par défaut, live seulement sur demande. |
+| `backend/tests/test_execution_safety.py` | 286 | Pannes après acceptation, pagination et protections : aucun renvoi aveugle. |
 | `backend/tests/test_exit_guard.py` | 71 | Tests du garde-fou de sortie — le LLM solde, il ne shorte jamais. |
 | `backend/tests/test_exit_rule.py` | 67 | Tests du Chandelier Exit : niveau, cliquet et sortie à la clôture. |
 | `backend/tests/test_feed.py` | 167 | Tests du flux de marché et des indicateurs, sur bougies synthétiques. |
 | `backend/tests/test_history.py` | 255 | Historique OHLCVT : analyse pure du CSV Kraken, trous, agrégation, cohérence. |
 | `backend/tests/test_insights.py` | 807 | Contrats des dix briefs : calculs purs, frontières de rejeu et runtime réel. |
 | `backend/tests/test_insights_api.py` | 205 | Parcours administratifs privés : observation, révisions et aucune exécution. |
-| `backend/tests/test_insights_postgres.py` | 296 | Preuves SQL des contrôles, paquets, incidents et révisions ; cible locale stricte. |
+| `backend/tests/test_insights_postgres.py` | 337 | Preuves SQL des contrôles, paquets, incidents et révisions ; cible locale stricte. |
 | `backend/tests/test_kraken_adapter.py` | 307 | Tests de la passerelle Kraken, hors réseau. |
 | `backend/tests/test_kraken_archive.py` | 145 | Lecture ZIP par plages HTTP : le mécanisme qui évite 9,5 Go de téléchargement. |
 | `backend/tests/test_lessons.py` | 172 | Tests de la mémoire de leçons — purs, sans réseau ni base. |
-| `backend/tests/test_live_execution.py` | 503 | Tests de l'exécuteur réel — aucun réseau, aucune clé, aucun ordre réel. |
+| `backend/tests/test_live_execution.py` | 657 | Tests de l'exécuteur réel — aucun réseau, aucune clé, aucun ordre réel. |
+| `backend/tests/test_live_probe.py` | 34 | La sonde ne constitue jamais un chemin de trading hors journal. |
 | `backend/tests/test_llm.py` | 288 | Tests du client LLM : parsing strict, repli, garde-fous déterministes. |
 | `backend/tests/test_llm_eval.py` | 89 | Métriques de l'évaluation LLM : rétention des gagnants, filtration des perdants. |
 | `backend/tests/test_machine.py` | 52 | Tests de la machine à états : le graphe est une contrainte, pas une convention. |
@@ -163,6 +168,7 @@ Empreinte des sources : `25724f6e4b737a1d`
 | `backend/db/migrations/0010_capital_ledger.sql` | 45 | migration SQL |
 | `backend/db/migrations/0011_insights_and_controls.sql` | 116 | migration SQL |
 | `backend/db/migrations/0012_private_maintenance.sql` | 54 | migration SQL |
+| `backend/db/migrations/0013_durable_executions.sql` | 19 | migration SQL |
 
 ## 3. API interne, module par module
 
@@ -182,17 +188,17 @@ le code, pas une copie de celui-ci.
 
 *API d'administration — observation, pause, reprise, panic-sell.*
 
-- **class LoginRequest(BaseModel)** (l.52)
-- **class TotpRequest(BaseModel)** (l.57)
-- **class OptionalTotpRequest(BaseModel)** (l.60)
-- **class SettingsUpdate(BaseModel)** (l.64)
-- `async def _default_liquidate(repo: PostgresRepository, config: Settings) -> list` (l.77) — Liquidation d'urgence : ledger en papier, exchange réel en live.
-- `async def _default_kill_switch(repo: Any, config: Settings) -> dict` (l.122) — Suspend les entrées sans retirer les protections ni signer chez l’exchange.
-- `async def _default_reconcile(repo: Any, config: Settings) -> dict` (l.134) — Lecture seule : compare l'état distant et l'état local, renvoie un diff.
-- `async def _default_system_health(repo: Any, config: Settings) -> dict` (l.216) — Télémétrie best-effort : ne doit jamais faire planter l'API.
-- `async def _default_position(repo: Any, config: Settings) -> dict` (l.305)
-- `def _mask_sensitive(value: Any) -> Any` (l.349)
-- `def create_app(settings: Settings | None=None, *, repo: Any | None=None, liquidate: Any | None=None, kill_switch: Any | None=None, reconcile: Any | None=None, system_health: Any | None=None, position_provider: Any | None=None, settings_loader: Any | None=None) -> FastAPI` (l.363)
+- **class LoginRequest(BaseModel)** (l.54)
+- **class TotpRequest(BaseModel)** (l.59)
+- **class OptionalTotpRequest(BaseModel)** (l.62)
+- **class SettingsUpdate(BaseModel)** (l.66)
+- `async def _default_liquidate(repo: PostgresRepository, config: Settings) -> list` (l.80) — Liquidation d'urgence : ledger en papier, exchange réel en live.
+- `async def _default_kill_switch(repo: Any, config: Settings) -> dict` (l.127) — Suspend les entrées sans retirer les protections ni signer chez l’exchange.
+- `async def _default_reconcile(repo: Any, config: Settings) -> dict` (l.139) — Lecture seule : compare l'état distant et l'état local, renvoie un diff.
+- `async def _default_system_health(repo: Any, config: Settings) -> dict` (l.221) — Télémétrie best-effort : ne doit jamais faire planter l'API.
+- `async def _default_position(repo: Any, config: Settings) -> dict` (l.310)
+- `def _mask_sensitive(value: Any) -> Any` (l.354)
+- `def create_app(settings: Settings | None=None, *, repo: Any | None=None, liquidate: Any | None=None, kill_switch: Any | None=None, reconcile: Any | None=None, system_health: Any | None=None, position_provider: Any | None=None, settings_loader: Any | None=None) -> FastAPI` (l.368)
 
 ### `backend/app/api/security.py`
 
@@ -399,6 +405,16 @@ le code, pas une copie de celui-ci.
 - `def _pnl(entry: Any, exit_fill: Any) -> Decimal` (l.306)
 - `def run_swing_backtest(*, symbol: str, info: Any, d1: list[list], settings: Any, broker: PaperBroker | None=None, start_index: int | None=None, end_index: int | None=None) -> BacktestResult` (l.315) — Rejoue la politique SWING_MACRO_D1 sur des bougies Daily clôturées.
 
+### `backend/app/core/coordination.py`
+
+*Verrou transactionnel interprocessus, indépendant des transactions du ledger.*
+
+- **class FinancialBusy(RuntimeError)** (l.17)
+- `async def financial_guard(repo, mode, *, wait=False)` (l.22)
+- `async def assert_financial_guard(repo, mode=None)` (l.45)
+- `async def ledger_transaction(repo)` (l.61)
+- `def serialized_financial(*, mode_from=None, halt_reason=None)` (l.70) — Même frontière pour API, CLI et reprise ; réentrance limitée à la tâche.
+
 ### `backend/app/core/db.py`
 
 *Résolution de la connexion PostgreSQL (Supabase).*
@@ -450,70 +466,79 @@ le code, pas une copie de celui-ci.
   - `def trading_equity(self) -> Decimal` (l.57)
   - `def peak(self) -> Decimal` (l.61) — Plus haut connu, pour les mises à jour de HWM.
 - **class PositionRow** (l.67)
-- **class PostgresRepository(InsightsStore)** (l.86)
-  - `def __init__(self, connection: asyncpg.Connection, *, lock_connection_factory=None)` (l.87)
-  - `async def connect(cls, config: DatabaseConfig) -> 'PostgresRepository'` (l.92)
-  - `async def close(self) -> None` (l.96)
-  - `def transaction(self)` (l.99) — Transaction explicite, utile aux vérifications qui doivent être annulées.
-  - `async def ensure_mode(self, mode: str) -> None` (l.105)
-  - `async def state(self, mode: str) -> tuple[str, datetime | None]` (l.112)
-  - `async def transition(self, mode: str, expected: str, target: str, reason: str, code: str | None=None, context: dict | None=None) -> None` (l.122)
-  - `async def set_cooldown(self, mode: str, until: datetime) -> None` (l.148)
-  - `async def note_error(self, mode: str, message: str) -> None` (l.155)
-  - `async def account(self, mode: str, starting_equity: Decimal) -> AccountSnapshot` (l.164)
-  - `async def _account(self, mode: str, starting_equity: Decimal) -> AccountSnapshot` (l.172)
-  - `async def snapshot_equity(self, mode: str, *, equity: Decimal, free_quote: Decimal, position_value_quote: Decimal, symbol: str | None=None, source: str='ORCHESTRATOR') -> None` (l.238)
-  - `async def insert_signal(self, mode: str, symbol: str, model_name: str, *, action: str, confidence: Decimal, market_regime: str, thesis: str, prompt_payload: dict, raw_response: dict, inference_time_ms: int, prompt_sha256: str | None, temperature: float) -> tuple[uuid.UUID, datetime]` (l.257)
-  - `async def last_signal_at(self, mode: str, symbol: str) -> datetime | None` (l.276) — Heure du dernier signal pour une paire — sert à ne pas réévaluer une bougie.
-  - `async def insert_evaluation(self, mode: str, symbol: str, *, signal_id: uuid.UUID, signal_created_at: datetime, decision: Any, snapshot: Any, account: AccountSnapshot, evaluation_time_ms: int, decision_timeframe: str) -> tuple[uuid.UUID, datetime]` (l.289)
-  - `async def insert_shadow_trade(self, mode: str, symbol: str, *, kind: str, action: str, signal_id: uuid.UUID, evaluation_id: uuid.UUID | None, rejection_code: str, rejection_details: str | None, decision_price: Decimal, amount: Decimal | None, notional_quote: Decimal | None, stop_loss_price: Decimal | None, take_profit_price: Decimal | None, risk_amount_quote: Decimal | None, plan_status: str) -> uuid.UUID` (l.323)
-  - `async def open_shadow_trades(self, mode: str, limit: int=200) -> list[dict]` (l.350)
-  - `async def close_shadow_trade(self, shadow_id: uuid.UUID, *, status: str, exit_price: Decimal, pnl_quote: Decimal, outcome_reason: str, evaluated_at: datetime) -> None` (l.360)
-  - `async def shadow_summary(self, mode: str) -> dict` (l.372)
-  - `async def active_lessons(self, mode: str) -> list[str]` (l.427)
-  - `async def insert_lessons(self, mode: str, *, lessons: list[str], source_trade_ids: list[uuid.UUID], source_count: int, model_name: str, prompt_version: str, valid_until: datetime | None, review_sha256: str) -> tuple[uuid.UUID, int]` (l.436)
-  - `async def recent_lessons(self, mode: str, limit: int=10) -> list[dict]` (l.467)
-  - `async def deactivate_lessons(self, mode: str) -> None` (l.476)
-  - `async def closed_positions_for_lessons(self, mode: str, limit: int=30) -> list[dict]` (l.483)
-  - `async def shadow_outcomes_for_lessons(self, mode: str, limit: int=30) -> list[dict]` (l.495)
-  - `async def open_positions(self, mode: str) -> list[PositionRow]` (l.508)
-  - `async def open_position(self, mode: str) -> PositionRow | None` (l.527)
-  - `async def stop_order_id(self, position_id) -> str | None` (l.531)
-  - `async def storage_state(self) -> dict` (l.538)
-  - `async def llm_signal_prompt(self, mode: str, signal_id: str)` (l.549)
-  - `async def insert_order(self, mode: str, *, client_order_id: str, symbol: str, side: str, order_type: str, purpose: str, status: str, requested_amount: Decimal, filled_amount: Decimal, requested_price: Decimal | None, stop_price: Decimal | None, average_fill_price: Decimal, fee_amount: Decimal, fee_currency: str, slippage_quote: Decimal | None, position_id: uuid.UUID | None=None, risk_evaluation_id: uuid.UUID | None=None, error_message: str | None=None) -> uuid.UUID` (l.571)
-  - `async def create_position(self, mode: str, *, symbol: str, entry_price: Decimal, amount: Decimal, notional_quote: Decimal, stop_loss_price: Decimal, take_profit_price: Decimal | None, risk_amount_quote: Decimal, r_multiple_at_tp: Decimal | None, signal_id: uuid.UUID, evaluation_id: uuid.UUID, protective_order_id: str) -> uuid.UUID` (l.594)
-  - `async def update_position_stop(self, position_id: uuid.UUID, stop_loss_price: Decimal) -> None` (l.612) — Déplace le stop local (seuil de rentabilité). Jamais au-dessus du prix.
-  - `async def close_position(self, position_id: uuid.UUID, *, exit_price: Decimal, closed_amount: Decimal, gross_pnl_quote: Decimal, total_fees_quote: Decimal, net_pnl_quote: Decimal, exit_reason: str, status: str='CLOSED') -> None` (l.621)
-  - `async def entry_fee(self, position_id: uuid.UUID) -> Decimal` (l.634) — Frais taker réellement enregistrés sur l'ordre d'entrée d'une position.
-  - `async def insert_sweep(self, mode: str, *, position_id: uuid.UUID, quote_currency: str, realized_net_pnl: Decimal, sweep_ratio: Decimal, computed_sweep_quote: Decimal, swept_amount: Decimal, retained_trading_capital: Decimal, status: str, next_retry_at: datetime | None=None, error_message: str | None=None) -> uuid.UUID` (l.648)
-  - `async def deferred_sweep_quote(self, mode: str) -> Decimal` (l.666) — Somme des écréma­ges reportés depuis le dernier écrémage exécuté.
-  - `async def open_orders(self, mode: str) -> list[dict]` (l.686)
-  - `async def update_order_status(self, order_id: uuid.UUID, status: str, error_message: str | None=None) -> None` (l.696)
-  - `async def force_lock(self, mode: str, reason: str) -> None` (l.704) — Pause administrative : le bot cesse d'évaluer jusqu'à reprise explicite.
-  - `async def force_resume(self, mode: str, reason: str, who: str='admin') -> None` (l.724) — Reprise humaine : uniquement depuis un état bloqué, jamais depuis IDLE.
-  - `async def reset_circuit_breaker(self, mode: str, who: str='admin') -> None` (l.754) — Remet à zéro les compteurs de circuit-breaker et repasse en IDLE.
-  - `async def force_halt(self, mode: str, reason: str, code: str | None=None, auto_resume_at: datetime | None=None) -> None` (l.780) — Arrêt d'urgence déclenché par un humain, depuis n'importe quel état.
-  - `async def halt_details(self, mode: str) -> str | None` (l.813) — Raison textuelle du dernier arrêt, pour distinguer LLM et humain.
-  - `async def runtime_settings(self, mode: str) -> tuple[dict, datetime | None]` (l.821) — Payload de réglages et date de dernière modification, depuis la base.
-  - `async def update_runtime_settings(self, mode: str, payload: dict, *, updated_by: str='dashboard', expected_revision: int | None=None) -> datetime` (l.835)
-  - `async def update_after_close(self, mode: str, *, consecutive_losses: int, equity: Decimal) -> None` (l.843)
-  - `async def equity_curve(self, mode: str, limit: int=200) -> list[dict]` (l.855)
-  - `async def dashboard_metrics(self, mode: str) -> dict` (l.864)
-  - `async def daily_pnl(self, mode: str, days: int=14) -> list[dict]` (l.882)
-  - `async def rejection_stats(self, mode: str) -> list[dict]` (l.895)
-  - `async def llm_stats(self, mode: str, hours: int=24) -> dict` (l.904)
-  - `async def recent(self, table: str, mode: str, limit: int=5) -> list[dict]` (l.946)
-  - `async def cycle_lock(self, mode: str)` (l.959)
-  - `async def capital_state(self, mode: str) -> CapitalState | None` (l.976)
-  - `async def ensure_capital(self, mode: str, quote: str, equity: Decimal, reserve: Decimal, at: datetime) -> CapitalState` (l.982)
-  - `async def allocate_capital(self, mode: str, position_id: uuid.UUID, pnl: Decimal, at: datetime, policy, *, allow_promotion: bool) -> CapitalState` (l.1001)
-  - `async def advance_paper_position(self, position: PositionRow, stop: Decimal, close_at: datetime) -> None` (l.1024)
-  - `async def pending_exit(self, position_id: uuid.UUID)` (l.1032)
-  - `async def prepare_exit(self, mode: str, position_id: uuid.UUID, reason: str, purpose: str, halt: bool)` (l.1035)
-  - `async def confirm_exit(self, position_id: uuid.UUID, fill) -> None` (l.1040)
-  - `async def clear_exit(self, position_id: uuid.UUID) -> None` (l.1044)
-- `def _drawdown(peak: Decimal, equity: Decimal) -> Decimal` (l.80)
+- **class PostgresRepository(InsightsStore)** (l.87)
+  - `def __init__(self, connection: asyncpg.Connection, *, lock_connection_factory=None)` (l.88)
+  - `async def connect(cls, config: DatabaseConfig) -> 'PostgresRepository'` (l.93)
+  - `async def prepare_request(self, mode, symbol, request)` (l.97)
+  - `async def update_request(self, client_id, state, *, response=None, error=None)` (l.111)
+  - `async def pending_requests(self, mode)` (l.121)
+  - `async def book_request(self, mode, exchange_order_id)` (l.136)
+  - `async def fill_recorded(self, mode, exchange_order_id)` (l.144)
+  - `async def account_exit(self, mode, symbol, fill, *, purpose, reason, quote, taker_fee, emergency=False)` (l.151) — Une transaction par fill confirmé : quantité résiduelle, PnL, ordre, reçu.
+  - `async def close(self) -> None` (l.228)
+  - `def transaction(self)` (l.231) — Transaction explicite, utile aux vérifications qui doivent être annulées.
+  - `async def ensure_mode(self, mode: str) -> None` (l.237)
+  - `async def state(self, mode: str) -> tuple[str, datetime | None]` (l.244)
+  - `async def transition(self, mode: str, expected: str, target: str, reason: str, code: str | None=None, context: dict | None=None) -> None` (l.254)
+  - `async def set_cooldown(self, mode: str, until: datetime) -> None` (l.280)
+  - `async def note_error(self, mode: str, message: str) -> None` (l.287)
+  - `async def account(self, mode: str, starting_equity: Decimal) -> AccountSnapshot` (l.296)
+  - `async def _account(self, mode: str, starting_equity: Decimal) -> AccountSnapshot` (l.304)
+  - `async def snapshot_equity(self, mode: str, *, equity: Decimal, free_quote: Decimal, position_value_quote: Decimal, symbol: str | None=None, source: str='ORCHESTRATOR') -> None` (l.370)
+  - `async def insert_signal(self, mode: str, symbol: str, model_name: str, *, action: str, confidence: Decimal, market_regime: str, thesis: str, prompt_payload: dict, raw_response: dict, inference_time_ms: int, prompt_sha256: str | None, temperature: float) -> tuple[uuid.UUID, datetime]` (l.389)
+  - `async def last_signal_at(self, mode: str, symbol: str) -> datetime | None` (l.408) — Heure du dernier signal pour une paire — sert à ne pas réévaluer une bougie.
+  - `async def insert_evaluation(self, mode: str, symbol: str, *, signal_id: uuid.UUID, signal_created_at: datetime, decision: Any, snapshot: Any, account: AccountSnapshot, evaluation_time_ms: int, decision_timeframe: str) -> tuple[uuid.UUID, datetime]` (l.421)
+  - `async def insert_shadow_trade(self, mode: str, symbol: str, *, kind: str, action: str, signal_id: uuid.UUID, evaluation_id: uuid.UUID | None, rejection_code: str, rejection_details: str | None, decision_price: Decimal, amount: Decimal | None, notional_quote: Decimal | None, stop_loss_price: Decimal | None, take_profit_price: Decimal | None, risk_amount_quote: Decimal | None, plan_status: str) -> uuid.UUID` (l.455)
+  - `async def open_shadow_trades(self, mode: str, limit: int=200) -> list[dict]` (l.482)
+  - `async def close_shadow_trade(self, shadow_id: uuid.UUID, *, status: str, exit_price: Decimal, pnl_quote: Decimal, outcome_reason: str, evaluated_at: datetime) -> None` (l.492)
+  - `async def shadow_summary(self, mode: str) -> dict` (l.504)
+  - `async def active_lessons(self, mode: str) -> list[str]` (l.559)
+  - `async def insert_lessons(self, mode: str, *, lessons: list[str], source_trade_ids: list[uuid.UUID], source_count: int, model_name: str, prompt_version: str, valid_until: datetime | None, review_sha256: str) -> tuple[uuid.UUID, int]` (l.568)
+  - `async def recent_lessons(self, mode: str, limit: int=10) -> list[dict]` (l.599)
+  - `async def deactivate_lessons(self, mode: str) -> None` (l.608)
+  - `async def closed_positions_for_lessons(self, mode: str, limit: int=30) -> list[dict]` (l.615)
+  - `async def shadow_outcomes_for_lessons(self, mode: str, limit: int=30) -> list[dict]` (l.627)
+  - `async def open_positions(self, mode: str) -> list[PositionRow]` (l.640)
+  - `async def open_position(self, mode: str) -> PositionRow | None` (l.659)
+  - `async def stop_order_id(self, position_id) -> str | None` (l.663)
+  - `async def storage_state(self) -> dict` (l.670)
+  - `async def llm_signal_prompt(self, mode: str, signal_id: str)` (l.681)
+  - `async def insert_order(self, mode: str, *, client_order_id: str, symbol: str, side: str, order_type: str, purpose: str, status: str, requested_amount: Decimal, filled_amount: Decimal, requested_price: Decimal | None, stop_price: Decimal | None, average_fill_price: Decimal, fee_amount: Decimal, fee_currency: str, slippage_quote: Decimal | None, position_id: uuid.UUID | None=None, risk_evaluation_id: uuid.UUID | None=None, error_message: str | None=None, exchange_order_id: str | None=None) -> uuid.UUID` (l.703)
+  - `async def create_position(self, mode: str, *, symbol: str, entry_price: Decimal, amount: Decimal, notional_quote: Decimal, stop_loss_price: Decimal, take_profit_price: Decimal | None, risk_amount_quote: Decimal, r_multiple_at_tp: Decimal | None, signal_id: uuid.UUID, evaluation_id: uuid.UUID, protective_order_id: str | None, opened_at: datetime | None=None) -> uuid.UUID` (l.728)
+  - `async def update_protective_stop(self, position_id, price, exchange_id)` (l.746)
+  - `async def update_position_stop(self, position_id: uuid.UUID, stop_loss_price: Decimal) -> None` (l.752) — Déplace le stop local (seuil de rentabilité). Jamais au-dessus du prix.
+  - `async def close_position(self, position_id: uuid.UUID, *, exit_price: Decimal, closed_amount: Decimal, gross_pnl_quote: Decimal, total_fees_quote: Decimal, net_pnl_quote: Decimal, exit_reason: str, status: str='CLOSED') -> None` (l.761)
+  - `async def entry_fee(self, position_id: uuid.UUID) -> Decimal` (l.774) — Frais taker réellement enregistrés sur l'ordre d'entrée d'une position.
+  - `async def insert_sweep(self, mode: str, *, position_id: uuid.UUID, quote_currency: str, realized_net_pnl: Decimal, sweep_ratio: Decimal, computed_sweep_quote: Decimal, swept_amount: Decimal, retained_trading_capital: Decimal, status: str, next_retry_at: datetime | None=None, error_message: str | None=None) -> uuid.UUID` (l.788)
+  - `async def deferred_sweep_quote(self, mode: str) -> Decimal` (l.806) — Somme des écréma­ges reportés depuis le dernier écrémage exécuté.
+  - `async def open_orders(self, mode: str) -> list[dict]` (l.826)
+  - `async def update_order_status(self, order_id: uuid.UUID, status: str, error_message: str | None=None) -> None` (l.836)
+  - `async def force_lock(self, mode: str, reason: str) -> None` (l.844) — Pause administrative : le bot cesse d'évaluer jusqu'à reprise explicite.
+  - `async def force_resume(self, mode: str, reason: str, who: str='admin') -> None` (l.864)
+  - `async def _force_resume(self, mode: str, reason: str, who: str='admin') -> None` (l.870) — Reprise humaine : uniquement depuis un état bloqué, jamais depuis IDLE.
+  - `async def reset_circuit_breaker(self, mode: str, who: str='admin') -> None` (l.900) — Remet à zéro les compteurs de circuit-breaker et repasse en IDLE.
+  - `async def force_halt(self, mode: str, reason: str, code: str | None=None, auto_resume_at: datetime | None=None) -> None` (l.926) — Arrêt d'urgence déclenché par un humain, depuis n'importe quel état.
+  - `async def halt_details(self, mode: str) -> str | None` (l.959) — Raison textuelle du dernier arrêt, pour distinguer LLM et humain.
+  - `async def runtime_settings(self, mode: str) -> tuple[dict, datetime | None]` (l.967) — Payload de réglages et date de dernière modification, depuis la base.
+  - `async def update_runtime_settings(self, mode: str, payload: dict, *, updated_by: str='dashboard', expected_revision: int | None=None) -> datetime` (l.981)
+  - `async def update_after_close(self, mode: str, *, consecutive_losses: int, equity: Decimal) -> None` (l.989)
+  - `async def equity_curve(self, mode: str, limit: int=200) -> list[dict]` (l.1001)
+  - `async def dashboard_metrics(self, mode: str) -> dict` (l.1010)
+  - `async def daily_pnl(self, mode: str, days: int=14) -> list[dict]` (l.1028)
+  - `async def rejection_stats(self, mode: str) -> list[dict]` (l.1041)
+  - `async def llm_stats(self, mode: str, hours: int=24) -> dict` (l.1050)
+  - `async def recent(self, table: str, mode: str, limit: int=5) -> list[dict]` (l.1092)
+  - `async def financial_lock(self, mode, *, wait=False)` (l.1105)
+  - `async def cycle_lock(self, mode)` (l.1118)
+  - `async def capital_state(self, mode: str) -> CapitalState | None` (l.1122)
+  - `async def ensure_capital(self, mode: str, quote: str, equity: Decimal, reserve: Decimal, at: datetime) -> CapitalState` (l.1128)
+  - `async def allocate_capital(self, mode: str, position_id: uuid.UUID, pnl: Decimal, at: datetime, policy, *, allow_promotion: bool) -> CapitalState` (l.1147)
+  - `async def advance_paper_position(self, position: PositionRow, stop: Decimal, close_at: datetime) -> None` (l.1170)
+  - `async def pending_exit(self, position_id: uuid.UUID)` (l.1178)
+  - `async def prepare_exit(self, mode: str, position_id: uuid.UUID, reason: str, purpose: str, halt: bool)` (l.1181)
+  - `async def confirm_exit(self, position_id: uuid.UUID, fill) -> None` (l.1186)
+  - `async def clear_exit(self, position_id: uuid.UUID) -> None` (l.1190)
+- `def _drawdown(peak: Decimal, equity: Decimal) -> Decimal` (l.81)
 
 ### `backend/app/engine/affordability.py`
 
@@ -646,53 +671,74 @@ le code, pas une copie de celui-ci.
 
 *Choix du broker selon le mode — un seul endroit, pour ne pas se tromper.*
 
-- `def make_broker(settings: Settings, exchange: Any, symbols: Sequence[str] | None=None, *, mode: str | None=None) -> Any` (l.21)
+- `def make_broker(settings: Settings, exchange: Any, symbols: Sequence[str] | None=None, *, mode: str | None=None, repo: Any=None) -> Any` (l.21)
+
+### `backend/app/execution/journal.py`
+
+*Une intention persistée avant envoi ; aucune répétition après un doute.*
+
+- **class ExecutionJournal** (l.6)
+  - `def __init__(self, repo, mode)` (l.7)
+  - `async def prepare(self, symbol, request)` (l.10)
+  - `async def update(self, client_id, state, **kwargs)` (l.13)
+  - `async def pending(self)` (l.16)
+  - `async def assert_owned(self)` (l.19)
 
 ### `backend/app/execution/live.py`
 
 *Exécution réelle Kraken — un ordre ne part que d'une décision approuvée.*
 
-- **class LiveExecutionError(RuntimeError)** (l.50) — L'ordre réel n'a pas abouti dans un état sûr. Le bot doit s'arrêter.
-- **class PanicExit** (l.55) — Résultat d'une liquidation d'urgence sur un symbole.
-- **class PanicReport** (l.69) — Vue complète d'un panic-sell : ventes, annulations et erreurs.
-  - `def complete(self) -> bool` (l.81)
-- **class RemotePositionState** (l.86) — Ce que l'exchange dit de la position, avant toute décision locale.
-- **class LiveBroker** (l.123) — Broker réel, asynchrone, volontairement pessimiste.
-  - `def __init__(self, exchange: Any, *, quote_currency: str, taker_fee: Decimal, poll_interval: float=1.0, timeout_seconds: float=30.0, sleep: Callable[[float], Awaitable[None]]=asyncio.sleep) -> None` (l.130)
-  - `async def _call(self, function: Callable[..., Any], *args: Any, **kwargs: Any) -> Any` (l.155) — CCXT est synchrone ; on ne bloque jamais la boucle asyncio.
-  - `def execution_fee_pct(self) -> Decimal` (l.160)
-  - `def fee(self, notional_quote: Decimal) -> Decimal` (l.163) — Estimation utilisée seulement si l'exchange n'a pas renvoyé ses frais.
-  - `def exit_trigger(stop_loss_price: Decimal, take_profit_price: Decimal | None, candle: list) -> tuple[Decimal, str] | None` (l.168) — Le stop et le TP restent surveillés par la boucle, comme en papier.
-  - `async def _wait_for_fill(self, order: dict, symbol: str) -> dict` (l.173)
-  - `async def _cancel_quietly(self, order_id: str, symbol: str) -> None` (l.203)
-  - `async def _open_orders(self, symbol: str) -> list[dict]` (l.209)
-  - `def _stop_price(order: dict) -> Decimal | None` (l.219)
-  - `def _covers_position(cls, order, amount, stop_price)` (l.232)
-  - `async def _find_stop(self, symbol, amount, stop_price)` (l.240)
-  - `async def _wait_for_stop(self, symbol: str, amount: Decimal, stop_price: Decimal) -> dict` (l.245)
-  - `def _fill_from_order(self, order: dict, market_price: Decimal, side: str) -> Fill` (l.259)
-  - `def _fee_from_order(self, order: dict, notional: Decimal) -> Decimal` (l.279)
-  - `async def entry(self, decision: RiskDecision, market_price: Decimal, *, symbol: str) -> Fill` (l.304) — Achat marché + stop attaché, puis vérification du stop chez l'exchange.
-  - `async def cancel_open_orders(self, *, symbol: str) -> int` (l.348) — Annule tous les ordres ouverts du symbole. Retourne le nombre annulé.
-  - `async def cancel_all_orders(self, symbols: Sequence[str]) -> int` (l.369) — Annule **tous** les ordres ouverts, pas seulement ceux d'un symbole.
-  - `def _held_balances(self, balance: dict[str, dict[str, Decimal]], symbols: Sequence[str]) -> list[tuple[str, Decimal]]` (l.405) — Symboles réellement détenus, y compris hors univers configuré.
-  - `async def panic_sell(self, symbols: Sequence[str]) -> PanicReport` (l.433) — Liquidation d'urgence : annule tout, vend tout, vérifie le solde.
-  - `async def _rearm_stop(self, symbol: str, amount: Decimal, stop_price: Decimal) -> str` (l.472)
-  - `async def _read_order(self, order_id: str, symbol: str) -> dict` (l.488)
-  - `async def _edit_stop(self, symbol: str, amount: Decimal, old_stop_id: str, new_stop_price: Decimal) -> str | None` (l.500) — Tente ``edit_order`` seulement si CCXT annonce le support natif.
-  - `async def update_stop_loss_order(self, symbol: str, amount: Decimal, old_stop_id: str, new_stop_price: Decimal) -> str` (l.538) — Remplace un stop sans jamais laisser la position nue.
-  - `async def exit(self, amount: Decimal, market_price: Decimal, *, symbol: str, stop_price: Decimal | None=None) -> Fill` (l.630) — Annule les protections, vend au marché, et réarme si la vente échoue.
-  - `async def emergency_exit(self, amount: Decimal, *, symbol: str, stop_price: Decimal | None=None, market_price: Decimal | None=None) -> Fill` (l.655) — Liquidation d'urgence : annule tout, vend, et ne réarme rien.
-  - `async def position_state(self, symbol: str, amount: Decimal, stop_price: Decimal) -> RemotePositionState` (l.686) — Lit le solde de base et le stop **avant** toute décision locale.
-  - `async def last_sell_fill(self, symbol: str, *, since: int | None=None, limit: int=20) -> Fill | None` (l.702) — Dernière vente exécutée sur le symbole, lue dans l'historique réel.
-  - `async def balance(self) -> dict[str, dict[str, Decimal]]` (l.741)
-  - `async def free_quote(self) -> Decimal` (l.754)
-  - `async def free_base(self, symbol: str) -> Decimal` (l.758)
-  - `async def total_base(self, symbol: str) -> Decimal` (l.763) — Solde total de base : un stop armé peut réserver le solde « free ».
-- `def _decimal(value: Any, default: Decimal=Decimal(0)) -> Decimal` (l.95)
-- `def _status(order: dict) -> str` (l.107)
-- `def _is_final(order: dict) -> bool` (l.111)
-- `def _is_dead(order: dict) -> bool` (l.119)
+- **class LiveExecutionError(RuntimeError)** (l.56) — L'ordre réel n'a pas abouti dans un état sûr. Le bot doit s'arrêter.
+- **class UncertainExecutionError(LiveExecutionError)** (l.60) — Acceptation ou résultat incertain : relire, jamais renvoyer à l'aveugle.
+- **class PanicExit** (l.65) — Résultat d'une liquidation d'urgence sur un symbole.
+- **class PanicReport** (l.79) — Vue complète d'un panic-sell : ventes, annulations et erreurs.
+  - `def complete(self) -> bool` (l.91)
+- **class RemotePositionState** (l.96) — Ce que l'exchange dit de la position, avant toute décision locale.
+- **class LiveBroker** (l.133) — Broker réel, asynchrone, volontairement pessimiste.
+  - `def __init__(self, exchange: Any, *, quote_currency: str, taker_fee: Decimal, poll_interval: float=1.0, timeout_seconds: float=30.0, sleep: Callable[[float], Awaitable[None]]=asyncio.sleep, journal: Any=None) -> None` (l.140)
+  - `def bind_execution(self, repo, mode)` (l.165)
+  - `async def _owned(self)` (l.170)
+  - `async def _create_order(self, symbol, type, side, amount, price=None, params=None)` (l.175)
+  - `async def _cancel_order(self, order_id, symbol)` (l.225) — Journalise aussi les retraits de protection, avant l'appel distant.
+  - `async def _require_clear(self, *, allow_filled=False)` (l.260)
+  - `async def recover_requests(self)` (l.270) — Rapproche par ID exchange ou client ; ne déduit jamais une absence d'envoi.
+  - `async def _call(self, function: Callable[..., Any], *args: Any, **kwargs: Any) -> Any` (l.366) — CCXT est synchrone ; on ne bloque jamais la boucle asyncio.
+  - `def execution_fee_pct(self)` (l.373)
+  - `def fee(self, notional_quote: Decimal) -> Decimal` (l.376) — Estimation utilisée seulement si l'exchange n'a pas renvoyé ses frais.
+  - `def exit_trigger(stop_loss_price: Decimal, take_profit_price: Decimal | None, candle: list) -> tuple[Decimal, str] | None` (l.381) — Le stop et le TP restent surveillés par la boucle, comme en papier.
+  - `async def _wait_for_fill(self, order: dict, symbol: str) -> dict` (l.387)
+  - `async def _cancel_quietly(self, order_id: str, symbol: str) -> None` (l.448)
+  - `async def _open_orders(self, symbol: str) -> list[dict]` (l.454)
+  - `def _stop_price(order: dict) -> Decimal | None` (l.464)
+  - `async def ensure_protection(self, symbol, amount, stop_price)` (l.476)
+  - `async def _find_stop(self, symbol: str, amount: Decimal, stop_price: Decimal) -> dict | None` (l.484)
+  - `def _covers_position(cls, order: dict, amount: Decimal, stop_price: Decimal) -> bool` (l.493) — Un TP ou la quantité déjà remplie ne constituent pas une protection.
+  - `async def _wait_for_stop(self, symbol: str, amount: Decimal, stop_price: Decimal) -> dict` (l.517)
+  - `def _fill_from_order(self, order: dict, market_price: Decimal, side: str) -> Fill` (l.532)
+  - `def _fee_from_order(self, order: dict, notional: Decimal) -> Decimal` (l.553)
+  - `async def entry(self, decision: RiskDecision, market_price: Decimal, *, symbol: str) -> Fill` (l.578) — Achat marché + stop attaché, puis vérification du stop chez l'exchange.
+  - `async def cancel_open_orders(self, *, symbol: str) -> int` (l.631) — Annule tous les ordres ouverts du symbole. Retourne le nombre annulé.
+  - `async def cancel_all_orders(self, symbols: Sequence[str]) -> int` (l.653) — Annule **tous** les ordres ouverts, pas seulement ceux d'un symbole.
+  - `def _held_balances(self, balance: dict[str, dict[str, Decimal]], symbols: Sequence[str]) -> list[tuple[str, Decimal]]` (l.689) — Symboles réellement détenus, y compris hors univers configuré.
+  - `async def panic_sell(self, symbols: Sequence[str]) -> PanicReport` (l.718) — Liquidation d'urgence : annule tout, vend tout, vérifie le solde.
+  - `async def _rearm_stop(self, symbol: str, amount: Decimal, stop_price: Decimal) -> str` (l.784)
+  - `async def _read_order(self, order_id: str, symbol: str) -> dict` (l.807)
+  - `async def _edit_stop(self, symbol: str, amount: Decimal, old_stop_id: str, new_stop_price: Decimal) -> str | None` (l.819) — Tente ``edit_order`` seulement si CCXT annonce le support natif.
+  - `async def update_stop_loss_order(self, symbol: str, amount: Decimal, old_stop_id: str, new_stop_price: Decimal) -> str` (l.894) — Remplace un stop sans jamais laisser la position nue.
+  - `async def exit(self, amount: Decimal, market_price: Decimal, *, symbol: str, stop_price: Decimal | None=None) -> Fill` (l.998) — Annule les protections, vend au marché, et réarme si la vente échoue.
+  - `async def emergency_exit(self, amount: Decimal, *, symbol: str, stop_price: Decimal | None=None, market_price: Decimal | None=None) -> Fill` (l.1044) — Liquide la quantité disponible et protège un éventuel résidu confirmé.
+  - `async def _sale_amount(self, symbol, requested)` (l.1092)
+  - `async def position_state(self, symbol: str, amount: Decimal, stop_price: Decimal) -> RemotePositionState` (l.1104) — Lit le solde de base et le stop **avant** toute décision locale.
+  - `async def sell_fills_since(self, symbol: str, *, since: int | None=None, limit: int=50) -> list[Fill]` (l.1123) — Toutes les ventes, groupées par ordre, avec pagination Kraken explicite.
+  - `async def last_sell_fill(self, symbol: str, *, since: int | None=None, limit: int=50) -> Fill | None` (l.1202)
+  - `async def balance(self) -> dict[str, dict[str, Decimal]]` (l.1208)
+  - `async def free_quote(self) -> Decimal` (l.1221)
+  - `async def free_base(self, symbol: str) -> Decimal` (l.1225)
+  - `async def total_base(self, symbol: str) -> Decimal` (l.1230) — Solde total de base : un stop armé peut réserver le solde « free ».
+- `def _decimal(value: Any, default: Decimal=Decimal(0)) -> Decimal` (l.105)
+- `def _status(order: dict) -> str` (l.117)
+- `def _is_final(order: dict) -> bool` (l.121)
+- `def _is_dead(order: dict) -> bool` (l.129)
 
 ### `backend/app/execution/paper.py`
 
@@ -922,7 +968,7 @@ le code, pas une copie de celui-ci.
 - `async def _status(repo: PostgresRepository, mode: str) -> None` (l.31)
 - `async def _serve(orchestrator: Orchestrator, timeframe: str, *, max_cycles: int=0) -> None` (l.59) — Boucle alignée sur les clôtures de bougies, pas sur un intervalle fixe.
 - `async def _run(args: argparse.Namespace) -> int` (l.92)
-- `def main(argv: list[str] | None=None) -> int` (l.162)
+- `def main(argv: list[str] | None=None) -> int` (l.167)
 
 ### `backend/app/market/feed.py`
 
@@ -1003,6 +1049,12 @@ le code, pas une copie de celui-ci.
 - `def _apply_zip64_extra(extra: bytes, uncompressed: int, compressed: int, offset: int) -> tuple[int, int, int]` (l.197) — Applique le champ supplémentaire ZIP64 (id 0x0001) aux valeurs 32 bits.
 - `def parse_central_directory(directory: bytes) -> dict[str, ArchiveMember]` (l.224) — Répertoire central d'un ZIP → {nom: membre}. Pur, testable hors réseau.
 
+### `backend/app/runtime/execution_recovery.py`
+
+*Rapproche les reçus durables sans renvoyer les ordres retrouvés.*
+
+- `async def recover_executions(repo, broker, mode, quote, *, include_trades=False)` (l.10)
+
 ### `backend/app/runtime/orchestrator.py`
 
 *Boucle d'exécution : un cycle = une décision, jamais deux.*
@@ -1011,59 +1063,59 @@ le code, pas une copie de celui-ci.
   - `def lines(self) -> list[str]` (l.81)
 - **class Orchestrator** (l.97)
   - `def __init__(self, settings: Settings, repo: PostgresRepository, exchange: Any, signal_client: SignalClient, broker: Any, *, now: Any=None, settings_loader: Any=None, insights: bool | None=None, id_factory=None, perf_clock=None)` (l.98)
-  - `async def _maybe_await(value: Any) -> Any` (l.130) — Le broker papier est synchrone, le broker réel est asynchrone.
-  - `async def _entry_fee(self, position: Any) -> Decimal` (l.140) — Frais d'entrée réellement enregistrés, sinon estimation du broker.
-  - `def _account_state(self, account: AccountSnapshot, open_symbols: tuple[str, ...]=()) -> AccountState` (l.154)
-  - `def _client_id(self, symbol: str, purpose: str) -> str` (l.166)
-  - `async def _starting_equity(self) -> Decimal` (l.169)
-  - `async def _current_account(self)` (l.183)
-  - `async def _refresh_settings(self) -> tuple[bool, str | None]` (l.195) — Relit les réglages en base et les applique si le payload a changé.
-  - `async def _log_signal(self, symbol: str, signal: LLMSignal, report: CycleReport) -> tuple[uuid.UUID, datetime]` (l.272) — Persiste toute décision du modèle, y compris HOLD, SELL et HALT.
-  - `async def _record_shadow(self, *, kind: str, symbol: str, signal: LLMSignal, signal_id: uuid.UUID, evaluation_id: uuid.UUID | None, decision: Any | None, snapshot: Any, account_state: AccountState, constraints: Any) -> None` (l.306) — Enregistre un achat non pris et son plan contrefactuel.
-  - `async def _force_halt(self, machine: StateMachine, report: CycleReport, reason: str) -> None` (l.357) — Arrêt demandé par le modèle : même chemin que le bouton rouge, sans 2FA.
-  - `async def _event(self, stage, *, symbol=None, at=None, terminal=False, body=None)` (l.379)
-  - `async def _entry_enabled(self)` (l.400)
-  - `async def run_once(self) -> CycleReport` (l.406)
-  - `async def _run_once(self) -> CycleReport` (l.503)
-  - `async def _monitor(self, machine: StateMachine, position: PositionRow, account: AccountSnapshot, report: CycleReport) -> None` (l.610)
-  - `async def _move_stop(self, position: PositionRow, new_stop: Decimal, report: CycleReport, *, live_state: Any, label: str) -> Decimal` (l.877) — Déplace le stop local, et le stop distant en live, sans jamais le baisser.
-  - `async def _close_trade(self, machine: StateMachine, position: PositionRow, account: AccountSnapshot, exit_price: Decimal, reason: str, report: CycleReport, *, purpose: str, halt: bool=False, fill: Any=None) -> None` (l.912) — Séquence unique de clôture : stop, TP, SELL LLM et HALT LLM.
-  - `async def _book_close(self, machine, position, account, reason, report, *, purpose, halt, fill, live_cash)` (l.936)
-  - `async def _evaluate_cycle(self, machine: StateMachine, account: AccountSnapshot, report: CycleReport) -> None` (l.1027)
-  - `async def _enter(self, machine: StateMachine, state: SymbolState, decision: Any, signal_id: uuid.UUID, evaluation_id: uuid.UUID, account: AccountSnapshot, report: CycleReport, *, signal_created_at: datetime) -> None` (l.1213)
-- `def position_initial_notional(position: PositionRow) -> Decimal` (l.1395) — Notionnel initial d'une position relue depuis la base.
+  - `async def _maybe_await(value: Any) -> Any` (l.131) — Le broker papier est synchrone, le broker réel est asynchrone.
+  - `async def _entry_fee(self, position: Any) -> Decimal` (l.141) — Frais d'entrée réellement enregistrés, sinon estimation du broker.
+  - `def _account_state(self, account: AccountSnapshot, open_symbols: tuple[str, ...]=()) -> AccountState` (l.155)
+  - `def _client_id(self, symbol: str, purpose: str) -> str` (l.167)
+  - `async def _starting_equity(self) -> Decimal` (l.170)
+  - `async def _current_account(self)` (l.184)
+  - `async def _refresh_settings(self) -> tuple[bool, str | None]` (l.196) — Relit les réglages en base et les applique si le payload a changé.
+  - `async def _log_signal(self, symbol: str, signal: LLMSignal, report: CycleReport) -> tuple[uuid.UUID, datetime]` (l.273) — Persiste toute décision du modèle, y compris HOLD, SELL et HALT.
+  - `async def _record_shadow(self, *, kind: str, symbol: str, signal: LLMSignal, signal_id: uuid.UUID, evaluation_id: uuid.UUID | None, decision: Any | None, snapshot: Any, account_state: AccountState, constraints: Any) -> None` (l.307) — Enregistre un achat non pris et son plan contrefactuel.
+  - `async def _force_halt(self, machine: StateMachine, report: CycleReport, reason: str) -> None` (l.358) — Arrêt demandé par le modèle : même chemin que le bouton rouge, sans 2FA.
+  - `async def _event(self, stage, *, symbol=None, at=None, terminal=False, body=None)` (l.380)
+  - `async def _entry_enabled(self)` (l.401)
+  - `async def run_once(self) -> CycleReport` (l.407)
+  - `async def _run_once(self) -> CycleReport` (l.504)
+  - `async def _monitor(self, machine: StateMachine, position: PositionRow, account: AccountSnapshot, report: CycleReport) -> None` (l.614)
+  - `async def _move_stop(self, position: PositionRow, new_stop: Decimal, report: CycleReport, *, live_state: Any, label: str) -> Decimal` (l.881) — Déplace le stop local, et le stop distant en live, sans jamais le baisser.
+  - `async def _close_trade(self, machine: StateMachine, position: PositionRow, account: AccountSnapshot, exit_price: Decimal, reason: str, report: CycleReport, *, purpose: str, halt: bool=False, fill: Any=None) -> None` (l.918) — Séquence unique de clôture : stop, TP, SELL LLM et HALT LLM.
+  - `async def _book_close(self, machine, position, account, reason, report, *, purpose, halt, fill, live_cash)` (l.971)
+  - `async def _evaluate_cycle(self, machine: StateMachine, account: AccountSnapshot, report: CycleReport) -> None` (l.1062)
+  - `async def _enter(self, machine: StateMachine, state: SymbolState, decision: Any, signal_id: uuid.UUID, evaluation_id: uuid.UUID, account: AccountSnapshot, report: CycleReport, *, signal_created_at: datetime) -> None` (l.1248)
+- `def position_initial_notional(position: PositionRow) -> Decimal` (l.1433) — Notionnel initial d'une position relue depuis la base.
 
 ### `backend/app/runtime/reconciliation.py`
 
 *Réconciliation au démarrage — la base et l'exchange doivent décrire le même état.*
 
-- **class RemoteOrder** (l.58) — Un ordre ouvert chez l'exchange, réduit à ce que la réconciliation lit.
-- **class Finding** (l.72) — Un constat, avec un code stable et une phrase lisible à 3 h du matin.
-- **class ReconciliationPlan** (l.82) — Constat + actions minimales. `liquidate` contient des symboles, pas des prix.
-  - `def critical(self) -> tuple[Finding, ...]` (l.95)
-  - `def clean(self) -> bool` (l.99)
-  - `def lines(self) -> list[str]` (l.102)
-- `def _decimal(value: Any) -> Decimal` (l.126)
-- `def _optional_decimal(value: Any) -> Decimal | None` (l.132)
-- `def _finding(code: str, severity: str, symbol: str | None, details: str) -> Finding` (l.142)
-- `def plan_reconciliation(positions: Sequence[PositionRow], remote_orders: Sequence[RemoteOrder], balances: Mapping[str, Decimal], *, mode: str, quote_currency: str, quote_balance: Decimal | None=None) -> ReconciliationPlan` (l.146) — Construit le constat et le plan, sans I/O et sans horloge.
-- `def read_remote_orders(exchange: Any, symbols: Sequence[str]) -> list[RemoteOrder]` (l.293) — Lit les ordres ouverts de l'exchange, limités à l'univers du bot.
-- `def read_account(exchange: Any, symbols: Sequence[str], quote_currency: str) -> tuple[dict[str, Decimal], Decimal | None]` (l.332) — Solde de base par symbole et solde de cotation, en `Decimal`.
-- `async def inspect_exchange(repo: Any, exchange: Any, mode: str, symbols: Sequence[str], *, quote_currency: str) -> ReconciliationPlan` (l.353) — Lit base et exchange, puis délègue le verdict à `plan_reconciliation`.
-- `async def apply_reconciliation(plan: ReconciliationPlan, repo: Any, exchange: Any, broker: Any, *, starting_equity: Decimal, now: Any=None) -> list[str]` (l.371) — Applique le plan minimal : liquider les positions signalées, sinon halter.
+- **class RemoteOrder** (l.60) — Un ordre ouvert chez l'exchange, réduit à ce que la réconciliation lit.
+- **class Finding** (l.74) — Un constat, avec un code stable et une phrase lisible à 3 h du matin.
+- **class ReconciliationPlan** (l.84) — Constat + actions minimales. `liquidate` contient des symboles, pas des prix.
+  - `def critical(self) -> tuple[Finding, ...]` (l.97)
+  - `def clean(self) -> bool` (l.101)
+  - `def lines(self) -> list[str]` (l.104)
+- `def _decimal(value: Any) -> Decimal` (l.128)
+- `def _optional_decimal(value: Any) -> Decimal | None` (l.134)
+- `def _finding(code: str, severity: str, symbol: str | None, details: str) -> Finding` (l.144)
+- `def plan_reconciliation(positions: Sequence[PositionRow], remote_orders: Sequence[RemoteOrder], balances: Mapping[str, Decimal], *, mode: str, quote_currency: str, quote_balance: Decimal | None=None) -> ReconciliationPlan` (l.148) — Construit le constat et le plan, sans I/O et sans horloge.
+- `def read_remote_orders(exchange: Any, symbols: Sequence[str]) -> list[RemoteOrder]` (l.295) — Lit les ordres ouverts de l'exchange, limités à l'univers du bot.
+- `def read_account(exchange: Any, symbols: Sequence[str], quote_currency: str) -> tuple[dict[str, Decimal], Decimal | None]` (l.334) — Solde de base par symbole et solde de cotation, en `Decimal`.
+- `async def inspect_exchange(repo: Any, exchange: Any, mode: str, symbols: Sequence[str], *, quote_currency: str) -> ReconciliationPlan` (l.355) — Lit base et exchange, puis délègue le verdict à `plan_reconciliation`.
+- `async def apply_reconciliation(plan: ReconciliationPlan, repo: Any, exchange: Any, broker: Any, *, starting_equity: Decimal, now: Any=None) -> list[str]` (l.374) — Applique le plan minimal : liquider les positions signalées, sinon halter.
 
 ### `backend/app/runtime/recovery.py`
 
 *Liquidation d'urgence — le seul chemin qui ferme une position sans pare-feu.*
 
-- **class PanicLiquidationError(RuntimeError)** (l.37) — Une liquidation d'urgence a laissé une exposition ou une erreur.
-  - `def __init__(self, message: str, *, liquidated: list['PanicRecord'], errors: list[str]) -> None` (l.44)
-- **class Liquidation** (l.58)
-- **class PanicRecord** (l.68) — Vente d'urgence constatée chez l'exchange, écrite au ledger.
-- `async def _maybe_await(value: Any) -> Any` (l.51)
-- `async def liquidate_open_positions(repo, exchange, broker, mode, **kwargs)` (l.84)
-- `async def _liquidate_open_positions(repo: PostgresRepository, exchange: Any, broker: Any, mode: str, *, quote_currency: str, starting_equity: Decimal, reason: str=EMERGENCY_REASON, now: datetime | None=None, only_symbols: set[str] | None=None, capital_policy: CapitalPolicy | None=None) -> list[Liquidation]` (l.92) — Solde toutes les positions ouvertes, annule leurs ordres, puis halte le bot.
-- `async def record_panic_exits(repo: PostgresRepository, exits: Any, mode: str, *, quote_currency: str, starting_equity: Decimal, free_quote_after: Decimal | None, taker_fee: Decimal, errors: list[str] | None=None, reason: str=EMERGENCY_REASON, now: datetime | None=None) -> list[PanicRecord]` (l.195) — Écrit au ledger les ventes réelles d'un panic-sell, puis halte le bot.
+- **class PanicLiquidationError(RuntimeError)** (l.39) — Une liquidation d'urgence a laissé une exposition ou une erreur.
+  - `def __init__(self, message: str, *, liquidated: list['PanicRecord'], errors: list[str]) -> None` (l.46)
+- **class Liquidation** (l.60)
+- **class PanicRecord** (l.70) — Vente d'urgence constatée chez l'exchange, écrite au ledger.
+- `async def _maybe_await(value: Any) -> Any` (l.53)
+- `async def liquidate_open_positions(repo, exchange, broker, mode, **kwargs)` (l.87)
+- `async def _liquidate_open_positions(repo: PostgresRepository, exchange: Any, broker: Any, mode: str, *, quote_currency: str, starting_equity: Decimal, reason: str=EMERGENCY_REASON, now: datetime | None=None, only_symbols: set[str] | None=None, capital_policy: CapitalPolicy | None=None) -> list[Liquidation]` (l.95) — Solde toutes les positions ouvertes, annule leurs ordres, puis halte le bot.
+- `async def record_panic_exits(repo: PostgresRepository, exits: Any, mode: str, *, quote_currency: str, starting_equity: Decimal, free_quote_after: Decimal | None, taker_fee: Decimal, errors: list[str] | None=None, reason: str=EMERGENCY_REASON, now: datetime | None=None) -> list[PanicRecord]` (l.210) — Écrit au ledger les ventes réelles d'un panic-sell, puis halte le bot.
 
 ### `backend/app/runtime/scheduler.py`
 
@@ -1237,12 +1289,12 @@ le code, pas une copie de celui-ci.
 
 ### `backend/scripts/live_probe.py`
 
-*Sonde 3.1 — vérifier qu'un ordre réel rejeté ne fait pas planter le bot.*
+*Sonde Kraken AddOrder en validation seulement (aucun ordre créé).*
 
-- `def _decimal(value) -> Decimal` (l.40)
-- `def _invalid_amount(exchange, symbol: str, price: Decimal) -> Decimal | None` (l.44) — Plus petite quantité strictement sous les deux minimums du marché.
-- `def _run(symbol: str | None) -> int` (l.75)
-- `def main() -> int` (l.150)
+- `def _decimal(value) -> Decimal` (l.25)
+- `def _invalid_amount(exchange, symbol: str, price: Decimal) -> Decimal | None` (l.29) — Plus petite quantité strictement sous les deux minimums du marché.
+- `def _run(symbol: str | None) -> int` (l.60)
+- `def main() -> int` (l.135)
 
 ### `backend/scripts/probe_backtest.py`
 
@@ -1565,6 +1617,28 @@ le code, pas une copie de celui-ci.
 - `def test_paper_mode_builds_the_paper_broker()` (l.32)
 - `def test_live_mode_builds_the_real_broker()` (l.37)
 - `def test_testnet_is_refused_because_kraken_has_no_testnet_in_ccxt()` (l.42)
+- `def test_live_factory_refuses_missing_durable_repository()` (l.47)
+
+### `backend/tests/test_execution_safety.py`
+
+*Pannes après acceptation, pagination et protections : aucun renvoi aveugle.*
+
+- **class LostReply(FakeExchange)** (l.21)
+  - `def create_order(self, *args, **kwargs)` (l.22)
+  - `def fetch_closed_orders(self, symbol, since, limit, params)` (l.27)
+- `async def test_lost_reply_is_recovered_by_client_id_after_restart_without_resending()` (l.31)
+- `async def test_missing_response_id_remains_unknown_and_blocks_emergency_resend()` (l.47)
+- `async def test_no_journal_means_no_exchange_mutation()` (l.58)
+- `async def test_poll_failure_keeps_the_acknowledged_order_for_reconciliation()` (l.66)
+- `async def test_lost_cancel_reply_is_recovered_without_repeating_the_cancel()` (l.82)
+- `async def test_partial_sale_preserves_the_fill_and_rearms_the_actual_residual()` (l.103)
+- `async def test_stop_filled_during_cancellation_prevents_a_second_sale()` (l.121)
+- `async def test_more_than_one_page_of_fills_is_fully_aggregated()` (l.146)
+- `async def test_repeated_page_is_an_error_instead_of_a_truncated_fill()` (l.167)
+- `async def test_unknown_order_absent_from_history_stays_blocking()` (l.185)
+- `async def test_history_pages_for_other_symbols_do_not_truncate_the_target_symbol()` (l.195)
+- `async def test_lost_old_stop_cancel_reply_keeps_the_verified_new_protection()` (l.234)
+- `async def test_unreadable_old_stop_after_cancel_keeps_new_protection_and_blocks_further_mutations()` (l.255)
 
 ### `backend/tests/test_exit_guard.py`
 
@@ -1721,6 +1795,9 @@ le code, pas une copie de celui-ci.
 - `async def test_parallel_api_reads_acquire_distinct_pool_connections(postgres_test_url)` (l.251)
 - `async def test_public_cannot_execute_privileged_maintenance(pg)` (l.285)
 - `async def test_canceled_partial_fills_remain_in_trade_diagnostics(pg)` (l.292)
+- `async def test_live_partial_fills_are_cumulative_idempotent_and_keep_remaining_quantity(pg)` (l.298)
+- `async def test_unresolved_intent_blocks_human_resume(pg)` (l.311)
+- `async def test_prepared_execution_survives_ledger_transaction_rollback(postgres_test_url)` (l.318)
 
 ### `backend/tests/test_kraken_adapter.py`
 
@@ -1809,46 +1886,65 @@ le code, pas une copie de celui-ci.
 
 *Tests de l'exécuteur réel — aucun réseau, aucune clé, aucun ordre réel.*
 
-- **class FakeExchange** (l.32)
-  - `def __init__(self, *, stop_missing: bool=False, order_status: str='closed', create_raises: bool=False, sell_raises: bool=False, base_free: str='0', support_edit: bool=False, stop_create_raises: bool=False, fail_cancel_call: int | None=None)` (l.33)
-  - `def amount_to_precision(self, symbol, amount)` (l.54)
-  - `def price_to_precision(self, symbol, price)` (l.57)
-  - `def _new_id(self, prefix: str) -> str` (l.60)
-  - `def create_order(self, symbol, type, side, amount, price=None, params=None)` (l.64)
-  - `def edit_order(self, order_id, symbol, type, side, amount, price=None, params=None)` (l.119)
-  - `def fetch_order(self, order_id, symbol=None)` (l.130)
-  - `def fetch_open_orders(self, symbol=None)` (l.133)
-  - `def fetch_my_trades(self, symbol=None, since=None, limit=None)` (l.136)
-  - `def cancel_order(self, order_id, symbol=None)` (l.139)
-  - `def fetch_balance(self)` (l.152)
-- **class PanicExchange(FakeExchange)** (l.435) — Exchange avec soldes mutables : une vente au marché les consomme.
-  - `def __init__(self, balances: dict[str, str], markets: dict | None=None, sell_raises: bool=False) -> None` (l.438)
-  - `def fetch_balance(self)` (l.444)
-  - `def create_order(self, symbol, type, side, amount, price=None, params=None)` (l.448)
-- `def decision(**overrides) -> RiskDecision` (l.16)
-- `def broker(exchange: FakeExchange, **overrides) -> LiveBroker` (l.159)
-- `async def _noop_sleep(_seconds: float) -> None` (l.171)
-- `async def test_entry_places_a_bracket_and_reads_the_actual_fee()` (l.176)
-- `async def test_entry_without_a_stop_unwinds_the_position()` (l.192)
-- `async def test_entry_is_refused_when_the_exchange_rejects_the_buy()` (l.203)
-- `async def test_an_unfilled_order_is_canceled_and_raises()` (l.217)
-- `async def test_exit_cancels_protections_before_selling()` (l.227)
-- `async def test_exit_rearms_the_stop_when_the_sale_fails()` (l.247)
-- `async def test_balance_exposes_free_quote_and_base()` (l.265)
-- `async def test_position_state_reads_the_base_and_the_stop()` (l.273)
-- `async def test_last_sell_fill_reads_the_real_trade_and_its_fee()` (l.290)
-- `async def test_entry_refuses_a_shared_base_balance()` (l.309)
-- `async def _entered(exchange: FakeExchange)` (l.321)
-- `async def test_stop_replacement_creates_the_new_stop_before_cancelling_the_old()` (l.328)
-- `async def test_supported_native_edit_keeps_the_same_stop()` (l.348)
-- `async def test_an_unchanged_stop_price_is_a_noop()` (l.363)
-- `async def test_a_lower_stop_is_refused()` (l.378)
-- `async def test_a_failed_replacement_keeps_the_old_stop()` (l.392)
-- `async def test_a_failed_cancel_of_the_old_stop_removes_the_new_one()` (l.407)
-- `async def test_a_terminated_old_stop_is_not_replaced()` (l.422)
-- `async def test_panic_sell_cancels_every_order_and_flattens_every_balance()` (l.459)
-- `async def test_panic_sell_reports_a_failed_sale_without_raising()` (l.485)
-- `async def test_panic_sell_without_balance_is_a_clean_noop()` (l.497)
+- **class MemoryJournal** (l.17) — Double du journal durable : mêmes états, aucune I/O.
+  - `def __init__(self)` (l.19)
+  - `async def assert_owned(self)` (l.22)
+  - `async def prepare(self, symbol, request)` (l.25)
+  - `async def update(self, client_id, state, *, response=None, error=None)` (l.33)
+  - `async def pending(self)` (l.39)
+- **class FakeExchange** (l.59)
+  - `def __init__(self, *, stop_missing: bool=False, order_status: str='closed', create_raises: bool=False, sell_raises: bool=False, base_free: str='0', support_edit: bool=False, stop_create_raises: bool=False, fail_cancel_call: int | None=None)` (l.60)
+  - `def amount_to_precision(self, symbol, amount)` (l.81)
+  - `def price_to_precision(self, symbol, price)` (l.84)
+  - `def _new_id(self, prefix: str) -> str` (l.87)
+  - `def create_order(self, symbol, type, side, amount, price=None, params=None)` (l.91)
+  - `def edit_order(self, order_id, symbol, type, side, amount, price=None, params=None)` (l.148)
+  - `def fetch_order(self, order_id, symbol=None)` (l.159)
+  - `def fetch_open_orders(self, symbol=None)` (l.162)
+  - `def fetch_my_trades(self, symbol=None, since=None, limit=None, params=None)` (l.165)
+  - `def cancel_order(self, order_id, symbol=None)` (l.169)
+  - `def fetch_balance(self)` (l.187)
+- **class PanicExchange(FakeExchange)** (l.474) — Exchange avec soldes mutables : une vente au marché les consomme.
+  - `def __init__(self, balances: dict[str, str], markets: dict | None=None, sell_raises: bool=False) -> None` (l.477)
+  - `def fetch_balance(self)` (l.483)
+  - `def create_order(self, symbol, type, side, amount, price=None, params=None)` (l.487)
+- `def decision(**overrides) -> RiskDecision` (l.43)
+- `def broker(exchange: FakeExchange, **overrides) -> LiveBroker` (l.194)
+- `async def _noop_sleep(_seconds: float) -> None` (l.207)
+- `async def test_entry_places_a_bracket_and_reads_the_actual_fee()` (l.212)
+- `async def test_entry_without_a_stop_unwinds_the_position()` (l.228)
+- `async def test_entry_is_refused_when_the_exchange_rejects_the_buy()` (l.239)
+- `async def test_an_unfilled_order_is_canceled_and_raises()` (l.253)
+- `async def test_exit_cancels_protections_before_selling()` (l.263)
+- `async def test_exit_rearms_the_stop_when_the_sale_fails()` (l.283)
+- `async def test_balance_exposes_free_quote_and_base()` (l.301)
+- `async def test_position_state_reads_the_base_and_the_stop()` (l.309)
+- `async def test_last_sell_fill_reads_the_real_trade_and_its_fee()` (l.326)
+- `async def test_entry_refuses_a_shared_base_balance()` (l.345)
+- `async def _entered(exchange: FakeExchange)` (l.357)
+- `async def test_stop_replacement_creates_the_new_stop_before_cancelling_the_old()` (l.367)
+- `async def test_supported_native_edit_keeps_the_same_stop()` (l.387)
+- `async def test_an_unchanged_stop_price_is_a_noop()` (l.402)
+- `async def test_a_lower_stop_is_refused()` (l.417)
+- `async def test_a_failed_replacement_keeps_the_old_stop()` (l.431)
+- `async def test_a_failed_cancel_of_the_old_stop_removes_the_new_one()` (l.446)
+- `async def test_a_terminated_old_stop_is_not_replaced()` (l.461)
+- `async def test_panic_sell_cancels_every_order_and_flattens_every_balance()` (l.498)
+- `async def test_panic_sell_reports_a_failed_sale_without_raising()` (l.524)
+- `async def test_panic_sell_without_balance_is_a_clean_noop()` (l.536)
+- `async def test_panic_keeps_protections_if_the_balance_cannot_be_read()` (l.546)
+- `async def test_panic_rearms_the_previous_stop_if_the_sale_is_rejected()` (l.562)
+- `async def test_panic_keeps_a_confirmed_fill_when_residual_verification_fails()` (l.575)
+- `async def test_a_tp_or_an_insufficient_remaining_stop_does_not_protect_the_position(overrides)` (l.595)
+- `async def test_native_stop_edit_tracks_a_replacement_identifier()` (l.607)
+- `async def test_a_kraken_amendment_identifier_is_not_used_as_the_stop_id()` (l.626)
+- `async def test_last_sell_aggregates_fills_of_the_latest_order_without_duplicates()` (l.642)
+
+### `backend/tests/test_live_probe.py`
+
+*La sonde ne constitue jamais un chemin de trading hors journal.*
+
+- `def test_probe_always_requests_validation_and_never_places_a_compensating_sale(monkeypatch, response)` (l.13)
 
 ### `backend/tests/test_llm.py`
 
@@ -2329,18 +2425,20 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_check_exchange.py` | 9 |
 | `backend/tests/test_db_config.py` | 10 |
 | `backend/tests/test_entry_rule.py` | 35 |
-| `backend/tests/test_execution_factory.py` | 3 |
+| `backend/tests/test_execution_factory.py` | 4 |
+| `backend/tests/test_execution_safety.py` | 13 |
 | `backend/tests/test_exit_guard.py` | 8 |
 | `backend/tests/test_exit_rule.py` | 10 |
 | `backend/tests/test_feed.py` | 12 |
 | `backend/tests/test_history.py` | 22 |
 | `backend/tests/test_insights.py` | 25 |
 | `backend/tests/test_insights_api.py` | 9 |
-| `backend/tests/test_insights_postgres.py` | 20 |
+| `backend/tests/test_insights_postgres.py` | 23 |
 | `backend/tests/test_kraken_adapter.py` | 25 |
 | `backend/tests/test_kraken_archive.py` | 11 |
 | `backend/tests/test_lessons.py` | 11 |
-| `backend/tests/test_live_execution.py` | 20 |
+| `backend/tests/test_live_execution.py` | 29 |
+| `backend/tests/test_live_probe.py` | 3 |
 | `backend/tests/test_llm.py` | 23 |
 | `backend/tests/test_llm_eval.py` | 5 |
 | `backend/tests/test_machine.py` | 4 |
@@ -2359,7 +2457,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_shadow.py` | 5 |
 | `backend/tests/test_sweep.py` | 13 |
 | `backend/tests/test_swing_backtest.py` | 7 |
-| **Total** | **703** |
+| **Total** | **732** |
 
 ## 5. Schéma SQL
 
@@ -2425,6 +2523,10 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 ### `backend/db/migrations/0012_private_maintenance.sql`
 
 - Aucun objet créé (droits, index ou contraintes).
+
+### `backend/db/migrations/0013_durable_executions.sql`
+
+- Tables : `execution_requests`
 
 ## 6. Rafraîchir
 

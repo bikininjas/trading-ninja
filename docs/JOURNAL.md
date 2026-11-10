@@ -6,6 +6,18 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Lot 3 : exécutions durables et coordination (en cours)
+
+Portage sélectif du journal d’ordres, rapprochement et verrou commun depuis les
+correctifs locaux, avec nouvelle migration 0013 ; capital et observations conservés.
+Fills partiels cumulatifs dédupliqués, protection du reliquat, IDs de stops conservés,
+sonde exchange validate-only et reprise interdite en présence d’une intention inconnue.
+
+Vérifié sur PostgreSQL 17 : rollback des reçus, comptabilité
+cumulative et unicité des fills, cas timeout et pagination. Suite générale 731
+passed puis contrats complémentaires durables vérifiés (732 tests collectés). Aucune migration
+appliquée sur Supabase ; l’autorisation explicite reste en attente.
+
 ## 2026-11-09 — Lot 2 : compte courant, données et recherche (en cours)
 
 Compte exchange resynchronisé avant chaque évaluation finale, clôture attendue

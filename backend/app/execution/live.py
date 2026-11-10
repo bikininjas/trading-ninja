@@ -26,8 +26,14 @@ from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 from typing import Any, Awaitable, Callable, Sequence
 
+import ccxt
+
 from app.engine.risk_gate import RiskDecision
-from app.exchange.kraken import build_bracket_entry, to_exchange_amount, is_stop_loss_order
+from app.exchange.kraken import (
+    build_bracket_entry,
+    is_stop_loss_order,
+    to_exchange_amount,
+)
 from app.execution.paper import Fill, PaperBroker
 
 __all__ = [
@@ -49,6 +55,10 @@ _DUST_RATIO = Decimal("0.001")
 
 class LiveExecutionError(RuntimeError):
     """L'ordre réel n'a pas abouti dans un état sûr. Le bot doit s'arrêter."""
+
+
+class UncertainExecutionError(LiveExecutionError):
+    """Acceptation ou résultat incertain : relire, jamais renvoyer à l'aveugle."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +146,7 @@ class LiveBroker:
         poll_interval: float = 1.0,
         timeout_seconds: float = 30.0,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        journal: Any = None,
     ) -> None:
         if taker_fee < 0:
             raise ValueError("taker_fee ne peut pas être négatif")
@@ -149,15 +160,217 @@ class LiveBroker:
         self._poll = poll_interval
         self._timeout = timeout_seconds
         self._sleep = sleep
+        self._journal = journal
+
+    def bind_execution(self, repo, mode):
+        from app.execution.journal import ExecutionJournal
+
+        self._journal = ExecutionJournal(repo, mode)
+
+    async def _owned(self):
+        if self._journal is None:
+            raise LiveExecutionError("journal d'exécution durable manquant")
+        await self._journal.assert_owned()
+
+    async def _create_order(self, symbol, type, side, amount, price=None, params=None):
+        await self._owned()
+        request = dict(
+            symbol=symbol,
+            type=type,
+            side=side,
+            amount=str(amount),
+            price=price,
+            params=params or {},
+        )
+        client_id = await self._journal.prepare(symbol, request)
+        try:
+            await self._owned()
+            order = await self._call(
+                self._exchange.create_order,
+                symbol,
+                type,
+                side,
+                amount,
+                price,
+                {**(params or {}), "clientOrderId": client_id},
+            )
+        except ccxt.ExchangeError as exc:
+            await self._journal.update(client_id, "ABORTED", error=str(exc))
+            label = "achat refusé" if side == "buy" else "vente refusée"
+            raise LiveExecutionError(f"{label} : {exc}") from exc
+        except asyncio.CancelledError:
+            await self._journal.update(
+                client_id, "UNKNOWN", error="appel interrompu pendant l'envoi"
+            )
+            raise
+        except Exception as exc:
+            await self._journal.update(client_id, "UNKNOWN", error=str(exc))
+            raise UncertainExecutionError(
+                f"résultat d'envoi incertain ({client_id}) : {exc}"
+            ) from exc
+        if not isinstance(order, dict) or not order.get("id"):
+            await self._journal.update(
+                client_id, "UNKNOWN", error="réponse sans identifiant"
+            )
+            raise UncertainExecutionError(
+                f"réponse d'ordre sans identifiant : {client_id}"
+            )
+        await self._journal.update(
+            client_id,
+            "ACKNOWLEDGED" if type == "market" else "CONFIRMED",
+            response=order,
+        )
+        return {**order, "_request_id": client_id}
+
+    async def _cancel_order(self, order_id, symbol):
+        """Journalise aussi les retraits de protection, avant l'appel distant."""
+        await self._owned()
+        client_id = await self._journal.prepare(
+            symbol, {"type": "cancel", "side": "cancel", "order_id": order_id}
+        )
+        try:
+            await self._owned()
+            await self._call(self._exchange.cancel_order, order_id, symbol)
+            current = await self._read_order(order_id, symbol)
+            if not (_is_dead(current) or _is_final(current)):
+                raise UncertainExecutionError("annulation non confirmée : " + order_id)
+        except ccxt.OrderNotFound:
+            current = await self._read_order(order_id, symbol)
+            if not (_is_dead(current) or _is_final(current)):
+                await self._journal.update(
+                    client_id, "UNKNOWN", error="ordre encore actif"
+                )
+                raise UncertainExecutionError("annulation non confirmée : " + order_id)
+        except ccxt.ExchangeError as exc:
+            await self._journal.update(client_id, "ABORTED", error=str(exc))
+            raise
+        except asyncio.CancelledError:
+            await self._journal.update(
+                client_id, "UNKNOWN", error="annulation interrompue"
+            )
+            raise
+        except Exception as exc:
+            await self._journal.update(client_id, "UNKNOWN", error=str(exc))
+            raise UncertainExecutionError(
+                "annulation incertaine : " + order_id
+            ) from exc
+        await self._journal.update(client_id, "CONFIRMED", response=current)
+        return current
+
+    async def _require_clear(self, *, allow_filled=False):
+        await self._owned()
+        if any(
+            not allow_filled or row["state"] != "FILLED"
+            for row in await self._journal.pending()
+        ):
+            raise UncertainExecutionError(
+                "exécution antérieure non rapprochée : réconciliation requise"
+            )
+
+    async def recover_requests(self):
+        """Rapproche par ID exchange ou client ; ne déduit jamais une absence d'envoi.
+
+        Les fills retrouvés restent FILLED jusqu'à leur comptabilisation atomique.
+        Les requêtes introuvables restent UNKNOWN et interdisent tout nouvel ordre.
+        """
+        await self._owned()
+        recovered = []
+        for row in await self._journal.pending():
+            order = None
+            request = row["request"]
+            if request["type"] in ("cancel", "edit"):
+                target = row.get("exchange_order_id") or request["order_id"]
+                order = await self._read_order(target, row["symbol"])
+                proven = (
+                    (_is_dead(order) or _is_final(order))
+                    if request["type"] == "cancel"
+                    else self._covers_position(
+                        order,
+                        Decimal(request["amount"]),
+                        Decimal(request["stop_price"]),
+                    )
+                )
+                if not proven:
+                    raise UncertainExecutionError(
+                        "modification de protection non prouvée : " + target
+                    )
+                await self._journal.update(
+                    row["client_id"], "CONFIRMED", response=order
+                )
+                continue
+            if row.get("exchange_order_id"):
+                order = await self._read_order(row["exchange_order_id"], row["symbol"])
+            else:
+                candidates = list(await self._open_orders(row["symbol"]))
+                since = int(row["created_at"].timestamp() * 1000) - 1000
+                seen = set()
+                for page in range(200):
+                    # Kraken pagine globalement ; filtrer le symbole via CCXT
+                    # réduirait artificiellement la page avant notre comptage.
+                    batch = await self._call(
+                        self._exchange.fetch_closed_orders,
+                        None,
+                        since,
+                        50,
+                        {"ofs": page * 50, "clientOrderId": row["client_id"]},
+                    )
+                    ids = {str(item.get("id")) for item in batch}
+                    if batch and not ids - seen:
+                        raise UncertainExecutionError(
+                            "pagination des ordres non progressive"
+                        )
+                    seen |= ids
+                    candidates.extend(batch)
+                    if len(batch) < 50:
+                        break
+                else:
+                    raise UncertainExecutionError(
+                        "historique d'ordres tronqué : pagination à poursuivre"
+                    )
+                matches = [
+                    o for o in candidates if o.get("clientOrderId") == row["client_id"]
+                ]
+                if len(matches) == 1:
+                    order = matches[0]
+            if order is None:
+                await self._journal.update(
+                    row["client_id"],
+                    "UNKNOWN",
+                    error="ordre non retrouvé ; aucun renvoi autorisé",
+                )
+                raise UncertainExecutionError(
+                    "ordre non retrouvé : " + row["client_id"]
+                )
+            if row["request"]["type"] != "market":
+                await self._journal.update(
+                    row["client_id"], "CONFIRMED", response=order
+                )
+                continue
+            if not _is_final(order) and not _is_dead(order):
+                await self._cancel_order(order["id"], row["symbol"])
+                order = await self._read_order(order["id"], row["symbol"])
+            if _is_final(order):
+                fill = self._fill_from_order(order, Decimal(0), row["request"]["side"])
+                await self._journal.update(row["client_id"], "FILLED", response=order)
+                recovered.append((row, replace(fill, slippage_quote=Decimal(0))))
+            elif _is_dead(order):
+                await self._journal.update(row["client_id"], "ABORTED", response=order)
+            else:
+                raise UncertainExecutionError(
+                    "annulation non confirmée : " + str(order["id"])
+                )
+        return recovered
 
     # -- primitives -----------------------------------------------------
 
-    async def _call(self, function: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    async def _call(
+        self, function: Callable[..., Any], *args: Any, **kwargs: Any
+    ) -> Any:
         """CCXT est synchrone ; on ne bloque jamais la boucle asyncio."""
         return await asyncio.to_thread(function, *args, **kwargs)
 
     @property
-    def execution_fee_pct(self) -> Decimal:
+    def execution_fee_pct(self):
         return self._taker
 
     def fee(self, notional_quote: Decimal) -> Decimal:
@@ -165,8 +378,9 @@ class LiveBroker:
         return notional_quote * self._taker
 
     @staticmethod
-    def exit_trigger(stop_loss_price: Decimal, take_profit_price: Decimal | None,
-                     candle: list) -> tuple[Decimal, str] | None:
+    def exit_trigger(
+        stop_loss_price: Decimal, take_profit_price: Decimal | None, candle: list
+    ) -> tuple[Decimal, str] | None:
         """Le stop et le TP restent surveillés par la boucle, comme en papier."""
         return PaperBroker.exit_trigger(stop_loss_price, take_profit_price, candle)
 
@@ -175,6 +389,7 @@ class LiveBroker:
         if not order_id:
             raise LiveExecutionError("l'exchange n'a pas renvoyé d'identifiant d'ordre")
         deadline = time.monotonic() + self._timeout
+        timed_out = False
         last = order
         while True:
             if _is_final(last):
@@ -182,27 +397,57 @@ class LiveBroker:
                     raise LiveExecutionError(
                         f"ordre {order_id} terminé sans quantité remplie"
                     )
+                if order.get("_request_id"):
+                    await self._journal.update(
+                        order["_request_id"], "FILLED", response=last
+                    )
                 return last
             if _is_dead(last):
+                if order.get("_request_id"):
+                    await self._journal.update(
+                        order["_request_id"], "ABORTED", response=last
+                    )
                 raise LiveExecutionError(
-                    f"ordre {order_id} {_status(last)} sans exécution"
+                    f"ordre {order_id} "
+                    + (
+                        "non rempli : annulé"
+                        if timed_out
+                        else f"{_status(last)} sans exécution"
+                    )
                 )
             if time.monotonic() >= deadline:
-                await self._cancel_quietly(order_id, symbol)
-                raise LiveExecutionError(
-                    f"ordre {order_id} non rempli après {self._timeout:.1f}s : annulé"
+                timed_out = True
+                try:
+                    await self._cancel_order(order_id, symbol)
+                    last = await self._read_order(order_id, symbol)
+                    if _is_final(last) or _is_dead(last):
+                        continue
+                except Exception:
+                    pass
+                if order.get("_request_id"):
+                    await self._journal.update(
+                        order["_request_id"],
+                        "UNKNOWN",
+                        error="annulation ou fill non confirmé",
+                    )
+                raise UncertainExecutionError(
+                    f"ordre {order_id} non rempli : annulation non confirmée"
                 )
             await self._sleep(self._poll)
             try:
                 last = await self._call(self._exchange.fetch_order, order_id, symbol)
             except Exception as exc:  # noqa: BLE001 — un ordre non lisible doit arrêter
-                raise LiveExecutionError(
+                if order.get("_request_id"):
+                    await self._journal.update(
+                        order["_request_id"], "UNKNOWN", error=str(exc)
+                    )
+                raise UncertainExecutionError(
                     f"ordre {order_id} illisible après envoi : {type(exc).__name__}: {exc}"
                 ) from exc
 
     async def _cancel_quietly(self, order_id: str, symbol: str) -> None:
         try:
-            await self._call(self._exchange.cancel_order, order_id, symbol)
+            await self._cancel_order(order_id, symbol)
         except Exception:  # noqa: BLE001 — l'annulation de secours ne masque pas l'erreur d'origine
             return
 
@@ -228,22 +473,50 @@ class LiveBroker:
                 return _decimal(value)
         return None
 
-    @classmethod
-    def _covers_position(cls,order,amount,stop_price):
-        if (str(order.get('side') or '').lower()!='sell' or not is_stop_loss_order(order)
-                or str(order.get('status') or '').lower() in {'closed','filled','canceled','rejected','expired'}):
-            return False
-        price=cls._stop_price(order)
-        remaining=_decimal(order.get('remaining')) if order.get('remaining') is not None else _decimal(order.get('amount'))-_decimal(order.get('filled'))
-        return amount>0 and price is not None and price>=stop_price and remaining>=amount*_AMOUNT_TOLERANCE
+    async def ensure_protection(self, symbol, amount, stop_price):
+        stop = await self._find_stop(symbol, amount, stop_price)
+        if stop is not None:
+            return str(stop["id"])
+        created = await self._rearm_stop(symbol, amount, stop_price)
+        await self._wait_for_stop(symbol, amount, stop_price)
+        return created
 
-    async def _find_stop(self,symbol,amount,stop_price):
+    async def _find_stop(
+        self, symbol: str, amount: Decimal, stop_price: Decimal
+    ) -> dict | None:
         for order in await self._open_orders(symbol):
-            if self._covers_position(order,amount,stop_price):return order
+            if self._covers_position(order, amount, stop_price):
+                return order
         return None
 
-    async def _wait_for_stop(self, symbol: str, amount: Decimal,
-                             stop_price: Decimal) -> dict:
+    @classmethod
+    def _covers_position(
+        cls, order: dict, amount: Decimal, stop_price: Decimal
+    ) -> bool:
+        """Un TP ou la quantité déjà remplie ne constituent pas une protection."""
+        if (
+            str(order.get("side") or "").lower() != "sell"
+            or not is_stop_loss_order(order)
+            or _is_dead(order)
+            or _is_final(order)
+        ):
+            return False
+        remote_stop = cls._stop_price(order)
+        remaining = order.get("remaining")
+        available = (
+            _decimal(remaining)
+            if remaining is not None
+            else _decimal(order.get("amount")) - _decimal(order.get("filled"))
+        )
+        return (
+            remote_stop is not None
+            and remote_stop >= stop_price
+            and available >= amount * _AMOUNT_TOLERANCE
+        )
+
+    async def _wait_for_stop(
+        self, symbol: str, amount: Decimal, stop_price: Decimal
+    ) -> dict:
         deadline = time.monotonic() + self._timeout
         while True:
             stop = await self._find_stop(symbol, amount, stop_price)
@@ -264,7 +537,8 @@ class LiveBroker:
         notional = amount * price
         fee = self._fee_from_order(order, notional)
         slippage = (
-            (price - market_price) * amount if side == "buy"
+            (price - market_price) * amount
+            if side == "buy"
             else (market_price - price) * amount
         )
         return Fill(
@@ -301,9 +575,11 @@ class LiveBroker:
 
     # -- entrée ---------------------------------------------------------
 
-    async def entry(self, decision: RiskDecision, market_price: Decimal, *,
-                    symbol: str) -> Fill:
+    async def entry(
+        self, decision: RiskDecision, market_price: Decimal, *, symbol: str
+    ) -> Fill:
         """Achat marché + stop attaché, puis vérification du stop chez l'exchange."""
+        await self._require_clear()
         existing = await self.total_base(symbol)
         if decision.amount is not None and existing > decision.amount * Decimal("0.01"):
             raise LiveExecutionError(
@@ -313,7 +589,9 @@ class LiveBroker:
             )
         args = build_bracket_entry(self._exchange, decision, symbol)
         try:
-            order = await self._call(self._exchange.create_order, **args)
+            order = await self._create_order(**args)
+        except UncertainExecutionError:
+            raise
         except Exception as exc:  # noqa: BLE001 — aucun ordre n'a été accepté
             raise LiveExecutionError(
                 f"achat refusé par l'exchange : {type(exc).__name__}: {exc}"
@@ -325,8 +603,9 @@ class LiveBroker:
         fill = self._fill_from_order(filled, market_price, "buy")
 
         try:
-            stop = await self._wait_for_stop(symbol, fill.amount,
-                                             decision.stop_loss_price or Decimal(0))
+            stop = await self._wait_for_stop(
+                symbol, fill.amount, decision.stop_loss_price or Decimal(0)
+            )
         except LiveExecutionError:
             # La position existe mais n'est pas protégée : on la solde tout de
             # suite. Si cette vente échoue, l'erreur doit le dire explicitement.
@@ -338,22 +617,27 @@ class LiveBroker:
                 ) from unwind_error
             raise
         return Fill(
-            price=fill.price, amount=fill.amount, notional_quote=fill.notional_quote,
-            fee_quote=fill.fee_quote, slippage_quote=fill.slippage_quote,
-            order_id=fill.order_id, stop_order_id=str(stop.get("id") or "") or None,
+            price=fill.price,
+            amount=fill.amount,
+            notional_quote=fill.notional_quote,
+            fee_quote=fill.fee_quote,
+            slippage_quote=fill.slippage_quote,
+            order_id=fill.order_id,
+            stop_order_id=str(stop.get("id") or "") or None,
         )
 
     # -- sortie ---------------------------------------------------------
 
     async def cancel_open_orders(self, *, symbol: str) -> int:
         """Annule tous les ordres ouverts du symbole. Retourne le nombre annulé."""
+        await self._owned()
         canceled = 0
         for order in await self._open_orders(symbol):
             order_id = str(order.get("id") or "")
             if not order_id:
                 continue
             try:
-                await self._call(self._exchange.cancel_order, order_id, symbol)
+                await self._cancel_order(order_id, symbol)
                 canceled += 1
             except Exception as exc:  # noqa: BLE001 — un ordre peut avoir disparu
                 # Un ordre déjà exécuté n'est plus annulable ; on continue, mais
@@ -390,7 +674,7 @@ class LiveBroker:
                     "annulation impossible"
                 )
             try:
-                await self._call(self._exchange.cancel_order, order_id, symbol)
+                await self._cancel_order(order_id, symbol)
                 canceled += 1
             except Exception as exc:  # noqa: BLE001 — un ordre peut avoir disparu
                 message = f"{type(exc).__name__}: {exc}".lower()
@@ -402,8 +686,9 @@ class LiveBroker:
                 ) from exc
         return canceled
 
-    def _held_balances(self, balance: dict[str, dict[str, Decimal]],
-                       symbols: Sequence[str]) -> list[tuple[str, Decimal]]:
+    def _held_balances(
+        self, balance: dict[str, dict[str, Decimal]], symbols: Sequence[str]
+    ) -> list[tuple[str, Decimal]]:
         """Symboles réellement détenus, y compris hors univers configuré.
 
         Le panic-sell ne doit pas laisser derrière lui un solde manuel oublié :
@@ -439,45 +724,79 @@ class LiveBroker:
         l'annulation globale ne laisse pas un stop actif pendant la vente.
         """
         errors: list[str] = []
+        await self._require_clear()
         canceled = 0
-        try:
-            canceled = await self.cancel_all_orders(symbols)
-        except LiveExecutionError as exc:
-            errors.append(str(exc))
-
+        # Lire le solde et mémoriser les stops AVANT leur annulation. Sans solde
+        # on ne peut rien liquider : conserver les protections est alors vital.
         try:
             balance = await self.balance()
         except Exception as exc:  # noqa: BLE001 — sans solde, on ne peut rien vendre
             message = f"solde illisible : {type(exc).__name__}: {exc}"
             return PanicReport((), canceled, (*errors, message))
 
-        exits: list[PanicExit] = []
-        for symbol, amount in self._held_balances(balance, symbols):
+        targets = self._held_balances(balance, symbols)
+        stops: dict[str, Decimal] = {}
+        for symbol, amount in targets:
             try:
-                fill = await self.emergency_exit(amount, symbol=symbol)
+                orders = await self._open_orders(symbol)
+                for order in orders:
+                    stop_price = self._stop_price(order)
+                    if (
+                        str(order.get("side") or "").lower() == "sell"
+                        and is_stop_loss_order(order)
+                        and stop_price is not None
+                    ):
+                        stops[symbol] = max(stops.get(symbol, Decimal(0)), stop_price)
+            except Exception as exc:  # noqa: BLE001 — préserver les protections si illisibles
+                # Impossible d'identifier les protections : ne pas les retirer.
+                return PanicReport((), canceled, (*errors, str(exc)))
+
+        try:
+            canceled = await self.cancel_all_orders(symbols)
+        except LiveExecutionError as exc:
+            errors.append(str(exc))
+
+        exits: list[PanicExit] = []
+        for symbol, amount in targets:
+            fill = None
+            try:
+                fill = await self.emergency_exit(
+                    amount,
+                    symbol=symbol,
+                    stop_price=stops.get(symbol),
+                )
                 residual = await self.total_base(symbol)
                 if residual > amount * _DUST_RATIO:
                     raise LiveExecutionError(
                         f"reste {residual} après la vente de {amount} : "
                         "position partiellement soldée"
                     )
-            except LiveExecutionError as exc:
+            except Exception as exc:  # noqa: BLE001 — un fill confirmé reste journalisé
                 message = f"{symbol} : {exc}"
                 errors.append(message)
-                exits.append(PanicExit(symbol, amount, None, str(exc)))
+                # La vente peut être confirmée mais son résidu illisible ou trop
+                # grand : ne jamais perdre le fill déjà exécuté dans le rapport.
+                exits.append(PanicExit(symbol, amount, fill, str(exc)))
                 continue
             exits.append(PanicExit(symbol, amount, fill, None))
         return PanicReport(tuple(exits), canceled, tuple(errors))
 
-    async def _rearm_stop(self, symbol: str, amount: Decimal,
-                          stop_price: Decimal) -> str:
+    async def _rearm_stop(
+        self, symbol: str, amount: Decimal, stop_price: Decimal
+    ) -> str:
         formatted_amount = to_exchange_amount(self._exchange, symbol, amount)
         price = str(stop_price)
         try:
-            order = await self._call(
-                self._exchange.create_order, symbol, "stop-loss", "sell",
-                formatted_amount, None, {"stopLossPrice": price},
+            order = await self._create_order(
+                symbol,
+                "stop-loss",
+                "sell",
+                formatted_amount,
+                None,
+                {"stopLossPrice": price},
             )
+        except UncertainExecutionError:
+            raise
         except Exception as exc:  # noqa: BLE001 — le message doit être actionnable
             raise LiveExecutionError(
                 f"réarmement du stop impossible pour {symbol} : "
@@ -497,8 +816,9 @@ class LiveBroker:
             raise LiveExecutionError(f"réponse illisible pour l'ordre {order_id}")
         return order
 
-    async def _edit_stop(self, symbol: str, amount: Decimal, old_stop_id: str,
-                         new_stop_price: Decimal) -> str | None:
+    async def _edit_stop(
+        self, symbol: str, amount: Decimal, old_stop_id: str, new_stop_price: Decimal
+    ) -> str | None:
         """Tente ``edit_order`` seulement si CCXT annonce le support natif.
 
         Un échec d'édition est ambigu : l'exchange a peut-être déjà déplacé le
@@ -511,33 +831,69 @@ class LiveBroker:
         if not callable(edit_order) or has.get("editOrder") is not True:
             return None
         formatted_amount = to_exchange_amount(self._exchange, symbol, amount)
+        await self._owned()
+        client_id = await self._journal.prepare(
+            symbol,
+            dict(
+                type="edit",
+                side="sell",
+                order_id=old_stop_id,
+                amount=str(amount),
+                stop_price=str(new_stop_price),
+            ),
+        )
         try:
-            await self._call(
-                edit_order, old_stop_id, symbol, "stop-loss", "sell",
-                formatted_amount, None, {"stopLossPrice": str(new_stop_price)},
+            await self._owned()
+            edited = await self._call(
+                edit_order,
+                old_stop_id,
+                symbol,
+                "stop-loss",
+                "sell",
+                formatted_amount,
+                None,
+                {"stopLossPrice": str(new_stop_price)},
             )
         except Exception as exc:  # noqa: BLE001 — relire avant toute décision
+            await self._journal.update(client_id, "UNKNOWN", error=str(exc))
             current = await self._read_order(old_stop_id, symbol)
-            remote = self._stop_price(current)
-            if remote is not None and remote >= new_stop_price and not _is_dead(current):
+            if self._covers_position(current, amount, new_stop_price):
+                await self._journal.update(client_id, "CONFIRMED", response=current)
                 return old_stop_id
-            raise LiveExecutionError(
+            raise UncertainExecutionError(
                 f"édition du stop {old_stop_id} ambiguë : "
                 f"{type(exc).__name__}: {exc} — aucun second stop créé"
             ) from exc
 
-        current = await self._read_order(old_stop_id, symbol)
+        edit_response = edited if isinstance(edited, dict) else {}
+        edit_info = edit_response.get("info") or {}
+        # Kraken AmendOrder renvoie un identifiant d'amendement, que CCXT
+        # expose aussi dans `id`. Ce n'est pas l'identifiant du stop à relire.
+        amended_in_place = isinstance(edit_info, dict) and edit_info.get("amend_id")
+        new_stop_id = (
+            old_stop_id
+            if amended_in_place
+            else str(edit_response.get("id") or old_stop_id)
+        )
+        await self._journal.update(
+            client_id,
+            "UNKNOWN",
+            response={"id": new_stop_id},
+            error="édition à vérifier",
+        )
+        current = await self._read_order(new_stop_id, symbol)
         remote = self._stop_price(current)
-        if _is_dead(current) or remote is None or remote < new_stop_price:
-            raise LiveExecutionError(
-                f"édition du stop {old_stop_id} non confirmée "
+        if not self._covers_position(current, amount, new_stop_price):
+            raise UncertainExecutionError(
+                f"édition du stop {new_stop_id} non confirmée "
                 f"(stop distant {remote}, attendu ≥ {new_stop_price})"
             )
-        return old_stop_id
+        await self._journal.update(client_id, "CONFIRMED", response=current)
+        return new_stop_id
 
-    async def update_stop_loss_order(self, symbol: str, amount: Decimal,
-                                     old_stop_id: str,
-                                     new_stop_price: Decimal) -> str:
+    async def update_stop_loss_order(
+        self, symbol: str, amount: Decimal, old_stop_id: str, new_stop_price: Decimal
+    ) -> str:
         """Remplace un stop sans jamais laisser la position nue.
 
         Ordre des opérations :
@@ -551,6 +907,7 @@ class LiveBroker:
 
         Retourne l'identifiant du stop qui protège désormais la position.
         """
+        await self._require_clear()
         if not old_stop_id:
             raise LiveExecutionError("identifiant de l'ancien stop manquant")
         if amount <= 0 or not amount.is_finite():
@@ -604,12 +961,23 @@ class LiveBroker:
             raise
 
         try:
-            await self._call(self._exchange.cancel_order, old_stop_id, symbol)
+            await self._cancel_order(old_stop_id, symbol)
         except Exception as exc:  # noqa: BLE001 — double stop : nettoyer le nouveau
-            await self._cancel_quietly(new_stop_id, symbol)
-            raise LiveExecutionError(
+            # Une réponse perdue peut signifier que l'ancien a bien été retiré.
+            # Ne retirer le nouveau que si l'ancien protège encore réellement.
+            try:
+                old_current = await self._read_order(old_stop_id, symbol)
+                if self._covers_position(old_current, amount, old_price):
+                    if not isinstance(exc, UncertainExecutionError):
+                        await self._cancel_quietly(new_stop_id, symbol)
+                elif _is_dead(old_current):
+                    await self._wait_for_stop(symbol, amount, new_stop_price)
+                    return new_stop_id
+            except LiveExecutionError:
+                pass
+            raise UncertainExecutionError(
                 f"ancien stop {old_stop_id} non annulé : {type(exc).__name__}: {exc} — "
-                f"le nouveau stop {new_stop_id} a été annulé ; vérifier l'état "
+                f"vérifier les stops {old_stop_id} et {new_stop_id}, état incertain ; vérifier l'état "
                 "de la protection chez l'exchange"
             ) from exc
 
@@ -627,19 +995,33 @@ class LiveBroker:
             )
         return new_stop_id
 
-    async def exit(self, amount: Decimal, market_price: Decimal, *,
-                   symbol: str, stop_price: Decimal | None = None) -> Fill:
+    async def exit(
+        self,
+        amount: Decimal,
+        market_price: Decimal,
+        *,
+        symbol: str,
+        stop_price: Decimal | None = None,
+    ) -> Fill:
         """Annule les protections, vend au marché, et réarme si la vente échoue."""
+        await self._require_clear()
         await self.cancel_open_orders(symbol=symbol)
+        amount = await self._sale_amount(symbol, amount)
         formatted_amount = to_exchange_amount(self._exchange, symbol, amount)
         try:
-            order = await self._call(
-                self._exchange.create_order, symbol, "market", "sell",
-                formatted_amount, None, {},
+            order = await self._create_order(
+                symbol,
+                "market",
+                "sell",
+                formatted_amount,
+                None,
+                {},
             )
             if not isinstance(order, dict):
                 raise LiveExecutionError("réponse de vente illisible")
             filled = await self._wait_for_fill(order, symbol)
+        except UncertainExecutionError:
+            raise
         except LiveExecutionError:
             if stop_price is not None:
                 await self._rearm_stop(symbol, amount, stop_price)
@@ -650,22 +1032,42 @@ class LiveBroker:
             raise LiveExecutionError(
                 f"vente refusée par l'exchange : {type(exc).__name__}: {exc}"
             ) from exc
-        return self._fill_from_order(filled, market_price, "sell")
+        fill = self._fill_from_order(filled, market_price, "sell")
+        if fill.amount < amount * _AMOUNT_TOLERANCE and stop_price is not None:
+            remaining = await self.total_base(symbol)
+            if remaining > 0:
+                stop_id = await self._rearm_stop(symbol, remaining, stop_price)
+                await self._wait_for_stop(symbol, remaining, stop_price)
+                fill = replace(fill, stop_order_id=stop_id)
+        return fill
 
-    async def emergency_exit(self, amount: Decimal, *, symbol: str,
-                             stop_price: Decimal | None = None,
-                             market_price: Decimal | None = None) -> Fill:
-        """Liquidation d'urgence : annule tout, vend, et ne réarme rien."""
+    async def emergency_exit(
+        self,
+        amount: Decimal,
+        *,
+        symbol: str,
+        stop_price: Decimal | None = None,
+        market_price: Decimal | None = None,
+    ) -> Fill:
+        """Liquide la quantité disponible et protège un éventuel résidu confirmé."""
+        await self._require_clear(allow_filled=True)
         await self.cancel_open_orders(symbol=symbol)
+        amount = await self._sale_amount(symbol, amount)
         formatted_amount = to_exchange_amount(self._exchange, symbol, amount)
         try:
-            order = await self._call(
-                self._exchange.create_order, symbol, "market", "sell",
-                formatted_amount, None, {},
+            order = await self._create_order(
+                symbol,
+                "market",
+                "sell",
+                formatted_amount,
+                None,
+                {},
             )
             if not isinstance(order, dict):
                 raise LiveExecutionError("réponse de liquidation illisible")
             filled = await self._wait_for_fill(order, symbol)
+        except UncertainExecutionError:
+            raise
         except Exception as exc:  # noqa: BLE001 — une urgence ne doit pas masquer l'échec
             if stop_price is not None:
                 await self._rearm_stop(symbol, amount, stop_price)
@@ -677,14 +1079,31 @@ class LiveBroker:
         fill = self._fill_from_order(
             filled, market_price if market_price is not None else Decimal("0"), "sell"
         )
+        if fill.amount < amount * _AMOUNT_TOLERANCE and stop_price is not None:
+            remaining = await self.total_base(symbol)
+            if remaining > 0:
+                stop_id = await self._rearm_stop(symbol, remaining, stop_price)
+                await self._wait_for_stop(symbol, remaining, stop_price)
+                fill = replace(fill, stop_order_id=stop_id)
         if market_price is None:
             return replace(fill, slippage_quote=Decimal(0))
         return fill
 
+    async def _sale_amount(self, symbol, requested):
+        # Un stop peut s'exécuter entre la lecture initiale et son annulation.
+        # Relire après annulation empêche une deuxième vente de cette quantité.
+        available = await self.free_base(symbol)
+        if available <= 0:
+            raise UncertainExecutionError(
+                "aucune base disponible après annulation : rapprocher les fills"
+            )
+        return min(requested, available)
+
     # -- lecture --------------------------------------------------------
 
-    async def position_state(self, symbol: str, amount: Decimal,
-                             stop_price: Decimal) -> RemotePositionState:
+    async def position_state(
+        self, symbol: str, amount: Decimal, stop_price: Decimal
+    ) -> RemotePositionState:
         """Lit le solde de base et le stop **avant** toute décision locale.
 
         C'est la barrière contre la double vente : si le stop exchange a déjà
@@ -695,48 +1114,96 @@ class LiveBroker:
         base = await self.total_base(symbol)
         stop = await self._find_stop(symbol, amount, stop_price)
         return RemotePositionState(
-            symbol=symbol, base_total=base, stop_ok=stop is not None,
+            symbol=symbol,
+            base_total=base,
+            stop_ok=stop is not None,
             stop_order_id=str((stop or {}).get("id") or "") or None,
         )
 
-    async def last_sell_fill(self, symbol: str, *, since: int | None = None,
-                             limit: int = 20) -> Fill | None:
-        """Dernière vente exécutée sur le symbole, lue dans l'historique réel.
+    async def sell_fills_since(
+        self, symbol: str, *, since: int | None = None, limit: int = 50
+    ) -> list[Fill]:
+        """Toutes les ventes, groupées par ordre, avec pagination Kraken explicite.
 
-        Sert quand le stop exchange a soldé la position pendant que le bot
-        dormait : la base est plate, il faut retrouver le prix et les frais
-        réels pour clore le ledger sans renvoyer d'ordre.
+        Une pagination tronquée ou non progressive interdit la comptabilisation.
+        Un résultat représente le cumul connu d'un ordre, réimputable par delta.
         """
-        try:
-            trades = await self._call(
-                self._exchange.fetch_my_trades, symbol, since, limit
+        trades = []
+        seen = set()
+        end = (
+            int(time.time()) - 1
+        )  # historique figé, pas de décalage d'offset par de nouveaux fills
+        for page in range(200):
+            try:
+                batch = await self._call(
+                    self._exchange.fetch_my_trades,
+                    None,
+                    since,
+                    limit,
+                    {"ofs": page * limit, "end": end},
+                )
+            except Exception as exc:
+                raise LiveExecutionError(
+                    f"historique des trades illisible pour {symbol} : {exc}"
+                ) from exc
+            ids = {str(t.get("id") or "") for t in batch}
+            if batch and ("" in ids or not ids - seen):
+                raise UncertainExecutionError(
+                    "pagination des trades non progressive ou sans identifiants"
+                )
+            seen |= ids
+            trades.extend(batch)
+            if len(batch) < limit:
+                break
+        else:
+            raise UncertainExecutionError(
+                "historique de trades tronqué : limite de pagination atteinte"
             )
-        except Exception as exc:  # noqa: BLE001 — sans historique, on ne clôt pas
-            raise LiveExecutionError(
-                f"historique des trades illisible pour {symbol} : "
-                f"{type(exc).__name__}: {exc}"
-            ) from exc
-        sells = [
-            trade for trade in (trades or [])
-            if str(trade.get("side") or "").lower() == "sell"
-            and _decimal(trade.get("amount")) > 0
-            and (since is None or trade.get("timestamp") is None
-                 or int(trade.get("timestamp")) >= since)
+        grouped = {}
+        seen = set()
+        for trade in sorted(trades, key=lambda t: t.get("timestamp") or 0):
+            trade_id = str(trade.get("id") or "")
+            if trade_id in seen:
+                continue
+            seen.add(trade_id)
+            if not trade.get("symbol"):
+                raise LiveExecutionError("trade sans symbole : rapprochement refusé")
+            if trade["symbol"] != symbol:
+                continue
+            if str(trade.get("side") or "").lower() != "sell":
+                continue
+            if since is not None and int(trade.get("timestamp") or 0) < since:
+                continue
+            order_id = str(trade.get("order") or trade_id)
+            quantity = _decimal(trade.get("amount"))
+            price = _decimal(trade.get("price") or trade.get("average"))
+            if quantity <= 0 or price <= 0:
+                raise LiveExecutionError("fill de vente sans quantité/prix positif")
+            amount, cost, fees = grouped.pop(
+                order_id, (Decimal(0), Decimal(0), Decimal(0))
+            )
+            grouped[order_id] = (
+                amount + quantity,
+                cost + quantity * price,
+                fees + self._fee_from_order(trade, quantity * price),
+            )
+        return [
+            Fill(
+                price=cost / amount,
+                amount=amount,
+                notional_quote=cost,
+                fee_quote=fees,
+                slippage_quote=Decimal(0),
+                order_id=order_id,
+            )
+            for order_id, (amount, cost, fees) in grouped.items()
         ]
-        if not sells:
-            return None
-        trade = max(sells, key=lambda item: item.get("timestamp") or 0)
-        amount = _decimal(trade.get("amount"))
-        price = _decimal(trade.get("price") or trade.get("average"))
-        if price <= 0:
-            raise LiveExecutionError(f"vente {trade.get('id')} sans prix exploitable")
-        notional = amount * price
-        return Fill(
-            price=price, amount=amount, notional_quote=notional,
-            fee_quote=self._fee_from_order(trade, notional),
-            slippage_quote=Decimal(0),
-            order_id=str(trade.get("order") or trade.get("id") or "") or None,
-        )
+
+    async def last_sell_fill(
+        self, symbol: str, *, since: int | None = None, limit: int = 50
+    ) -> Fill | None:
+        fills = await self.sell_fills_since(symbol, since=since, limit=limit)
+        return fills[-1] if fills else None
 
     async def balance(self) -> dict[str, dict[str, Decimal]]:
         raw = await self._call(self._exchange.fetch_balance)

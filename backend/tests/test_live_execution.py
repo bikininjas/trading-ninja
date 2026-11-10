@@ -6,11 +6,38 @@ import asyncio
 from decimal import Decimal
 
 import pytest
+import ccxt
 
 from app.engine.risk_gate import RiskDecision
 from app.execution.live import LiveBroker, LiveExecutionError
 
 SYMBOL = "BTC/EUR"
+
+
+class MemoryJournal:
+    """Double du journal durable : mêmes états, aucune I/O."""
+    def __init__(self):
+        self.rows = {}
+
+    async def assert_owned(self):
+        pass
+
+    async def prepare(self, symbol, request):
+        from datetime import datetime, timezone
+        client_id = 'test-' + str(len(self.rows))
+        self.rows[client_id] = dict(client_id=client_id, symbol=symbol, request=request,
+                                    state='PREPARED', exchange_order_id=None,
+                                    created_at=datetime.now(timezone.utc))
+        return client_id
+
+    async def update(self, client_id, state, *, response=None, error=None):
+        row = self.rows[client_id]
+        row.update(state=state, error=error)
+        if response:
+            row.update(response=response, exchange_order_id=response.get('id'))
+
+    async def pending(self):
+        return [row for row in self.rows.values() if row['state'] in {'PREPARED','ACKNOWLEDGED','FILLED','UNKNOWN'}]
 
 
 def decision(**overrides) -> RiskDecision:
@@ -68,11 +95,11 @@ class FakeExchange:
         })
         self.events.append(("create", type, side))
         if self.create_raises:
-            raise RuntimeError("Insufficient funds")
+            raise ccxt.InsufficientFunds("Insufficient funds")
         if type == "stop-loss" and self.stop_create_raises:
-            raise RuntimeError("Stop rejected")
+            raise ccxt.InvalidOrder("Stop rejected")
         if side == "sell" and self.sell_raises and type == "market":
-            raise RuntimeError("Market closed")
+            raise ccxt.InvalidOrder("Market closed")
         order_id = self._new_id("order")
         order = {
             "id": order_id, "symbol": symbol, "side": side, "type": type,
@@ -81,6 +108,8 @@ class FakeExchange:
             "fee": {"cost": "0.08", "currency": "EUR"},
         }
         self.orders[order_id] = order
+        if type == "market" and side == "buy":
+            self.base_free = str(Decimal(self.base_free) + Decimal(str(amount)))
         if side == "sell" and type == "stop-loss":
             stop = {
                 "id": order_id, "symbol": symbol, "side": "sell",
@@ -133,20 +162,26 @@ class FakeExchange:
     def fetch_open_orders(self, symbol=None):
         return list(self.open_orders)
 
-    def fetch_my_trades(self, symbol=None, since=None, limit=None):
-        return list(self.trades)
+    def fetch_my_trades(self, symbol=None, since=None, limit=None, params=None):
+        offset = (params or {}).get("ofs", 0)
+        return [dict(t, symbol=t.get('symbol') or SYMBOL) for t in self.trades][offset:offset + (limit or 50)]
 
     def cancel_order(self, order_id, symbol=None):
         self.events.append(("cancel", order_id))
         self.cancel_calls.append(order_id)
         if (self.fail_cancel_call is not None
                 and len(self.cancel_calls) == self.fail_cancel_call):
-            raise RuntimeError("Cancel rejected")
+            raise ccxt.InvalidOrder("Cancel rejected")
         for order in list(self.open_orders):
             if order["id"] == order_id:
                 self.open_orders.remove(order)
                 order["status"] = "canceled"
+                self.orders[order_id] = order
                 return {"id": order_id, "status": "canceled"}
+        if order_id in self.orders:
+            self.orders[order_id]['status'] = 'canceled'
+            self.orders[order_id]['filled'] = '0'
+            return self.orders[order_id]
         raise RuntimeError("Order not found")
 
     def fetch_balance(self):
@@ -163,6 +198,7 @@ def broker(exchange: FakeExchange, **overrides) -> LiveBroker:
         "poll_interval": 0,
         "timeout_seconds": 0.05,
         "sleep": _noop_sleep,
+        "journal": MemoryJournal(),
     }
     values.update(overrides)
     return LiveBroker(exchange, **values)
@@ -209,7 +245,7 @@ async def test_entry_is_refused_when_the_exchange_rejects_the_buy():
     assert exchange.create_calls == [{
         "symbol": SYMBOL, "type": "market", "side": "buy",
         "amount": "0.05", "price": None,
-        "params": {"close": {"ordertype": "stop-loss", "price": "95"}},
+        "params": {"close": {"ordertype": "stop-loss", "price": "95"}, "clientOrderId": "test-0"},
     }]
 
 
@@ -225,7 +261,7 @@ async def test_an_unfilled_order_is_canceled_and_raises():
 
 @pytest.mark.asyncio
 async def test_exit_cancels_protections_before_selling():
-    exchange = FakeExchange()
+    exchange = FakeExchange(base_free="0.05")
     exchange.open_orders = [
         {"id": "stop-1", "symbol": SYMBOL, "side": "sell", "type": "stop-loss",
          "amount": "0.05", "stopLossPrice": "95"},
@@ -245,7 +281,7 @@ async def test_exit_cancels_protections_before_selling():
 
 @pytest.mark.asyncio
 async def test_exit_rearms_the_stop_when_the_sale_fails():
-    exchange = FakeExchange(sell_raises=True)
+    exchange = FakeExchange(sell_raises=True, base_free="0.05")
     exchange.open_orders = [
         {"id": "stop-1", "symbol": SYMBOL, "side": "sell", "type": "stop-loss",
          "amount": "0.05", "stopLossPrice": "95"},
@@ -321,6 +357,9 @@ async def test_entry_refuses_a_shared_base_balance():
 async def _entered(exchange: FakeExchange):
     live = broker(exchange)
     fill = await live.entry(decision(), Decimal("100"), symbol=SYMBOL)
+    for row in live._journal.rows.values():
+        if row['request']['type'] == 'market':
+            row['state'] = 'BOOKED'
     return live, fill
 
 
@@ -501,3 +540,118 @@ async def test_panic_sell_without_balance_is_a_clean_noop():
     assert report.complete
     assert report.exits == ()
     assert exchange.create_calls == []
+
+
+@pytest.mark.asyncio
+async def test_panic_keeps_protections_if_the_balance_cannot_be_read():
+    exchange = PanicExchange({"BTC": "0.05"})
+    exchange.open_orders = [{"id": "stop-1", "symbol": SYMBOL, "side": "sell",
+                             "type": "stop-loss", "stopLossPrice": "95", "amount": "0.05"}]
+
+    def unavailable():
+        raise RuntimeError("solde indisponible")
+
+    exchange.fetch_balance = unavailable
+    report = await broker(exchange).panic_sell([SYMBOL])
+    assert not report.complete
+    assert exchange.cancel_calls == []
+    assert exchange.create_calls == []
+
+
+@pytest.mark.asyncio
+async def test_panic_rearms_the_previous_stop_if_the_sale_is_rejected():
+    exchange = PanicExchange({"EUR": "1", "BTC": "0.05"}, sell_raises=True)
+    exchange.open_orders = [{"id": "stop-1", "symbol": SYMBOL, "side": "sell",
+                             "type": "stop-loss", "stopLossPrice": "95", "amount": "0.05"}]
+    report = await broker(exchange).panic_sell([SYMBOL])
+    assert not report.complete
+    assert exchange.balances["BTC"] == Decimal("0.05")
+    stops = [order for order in exchange.open_orders if order["type"] == "stop-loss"]
+    assert len(stops) == 1
+    assert Decimal(stops[0]["stopLossPrice"]) == Decimal("95")
+
+
+@pytest.mark.asyncio
+async def test_panic_keeps_a_confirmed_fill_when_residual_verification_fails():
+    exchange = PanicExchange({"EUR": "1", "BTC": "0.05"})
+    live = broker(exchange)
+
+    async def unreadable(symbol):
+        raise RuntimeError("solde final indisponible")
+
+    live.total_base = unreadable
+    report = await live.panic_sell([SYMBOL])
+    assert not report.complete
+    assert report.exits[0].fill.amount == Decimal("0.05")
+    assert "solde final indisponible" in report.errors[0]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("overrides", [
+    {"type": "take-profit", "triggerPrice": "110", "stopLossPrice": None},
+    {"amount": "0.05", "remaining": "0.01", "filled": "0.04"},
+    {"status": "closed"},
+])
+async def test_a_tp_or_an_insufficient_remaining_stop_does_not_protect_the_position(overrides):
+    exchange = FakeExchange(base_free="0.05")
+    exchange.open_orders = [{
+        "id": "not-a-covering-stop", "symbol": SYMBOL, "side": "sell",
+        "type": "stop-loss", "stopLossPrice": "95", "amount": "0.05",
+        "status": "open", **overrides,
+    }]
+    state = await broker(exchange).position_state(SYMBOL, Decimal("0.05"), Decimal("95"))
+    assert state.stop_ok is False
+
+
+@pytest.mark.asyncio
+async def test_native_stop_edit_tracks_a_replacement_identifier():
+    exchange = FakeExchange(support_edit=True)
+    live, fill = await _entered(exchange)
+    original_edit = exchange.edit_order
+
+    def edit_with_new_id(*args, **kwargs):
+        order = original_edit(*args, **kwargs)
+        exchange.orders.pop(order["id"])
+        order["id"] = "edited-stop"
+        exchange.orders[order["id"]] = order
+        return order
+
+    exchange.edit_order = edit_with_new_id
+    stop_id = await live.update_stop_loss_order(SYMBOL, fill.amount, fill.stop_order_id, Decimal("99"))
+    assert stop_id == "edited-stop"
+    assert exchange.cancel_calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_kraken_amendment_identifier_is_not_used_as_the_stop_id():
+    exchange = FakeExchange(support_edit=True)
+    live, fill = await _entered(exchange)
+    original_edit = exchange.edit_order
+
+    def amend_in_place(*args, **kwargs):
+        original_edit(*args, **kwargs)
+        return {"id": "amendment-event", "info": {"amend_id": "amendment-event"}}
+
+    exchange.edit_order = amend_in_place
+    stop_id = await live.update_stop_loss_order(SYMBOL, fill.amount, fill.stop_order_id, Decimal("99"))
+    assert stop_id == fill.stop_order_id
+    assert Decimal(exchange.orders[stop_id]["stopLossPrice"]) == Decimal("99")
+
+
+@pytest.mark.asyncio
+async def test_last_sell_aggregates_fills_of_the_latest_order_without_duplicates():
+    exchange = FakeExchange()
+    exchange.trades = [
+        {"id": "old", "order": "old-order", "side": "sell", "amount": "1", "price": "70", "timestamp": 1},
+        {"id": "a", "order": "stop-order", "side": "sell", "amount": "0.02", "price": "90", "timestamp": 2,
+         "fee": {"cost": "0.01", "currency": "EUR"}},
+        {"id": "b", "order": "stop-order", "side": "sell", "amount": "0.03", "price": "110", "timestamp": 3,
+         "fee": {"cost": "0.02", "currency": "EUR"}},
+    ]
+    exchange.trades.append(dict(exchange.trades[-1]))
+    fill = await broker(exchange).last_sell_fill(SYMBOL)
+    assert fill.amount == Decimal("0.05")
+    assert fill.price == Decimal("102")
+    assert fill.notional_quote == Decimal("5.10")
+    assert fill.fee_quote == Decimal("0.03")
+    assert fill.order_id == "stop-order"

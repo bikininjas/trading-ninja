@@ -75,6 +75,7 @@ class PositionRow:
     risk_amount_quote: Decimal
     monitor_cursor_at: datetime | None = None
     policy_id: str | None = None
+    initial_amount: Decimal | None = None
 
 
 def _drawdown(peak: Decimal, equity: Decimal) -> Decimal:
@@ -92,6 +93,137 @@ class PostgresRepository(InsightsStore):
     async def connect(cls, config: DatabaseConfig) -> "PostgresRepository":
         connection = await asyncpg.connect(**config.asyncpg_kwargs())
         return cls(connection, lock_connection_factory=lambda: asyncpg.connect(**config.asyncpg_kwargs()))
+
+    async def prepare_request(self, mode, symbol, request):
+        from app.core.coordination import assert_financial_guard
+        await assert_financial_guard(self, mode)
+        if self._conn.is_in_transaction():
+            raise StateTransitionError("requête exchange refusée : le reçu doit être validé avant l'envoi")
+        client_id = "tn" + uuid.uuid4().hex[:16]
+        await self._conn.execute(
+            "INSERT INTO execution_requests(client_id,mode,symbol,request,state) "
+            "VALUES($1,$2::execution_mode,$3,$4::jsonb,'PREPARED')",
+            client_id, mode, symbol, json.dumps(request, default=str),
+        )
+        return client_id
+
+
+    async def update_request(self, client_id, state, *, response=None, error=None):
+        await self._conn.execute(
+            "UPDATE execution_requests SET state=$2, response=COALESCE($3::jsonb,response), "
+            "exchange_order_id=COALESCE($4,exchange_order_id), error=$5, "
+            "updated_at=CLOCK_TIMESTAMP() WHERE client_id=$1",
+            client_id, state, json.dumps(response, default=str) if response else None,
+            str(response.get('id') or '') or None if response else None, error,
+        )
+
+
+    async def pending_requests(self, mode):
+        rows = await self._conn.fetch(
+            "SELECT * FROM execution_requests WHERE mode=$1::execution_mode "
+            "AND state IN ('PREPARED','ACKNOWLEDGED','FILLED','UNKNOWN') ORDER BY created_at", mode,
+        )
+        out = []
+        for row in rows:
+            item = dict(row)
+            for field in ('request', 'response'):
+                if isinstance(item[field], str):
+                    item[field] = json.loads(item[field])
+            out.append(item)
+        return out
+
+
+    async def book_request(self, mode, exchange_order_id):
+        if exchange_order_id:
+            await self._conn.execute(
+                "UPDATE execution_requests SET state='BOOKED', updated_at=CLOCK_TIMESTAMP() "
+                "WHERE mode=$1::execution_mode AND exchange_order_id=$2 AND request->>'type'='market'", mode, exchange_order_id,
+            )
+
+
+    async def fill_recorded(self, mode, exchange_order_id):
+        return bool(exchange_order_id and await self._conn.fetchval(
+            "SELECT EXISTS(SELECT 1 FROM orders WHERE mode=$1::execution_mode "
+            "AND exchange_order_id=$2 AND status IN ('FILLED','PARTIALLY_FILLED'))", mode, exchange_order_id,
+        ))
+
+
+    async def account_exit(self, mode, symbol, fill, *, purpose, reason, quote, taker_fee, emergency=False):
+        """Une transaction par fill confirmé : quantité résiduelle, PnL, ordre, reçu.
+
+        Le même ID exchange n'est jamais imputé deux fois. Les frais d'entrée
+        sont alloués au prorata de la quantité initiale, pas de la quantité restante.
+        """
+        async with self._conn.transaction():
+            existing = await self._conn.fetchrow(
+                "SELECT * FROM orders WHERE mode=$1::execution_mode AND exchange_order_id=$2 "
+                "AND status IN ('FILLED','PARTIALLY_FILLED') FOR UPDATE", mode, fill.order_id,
+            ) if fill.order_id else None
+            cumulative = fill
+            if existing:
+                if existing['filled_amount'] >= fill.amount:
+                    await self.book_request(mode, fill.order_id)
+                    return None
+                from dataclasses import replace
+                delta = fill.amount - existing['filled_amount']
+                cost = fill.notional_quote - existing['filled_amount'] * existing['average_fill_price']
+                fee = fill.fee_quote - existing['fee_amount']
+                if cost <= 0 or fee < 0:
+                    raise StateTransitionError("fill cumulatif incohérent")
+                fill = replace(fill, amount=delta, notional_quote=cost, price=cost/delta, fee_quote=fee)
+            row = await self._conn.fetchrow(
+                "SELECT * FROM positions WHERE mode=$1::execution_mode AND symbol=$2 AND status='OPEN' FOR UPDATE",
+                mode, symbol,
+            )
+            net = fees = gross = Decimal(0)
+            remaining = Decimal(0)
+            if row:
+                available = row['initial_amount'] - row['closed_amount']
+                if fill.amount > available * Decimal('1.001'):
+                    raise StateTransitionError("fill supérieur à la quantité suivie : rapprochement requis")
+                remaining = max(Decimal(0), available - fill.amount)
+                entry_fees = await self.entry_fee(row['id'])
+                if entry_fees == 0:
+                    entry_fees = row['entry_price'] * row['initial_amount'] * taker_fee
+                fees = entry_fees * fill.amount / row['initial_amount'] + fill.fee_quote
+                gross = (fill.price - row['entry_price']) * fill.amount
+                net = gross - fees
+                terminal = remaining == 0
+                status = ('EMERGENCY_LIQUIDATED' if emergency else 'CLOSED') if terminal else 'OPEN'
+                await self._conn.execute(
+                    "UPDATE positions SET closed_amount=closed_amount+$2, gross_pnl_quote=gross_pnl_quote+$3, "
+                    "total_fees_quote=total_fees_quote+$4, net_pnl_quote=net_pnl_quote+$5, "
+                    "status=$6::position_status, exit_price=$7, exit_reason=$8, protective_order_ok=FALSE, "
+                    "closed_at=CASE WHEN $6::text='OPEN' THEN NULL ELSE CLOCK_TIMESTAMP() END WHERE id=$1",
+                    row['id'], fill.amount, gross, fees, net, status, fill.price, reason,
+                )
+                if terminal:
+                    await self._conn.execute(
+                        "UPDATE bot_state SET consecutive_losses=CASE WHEN $2::numeric < 0 THEN consecutive_losses+1 ELSE 0 END, "
+                        "last_trade_at=CLOCK_TIMESTAMP() WHERE mode=$1::execution_mode", mode, row['net_pnl_quote'] + net,
+                    )
+                await self._conn.execute(
+                    "UPDATE orders SET status='CANCELED', updated_at=CLOCK_TIMESTAMP() WHERE position_id=$1 "
+                    "AND status IN ('SUBMITTED','PENDING','PARTIALLY_FILLED')", row['id'],
+                )
+            if existing:
+                await self._conn.execute(
+                    "UPDATE orders SET filled_amount=$2, average_fill_price=$3, fee_amount=$4, status='FILLED', "
+                    "updated_at=CLOCK_TIMESTAMP() WHERE id=$1", existing['id'], cumulative.amount, cumulative.price, cumulative.fee_quote,
+                )
+            else:
+                await self.insert_order(
+                    mode, client_order_id='book-' + uuid.uuid4().hex, symbol=symbol, side='SELL',
+                    order_type='MARKET', purpose=purpose, status='FILLED', requested_amount=fill.amount,
+                    filled_amount=fill.amount, requested_price=None, stop_price=None, average_fill_price=fill.price,
+                    fee_amount=fill.fee_quote, fee_currency=quote, slippage_quote=fill.slippage_quote,
+                    position_id=row['id'] if row else None, exchange_order_id=fill.order_id,
+                )
+            await self.book_request(mode, fill.order_id)
+            return dict(net=net, fees=fees, remaining=remaining, tracked=row is not None,
+                        position_id=row['id'] if row else None,
+                        total_net=(row['net_pnl_quote'] + net) if row else net)
+
 
     async def close(self) -> None:
         await self._conn.close()
@@ -507,8 +639,8 @@ class PostgresRepository(InsightsStore):
 
     async def open_positions(self, mode: str) -> list[PositionRow]:
         rows = await self._conn.fetch(
-            "SELECT id, symbol, entry_price, initial_amount, stop_loss_price, "
-            "take_profit_price, opened_at, risk_amount_quote, monitor_cursor_at, policy_id FROM positions "
+            "SELECT id, symbol, entry_price, initial_amount-closed_amount AS initial_amount, stop_loss_price, "
+            "take_profit_price, opened_at, risk_amount_quote, monitor_cursor_at, policy_id, initial_amount AS original_amount FROM positions "
             "WHERE mode = $1::execution_mode AND status = 'OPEN' "
             "ORDER BY opened_at DESC",
             mode,
@@ -519,7 +651,7 @@ class PostgresRepository(InsightsStore):
                 amount=row["initial_amount"], stop_loss_price=row["stop_loss_price"],
                 take_profit_price=row["take_profit_price"], opened_at=row["opened_at"],
                 risk_amount_quote=row["risk_amount_quote"],
-                monitor_cursor_at=row["monitor_cursor_at"], policy_id=row["policy_id"],
+                monitor_cursor_at=row["monitor_cursor_at"], policy_id=row["policy_id"], initial_amount=row["original_amount"],
             )
             for row in rows
         ]
@@ -530,7 +662,7 @@ class PostgresRepository(InsightsStore):
 
     async def stop_order_id(self, position_id) -> str | None:
         return await self._conn.fetchval(
-            "SELECT id::text FROM orders WHERE position_id = $1 "
+            "SELECT COALESCE(exchange_order_id,client_order_id,id::text) FROM orders WHERE position_id = $1 "
             "AND purpose = 'STOP_LOSS' ORDER BY created_at DESC LIMIT 1",
             position_id,
         )
@@ -576,38 +708,46 @@ class PostgresRepository(InsightsStore):
                            fee_currency: str, slippage_quote: Decimal | None,
                            position_id: uuid.UUID | None = None,
                            risk_evaluation_id: uuid.UUID | None = None,
-                           error_message: str | None = None) -> uuid.UUID:
+                           error_message: str | None = None,
+                           exchange_order_id: str | None = None) -> uuid.UUID:
         return await self._conn.fetchval(
             "INSERT INTO orders (position_id, risk_evaluation_id, client_order_id, symbol, "
             "mode, side, order_type, purpose, status, requested_amount, filled_amount, "
             "requested_price, stop_price, average_fill_price, fee_amount, fee_currency, "
-            "slippage_quote, error_message) "
+            "slippage_quote, error_message, exchange_order_id) "
             "VALUES ($1, $2, $3, $4, $5::execution_mode, $6::order_side, $7::order_type, "
-            "$8::order_purpose, $9::order_status, $10, $11, $12, $13, $14, $15, $16, $17, $18) "
+            "$8::order_purpose, $9::order_status, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) "
             "RETURNING id",
             position_id, risk_evaluation_id, client_order_id, symbol, mode, side,
             order_type, purpose, status, requested_amount, filled_amount,
             requested_price, stop_price, average_fill_price, fee_amount, fee_currency,
-            slippage_quote, error_message,
+            slippage_quote, error_message, exchange_order_id,
         )
+
 
     async def create_position(self, mode: str, *, symbol: str, entry_price: Decimal,
                               amount: Decimal, notional_quote: Decimal,
                               stop_loss_price: Decimal, take_profit_price: Decimal | None,
                               risk_amount_quote: Decimal, r_multiple_at_tp: Decimal | None,
                               signal_id: uuid.UUID, evaluation_id: uuid.UUID,
-                              protective_order_id: str) -> uuid.UUID:
+                              protective_order_id: str | None, opened_at: datetime | None = None) -> uuid.UUID:
         return await self._conn.fetchval(
             "INSERT INTO positions (symbol, mode, entry_signal_id, entry_risk_evaluation_id, "
             "entry_price, initial_amount, initial_notional_quote, stop_loss_price, "
             "take_profit_price, risk_amount_quote, r_multiple_at_tp, protective_order_id, "
-            "protective_order_ok, protective_checked_at, monitor_cursor_at) "
+            "protective_order_ok, protective_checked_at, monitor_cursor_at, opened_at) "
             "VALUES ($1, $2::execution_mode, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, "
-            "TRUE, CLOCK_TIMESTAMP(), CLOCK_TIMESTAMP()) RETURNING id",
+            "TRUE, CLOCK_TIMESTAMP(), COALESCE($13,CLOCK_TIMESTAMP()), COALESCE($13,CLOCK_TIMESTAMP())) RETURNING id",
             symbol, mode, signal_id, evaluation_id, entry_price, amount, notional_quote,
             stop_loss_price, take_profit_price, risk_amount_quote, r_multiple_at_tp,
-            protective_order_id,
+            protective_order_id, opened_at,
         )
+
+    async def update_protective_stop(self,position_id,price,exchange_id):
+        async with self._conn.transaction():
+            changed=await self._conn.fetchval("UPDATE positions SET protective_order_id=$2,stop_loss_price=$3,protective_order_ok=TRUE,protective_checked_at=CLOCK_TIMESTAMP() WHERE id=$1 AND status='OPEN' AND stop_loss_price<=$3 RETURNING id",position_id,exchange_id,price)
+            if not changed:raise StateTransitionError('déplacement de stop incompatible avec la position')
+            await self._conn.execute("UPDATE orders SET exchange_order_id=$2,stop_price=$3,updated_at=CLOCK_TIMESTAMP() WHERE position_id=$1 AND purpose='STOP_LOSS' AND status IN ('SUBMITTED','PENDING')",position_id,exchange_id,price)
 
     async def update_position_stop(self, position_id: uuid.UUID,
                                    stop_loss_price: Decimal) -> None:
@@ -722,6 +862,12 @@ class PostgresRepository(InsightsStore):
             )
 
     async def force_resume(self, mode: str, reason: str, who: str = "admin") -> None:
+        from app.core.coordination import financial_guard
+        async with financial_guard(self,mode,wait=True):
+            if await self.pending_requests(mode):raise StateTransitionError('exécutions non rapprochées : reprise refusée')
+            return await self._force_resume(mode,reason,who)
+
+    async def _force_resume(self, mode: str, reason: str, who: str = "admin") -> None:
         """Reprise humaine : uniquement depuis un état bloqué, jamais depuis IDLE.
 
         Reprendre un bot qui n'est pas arrêté masquerait un bug de gestion d'état ;
@@ -956,22 +1102,22 @@ class PostgresRepository(InsightsStore):
 
 
     @asynccontextmanager
-    async def cycle_lock(self, mode: str):
-        # Le pooler Supabase peut être en mode transaction. Un verrou de
-        # session y serait perdu/réattribué. Transaction dédiée sur une seconde
-        # connexion ; les intents/fills sur la connexion de travail restent durables.
-        if self._lock_connection_factory is None:
-            raise RuntimeError("connexion dédiée au verrou de cycle non configurée")
-        connection = await self._lock_connection_factory()
+    async def financial_lock(self,mode,*,wait=False):
+        if self._lock_connection_factory is None:raise StateTransitionError('connexion dédiée requise')
+        connection=await self._lock_connection_factory()
         try:
             async with connection.transaction():
-                acquired = await connection.fetchval(
-                    "SELECT pg_try_advisory_xact_lock(70217, hashtext($1))", mode)
-                if not acquired:
-                    raise StateTransitionError("un autre cycle détient le verrou de ce mode")
-                yield
-        finally:
-            await connection.close()
+                key={'PAPER':1,'TESTNET':2,'LIVE':3}[mode]
+                if wait:await connection.execute('SELECT pg_advisory_xact_lock(1414416961,$1)',key)
+                elif not await connection.fetchval('SELECT pg_try_advisory_xact_lock(1414416961,$1)',key):
+                    raise StateTransitionError('un autre cycle détient le verrou de ce mode')
+                yield connection
+        finally:await connection.close()
+
+    @asynccontextmanager
+    async def cycle_lock(self,mode):
+        from app.core.coordination import financial_guard
+        async with financial_guard(self,mode):yield
 
     async def capital_state(self, mode: str) -> CapitalState | None:
         row = await self._conn.fetchrow("SELECT * FROM capital_accounts WHERE mode=$1::execution_mode", mode)
@@ -1043,3 +1189,9 @@ class PostgresRepository(InsightsStore):
 
     async def clear_exit(self, position_id: uuid.UUID) -> None:
         await self._conn.execute("DELETE FROM pending_exits WHERE position_id=$1", position_id)
+
+
+
+
+
+

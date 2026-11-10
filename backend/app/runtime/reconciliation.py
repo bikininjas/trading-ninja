@@ -25,6 +25,8 @@ plutôt que de la convertir en zéro.
 
 from __future__ import annotations
 
+from app.core.coordination import serialized_financial
+
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any, Mapping, Sequence
@@ -368,6 +370,7 @@ async def inspect_exchange(
     )
 
 
+@serialized_financial(mode_from=lambda v:v['plan'].mode,halt_reason='réconciliation administrateur')
 async def apply_reconciliation(
     plan: ReconciliationPlan,
     repo: Any,

@@ -20,7 +20,7 @@ __all__ = ["make_broker"]
 
 def make_broker(settings: Settings, exchange: Any,
                 symbols: Sequence[str] | None = None,
-                *, mode: str | None = None) -> Any:
+                *, mode: str | None = None, repo: Any = None) -> Any:
     selected = (mode or settings.mode).lower()
     if selected == "live" and settings.mode != "live":
         raise RuntimeError("mode live refusé : configuration non armée")
@@ -34,11 +34,14 @@ def make_broker(settings: Settings, exchange: Any,
     if selected == "paper":
         return PaperBroker(fee, settings.paper_slippage_bps)
     if selected == "live":
-        return LiveBroker(
+        if repo is None:raise RuntimeError("live exige un journal durable")
+        broker = LiveBroker(
             exchange,
             quote_currency=settings.exchange.quote_currency,
             taker_fee=fee,
         )
+        broker.bind_execution(repo,"LIVE")
+        return broker
     raise RuntimeError(
         "Kraken spot n'a pas de testnet dans CCXT 4.5.91 : le mode testnet "
         "doit être redéfini avant de pouvoir exécuter."

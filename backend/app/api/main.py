@@ -32,6 +32,8 @@ from typing import Any
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
+from app.core.coordination import serialized_financial
+
 from app.api.security import (
     TOKEN_TTL_SECONDS, AttemptLimiter, AuthError, TotpVerifier, create_token,
     decode_token, require_secrets, verify_password,
@@ -74,6 +76,7 @@ class SettingsUpdate(BaseModel):
     halt_auto_resume_hours: int | None = Field(default=None, ge=0, le=168)
 
 
+@serialized_financial(mode_from=lambda v:v['config'].execution_mode,halt_reason='liquidation administrateur')
 async def _default_liquidate(repo: PostgresRepository, config: Settings) -> list:
     """Liquidation d'urgence : ledger en papier, exchange réel en live.
 
@@ -90,8 +93,10 @@ async def _default_liquidate(repo: PostgresRepository, config: Settings) -> list
         api_key=config.exchange.api_key, secret=config.exchange.secret
     )
     await asyncio.to_thread(exchange.load_markets)
-    broker = make_broker(config, exchange, config.exchange.allowed_symbols)
+    broker = make_broker(config, exchange, config.exchange.allowed_symbols, repo=repo)
     if isinstance(broker, LiveBroker):
+        from app.runtime.execution_recovery import recover_executions
+        await recover_executions(repo,broker,config.execution_mode,config.exchange.quote_currency,include_trades=True)
         report = await broker.panic_sell(config.exchange.allowed_symbols)
         try:
             free_quote = await broker.free_quote()
