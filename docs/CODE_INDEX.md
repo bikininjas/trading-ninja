@@ -3,18 +3,18 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `e7d23217e6710354`
+Empreinte des sources : `73b766d574ba14ea`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
-| Modules Python | 133 |
-| Lignes Python | 32145 |
+| Modules Python | 135 |
+| Lignes Python | 32362 |
 | Classes | 146 |
-| Fonctions et méthodes | 1021 |
-| Cas de test collectés par pytest | 754 |
-| Fonctions de test (comptage statique) | 606 |
+| Fonctions et méthodes | 1032 |
+| Cas de test collectés par pytest | 765 |
+| Fonctions de test (comptage statique) | 612 |
 | Migrations SQL | 13 |
 | Scripts shell | 3 |
 
@@ -108,6 +108,7 @@ Empreinte des sources : `e7d23217e6710354`
 | `backend/scripts/short_lab.py` | 70 | Mesure le mandat short sur le golden, sans réseau ni ordre. |
 | `backend/scripts/totp_setup.py` | 51 | Génère un secret TOTP, son QR code et l'URI de provisionnement. |
 | `backend/scripts/verify_drawdowns.py` | 136 | Vérifie les drawdowns sur un jeu de données figé, dans une transaction annulée. |
+| `backend/scripts/watchdog.py` | 120 | Sonde séparée du surveillant : lecture SQL et notification, jamais d'ordre. |
 | `backend/tests/__init__.py` | 1 |  |
 | `backend/tests/conftest.py` | 74 | Les tests unitaires ne doivent jamais contacter un service externe. |
 | `backend/tests/test_affordability.py` | 182 | Tests de la faisabilité d'un ordre avec un petit capital. |
@@ -155,6 +156,7 @@ Empreinte des sources : `e7d23217e6710354`
 | `backend/tests/test_shadow.py` | 76 | Tests du simulateur de shadow trades — purs, sans réseau ni base. |
 | `backend/tests/test_sweep.py` | 71 | Tests du Profit Sweeper : calcul pur, seuil, absence de ligne sur perte. |
 | `backend/tests/test_swing_backtest.py` | 176 | Tests du rejeu swing Daily : entrée, stop structurel, breakeven, sortie. |
+| `backend/tests/test_watchdog.py` | 97 | Une surveillance morte ou illisible ne peut jamais être annoncée saine. |
 | `scripts/backtest_watch.sh` | 27 | Veille de backtest — conçue pour un cron silencieux. |
 | `scripts/check.sh` | 206 | Vérification complète de l'état du dépôt en une commande. |
 | `scripts/manage.sh` | 307 | ============================================================================= |
@@ -1344,6 +1346,15 @@ le code, pas une copie de celui-ci.
 - `async def _run() -> int` (l.65)
 - `def main() -> int` (l.128)
 
+### `backend/scripts/watchdog.py`
+
+*Sonde séparée du surveillant : lecture SQL et notification, jamais d'ordre.*
+
+- `def classify(record, *, now, max_age_seconds, require_runtime=True)` (l.28) — Traite l'absence de preuve comme UNKNOWN, jamais comme un état sain.
+- `async def read_observation(config, mode)` (l.60)
+- `async def check(mode, *, interval, webhook, read=read_observation, notify=notify_incident, now=None, env=None, require_runtime=True)` (l.73)
+- `def main(argv=None)` (l.96)
+
 ### `backend/tests/conftest.py`
 
 *Les tests unitaires ne doivent jamais contacter un service externe.*
@@ -2448,6 +2459,18 @@ le code, pas une copie de celui-ci.
 - `def test_swing_chandelier_exits_on_a_close_below_the_trailing_stop()` (l.156)
 - `def test_swing_default_mode_does_not_use_the_chandelier()` (l.170)
 
+### `backend/tests/test_watchdog.py`
+
+*Une surveillance morte ou illisible ne peut jamais être annoncée saine.*
+
+- `def observation(body=HEALTHY, at=NOW)` (l.14)
+- `def test_missing_stale_or_invalid_information_is_not_healthy(record, reason)` (l.26)
+- `def test_incomplete_or_critical_observation_is_an_alert()` (l.31)
+- `async def test_database_outage_notifies_without_leaking_exception_text()` (l.40)
+- `async def test_failed_notification_keeps_an_unhealthy_exit_state()` (l.59)
+- `def test_live_cannot_disable_runtime_monitoring(monkeypatch)` (l.72)
+- `async def test_watchdog_reads_a_real_observation_from_disposable_postgres(postgres_test_url)` (l.80)
+
 ## 4. Tests
 
 Cas réellement collectés par pytest (les `parametrize` sont comptés à leur juste nombre, pas comme une seule fonction).
@@ -2501,7 +2524,8 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_shadow.py` | 5 |
 | `backend/tests/test_sweep.py` | 13 |
 | `backend/tests/test_swing_backtest.py` | 7 |
-| **Total** | **754** |
+| `backend/tests/test_watchdog.py` | 11 |
+| **Total** | **765** |
 
 ## 5. Schéma SQL
 

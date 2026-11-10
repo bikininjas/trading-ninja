@@ -274,6 +274,30 @@ qualifier le canal réel et installer une sonde
 externe de disponibilité du surveillant. Aucun service, clé ou alerte réelle n'a
 été créé par cette livraison.
 
+### Sonde séparée du surveillant
+
+`backend/scripts/watchdog.py` lit la dernière observation et alerte par HTTPS si
+elle est absente, périmée, incomplète, invalide, contient un incident ou si la base
+est illisible. Il n'envoie aucune commande financière. Sur une autre machine ou un
+autre service, injecter `WATCHDOG_WEBHOOK_URL` dans l'environnement sécurisé et
+planifier par exemple toutes les 15 secondes :
+
+```bash
+cd backend
+.venv/bin/python scripts/watchdog.py --mode PAPER --interval 15
+```
+
+`--interval` doit correspondre à `OBSERVER_INTERVAL_SECONDS` du surveillant ; la
+fraîcheur maximale est `2 × intervalle + 5` secondes. Code 0 : observation du
+surveillant courante et complète ; 1 : alerte ou état inconnu ; 2 : configuration
+invalide. La sonde répète les notifications à chaque échec, sans déduplication.
+Elle vérifie que le surveillant est configuré avec `--expect-runtime`, mais son
+observation ne prouve pas que le moteur est vivant à chaque seconde : le contrôle
+du moteur repose encore sur la cadence des cycles. `--allow-idle` est réservé au
+PAPER. L'absence d'appel de la sonde elle-même exige un contrôle externe distinct.
+Le webhook, le planning, les délais et l'indépendance des services doivent être
+exercés sur la cible avant R3 ; aucune installation n'est faite automatiquement.
+
 ## Confiance du LLM (I-10)
 
 Le rapport privé regroupe achats exécutés et clos avant la date de coupure par

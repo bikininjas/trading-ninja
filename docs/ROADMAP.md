@@ -49,6 +49,9 @@ coûts et empêcher le relèvement automatique du risque pour financer le minimu
 🟨 **R4 — diagnostic public de faisabilité** *(commencé le 10 novembre 2026)* :
 calculer un scénario frais compris, sans clé ni ordre, avec limites explicites.
 
+🟨 **R3 — sonde externe du surveillant** *(commencé le 10 novembre 2026)* :
+détecter sa disparition et les lectures SQL inconnues depuis un processus séparé.
+
 Responsabilité technique : préparation du code, migrations, tests, déploiement
 PAPER et dossier de preuves. Responsabilité de Seb : validation du mandat de risque,
 compte/budget, accès opérateur et décisions d’activation ou de poursuite. Les secrets

@@ -6,6 +6,18 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Sonde externe du surveillant R3
+
+Une sonde séparée signale la disparition du surveillant, les incidents et une
+lecture SQL inconnue. Elle lit la base sans modifier d'état financier et notifie
+via un webhook configuré hors ligne de commande. Tests : **765 réussis**, dont
+36 contrats PostgreSQL locaux, avec lecture réelle d'une observation jetable.
+Son installation, le canal et le contrôle externe de son propre fonctionnement
+restent à qualifier ; elle ne prouve pas seule la vie du moteur entre les cycles.
+Décision : D-080.
+
+---
+
 ## 2026-11-10 — Diagnostic public de faisabilité R4
 
 Le diagnostic lit les marchés publics sans clé ni fichier de configuration, utilise

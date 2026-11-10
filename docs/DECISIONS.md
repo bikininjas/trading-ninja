@@ -1874,3 +1874,16 @@ Une série H4 périmée ou discontinue est refusée ; le stop structurel et l'al
 petit compte sont déclarés non mesurables au lieu d'être assimilés à un stop ATR.
 La fraîcheur source du ticker et les frais réels du compte restent à qualifier.
 La faisabilité mécanique ne valide ni le signal ni la rentabilité.
+
+---
+
+## D-080 — Sonde séparée du surveillant (2026-11-10)
+
+Une commande à exécuter hors du processus surveillé lit la dernière observation :
+absence, ancienneté, état incomplet, incident et base indisponible ne sont jamais
+verts et déclenchent une notification HTTPS. La destination vient de l'environnement
+et n'est pas affichée. Aucun ordre ni écriture ne sont envoyés par la sonde.
+
+L'indépendance et le délai effectifs exigent un service séparé, un canal testé et
+un contrôle externe de la sonde elle-même. La vie du moteur reste vérifiée selon
+la cadence des cycles et ne bénéficie pas encore d'un heartbeat continu.

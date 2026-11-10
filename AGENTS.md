@@ -31,7 +31,7 @@ prix et stop sont toujours calculés par le code.
   `0011_insights_and_controls.sql`. Les treize sont appliquées sur Supabase trninja
   et leurs empreintes vérifiées le 10 novembre 2026. Preuves et limites de sauvegarde :
   `docs/JOURNAL.md`.
-- 754 tests Python sont collectés, dont 35 contrats PostgreSQL locaux opt-in ;
+- 765 tests Python sont collectés, dont 36 contrats PostgreSQL locaux opt-in ;
   31 tests Node et un contrôle navigateur complètent les preuves.
 - Le statut reste **NO-GO** pour le réel. Les corrections intégrées et leurs
   preuves sont dans `docs/JOURNAL.md` ; le plan de passage est
