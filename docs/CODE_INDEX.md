@@ -3,18 +3,18 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `2bde2ab441b4d943`
+Empreinte des sources : `e7d23217e6710354`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
-| Modules Python | 132 |
-| Lignes Python | 31962 |
-| Classes | 145 |
-| Fonctions et méthodes | 1016 |
-| Cas de test collectés par pytest | 749 |
-| Fonctions de test (comptage statique) | 601 |
+| Modules Python | 133 |
+| Lignes Python | 32145 |
+| Classes | 146 |
+| Fonctions et méthodes | 1021 |
+| Cas de test collectés par pytest | 754 |
+| Fonctions de test (comptage statique) | 606 |
 | Migrations SQL | 13 |
 | Scripts shell | 3 |
 
@@ -46,7 +46,7 @@ Empreinte des sources : `2bde2ab441b4d943`
 | `backend/app/db/__init__.py` | 1 | app/db |
 | `backend/app/db/repository.py` | 1198 | Persistance PostgreSQL — état, signaux, décisions, positions, ordres. |
 | `backend/app/engine/__init__.py` | 1 |  |
-| `backend/app/engine/affordability.py` | 119 | Faisabilité d'un ordre avec un petit capital — calcul pur, sans I/O. |
+| `backend/app/engine/affordability.py` | 146 | Faisabilité d'un ordre avec un petit capital — calcul pur, sans I/O. |
 | `backend/app/engine/capital.py` | 93 | Capital actif, réserve protégée et croissance : calcul pur, partagé au rejeu. |
 | `backend/app/engine/costs.py` | 19 | Coûts prévisionnels par unité, partagés entre sizing, diagnostic et sorties. |
 | `backend/app/engine/entry_rule.py` | 391 | Filtre d'entrée déterministe — le cadre dans lequel le LLM peut acheter. |
@@ -90,7 +90,7 @@ Empreinte des sources : `2bde2ab441b4d943`
 | `backend/app/runtime/shadow.py` | 178 | Mesure des achats que le bot n'a pas pris. |
 | `backend/scripts/backtest.py` | 1237 | Backtest historique — enregistrement, rejeu de régression, veille de dérive. |
 | `backend/scripts/check_exchange.py` | 280 | Sonde **lecture seule** de la clé Binance — étape 1.1 de la feuille de route. |
-| `backend/scripts/check_kraken.py` | 288 | Inspection Kraken spot — lecture seule. |
+| `backend/scripts/check_kraken.py` | 345 | Inspection Kraken spot — lecture seule. |
 | `backend/scripts/compare_budgets.py` | 84 | Comparer les budgets sur un historique figé, sans réseau, LLM ni ordre. |
 | `backend/scripts/db_migrate.py` | 289 | Application des migrations SQL sur la base cible. |
 | `backend/scripts/demo_guardrails.py` | 79 | Démonstration lisible du pare-feu : ce qu'il refuse, et pourquoi. |
@@ -110,7 +110,7 @@ Empreinte des sources : `2bde2ab441b4d943`
 | `backend/scripts/verify_drawdowns.py` | 136 | Vérifie les drawdowns sur un jeu de données figé, dans une transaction annulée. |
 | `backend/tests/__init__.py` | 1 |  |
 | `backend/tests/conftest.py` | 74 | Les tests unitaires ne doivent jamais contacter un service externe. |
-| `backend/tests/test_affordability.py` | 149 | Tests de la faisabilité d'un ordre avec un petit capital. |
+| `backend/tests/test_affordability.py` | 182 | Tests de la faisabilité d'un ordre avec un petit capital. |
 | `backend/tests/test_api.py` | 593 | Tests de l'API d'administration : session, pause, panic-sell, WebSocket. |
 | `backend/tests/test_api_security.py` | 105 | Tests de la couche d'authentification : scrypt, JWT, TOTP, anti-rejeu. |
 | `backend/tests/test_backtest.py` | 288 | Tests du moteur de backtest : absence de lookahead, stop prioritaire, frais. |
@@ -119,6 +119,7 @@ Empreinte des sources : `2bde2ab441b4d943`
 | `backend/tests/test_capital.py` | 221 | Invariants de l'enveloppe et scénarios de pertes, reprise et promotion. |
 | `backend/tests/test_capital_postgres.py` | 162 | Contrat PostgreSQL réel : opt-in, exclusivement base locale jetable migrée. |
 | `backend/tests/test_check_exchange.py` | 90 | Tests du verdict de la sonde exchange — la logique qui protège la clé. |
+| `backend/tests/test_check_kraken.py` | 66 | Préflight public : pas de clé et refus des données OHLC périmées. |
 | `backend/tests/test_db_config.py` | 75 | Tests de la résolution de connexion base (aucun accès réseau). |
 | `backend/tests/test_entry_rule.py` | 314 | Tests de la règle d'entrée déterministe — pure, sans réseau ni base. |
 | `backend/tests/test_execution_factory.py` | 49 | Tests du choix de broker : papier par défaut, live seulement sur demande. |
@@ -1181,13 +1182,13 @@ le code, pas une copie de celui-ci.
 
 *Inspection Kraken spot — lecture seule.*
 
-- `def _closed_candles(exchange, symbol: str, timeframe: str='4h', limit: int=80) -> list[list]` (l.51) — Bougies **clôturées** uniquement.
-- `def _atr_14(candles: list[list]) -> Decimal` (l.64)
-- `def _print_affordability(exchange, symbols, equity: Decimal, risk_config, quote: str) -> int` (l.75)
-- `def _print_scan(exchange, equity: Decimal, risk_config, quote: str, top: int, min_volume: Decimal=Decimal('100000')) -> int` (l.107) — Cherche dans tout l'univers les paires réellement tradables avec cette équité.
-- `def _credentials(env: dict[str, str]) -> tuple[str, str]` (l.172)
-- `def _resolve_equity(exchange, quote: str, api_key: str, secret: str, explicit: str | None)` (l.180) — Équité à utiliser : explicite, sinon lue en lecture seule sur le compte.
-- `def main() -> int` (l.193)
+- `def _closed_candles(exchange, symbol: str, timeframe: str='4h', limit: int=80) -> list[list]` (l.52) — Bougies **clôturées** uniquement.
+- `def _atr_14(candles: list[list]) -> Decimal` (l.70)
+- `def _print_affordability(exchange, symbols, equity: Decimal, risk_config, quote: str) -> int` (l.81)
+- `def _print_scan(exchange, equity: Decimal, risk_config, quote: str, top: int, min_volume: Decimal=Decimal('100000')) -> int` (l.121) — Cherche dans tout l'univers les paires réellement tradables avec cette équité.
+- `def _credentials(env: dict[str, str]) -> tuple[str, str]` (l.199)
+- `def _resolve_equity(exchange, quote: str, api_key: str, secret: str, explicit: str | None)` (l.207) — Équité à utiliser : explicite, sinon lue en lecture seule sur le compte.
+- `def main() -> int` (l.220)
 
 ### `backend/scripts/compare_budgets.py`
 
@@ -1364,6 +1365,9 @@ le code, pas une copie de celui-ci.
 - `def test_absolute_cap_blocks_regardless_of_equity()` (l.97)
 - `def test_non_decimal_and_non_finite_inputs_are_refused()` (l.111)
 - `def test_the_prediction_matches_the_gate_actual_decision()` (l.123) — Le préflight doit prédire le refus réel du pare-feu, pas un refus théorique.
+- `def test_rounded_stop_does_not_make_a_too_small_account_look_feasible()` (l.152)
+- `def test_net_cost_scenario_can_rule_out_a_trade_at_any_equity()` (l.168)
+- `def test_structural_stop_is_not_assessed_using_an_invented_atr_stop()` (l.177)
 
 ### `backend/tests/test_api.py`
 
@@ -1551,6 +1555,20 @@ le code, pas une copie de celui-ci.
 - `def test_endpoint_restrictions_absent_mais_can_withdraw_refuse()` (l.75)
 - `def test_cle_invalide_refusee()` (l.81)
 - `def test_panne_reseau_refusee_fail_closed()` (l.87)
+
+### `backend/tests/test_check_kraken.py`
+
+*Préflight public : pas de clé et refus des données OHLC périmées.*
+
+- **class PublicExchange** (l.13)
+  - `def __init__(self)` (l.14)
+  - `def load_markets(self)` (l.22)
+  - `def milliseconds(self)` (l.25)
+  - `def parse_timeframe(self, timeframe)` (l.28)
+  - `def fetch_ohlcv(self, symbol, timeframe, limit)` (l.32)
+  - `def fetch_ticker(self, symbol)` (l.35)
+- `def test_public_live_risk_never_loads_credentials(monkeypatch, capsys)` (l.39)
+- `def test_diagnostic_refuses_stale_and_discontinuous_candles()` (l.57)
 
 ### `backend/tests/test_db_config.py`
 
@@ -2438,7 +2456,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 |---|---|
 | `backend/tests/__init__.py` | 0 |
 | `backend/tests/conftest.py` | 0 |
-| `backend/tests/test_affordability.py` | 6 |
+| `backend/tests/test_affordability.py` | 9 |
 | `backend/tests/test_api.py` | 30 |
 | `backend/tests/test_api_security.py` | 22 |
 | `backend/tests/test_backtest.py` | 9 |
@@ -2447,6 +2465,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_capital.py` | 20 |
 | `backend/tests/test_capital_postgres.py` | 6 |
 | `backend/tests/test_check_exchange.py` | 9 |
+| `backend/tests/test_check_kraken.py` | 2 |
 | `backend/tests/test_db_config.py` | 10 |
 | `backend/tests/test_entry_rule.py` | 35 |
 | `backend/tests/test_execution_factory.py` | 4 |
@@ -2482,7 +2501,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_shadow.py` | 5 |
 | `backend/tests/test_sweep.py` | 13 |
 | `backend/tests/test_swing_backtest.py` | 7 |
-| **Total** | **749** |
+| **Total** | **754** |
 
 ## 5. Schéma SQL
 

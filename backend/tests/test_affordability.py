@@ -53,13 +53,13 @@ def test_prudent_profile_cannot_buy_the_cheapest_pair():
     )
     # 770 000 × 0,00000415 = 3,20 EUR ; à 0,5 % de risque il faudrait ~24 EUR.
     assert verdict.min_order_quote == Decimal("3.19550000")
-    assert verdict.stop_distance_pct == Decimal("0.0375")
-    assert verdict.required_equity == Decimal("23.966250000")
+    assert verdict.stop_distance_pct == Decimal("0.00000016") / PRICE
+    assert verdict.required_equity == Decimal("24.64000")
     assert verdict.binding == "risk"
     assert verdict.affordable is False
-    assert verdict.shortfall == Decimal("14.596250000")
+    assert verdict.shortfall == Decimal("15.27000")
     # Le plus petit ordre risquerait ~1,28 % de l'équité, pas 0,5 %.
-    assert verdict.effective_risk_pct_at_minimum.quantize(Decimal("0.000001")) == Decimal("0.012789")
+    assert verdict.effective_risk_pct_at_minimum == Decimal("0.1232") / EQUITY
 
 
 def test_raising_risk_alone_is_not_enough_when_the_exposure_cap_binds():
@@ -89,7 +89,7 @@ def test_micro_profile_both_knobs_together():
         equity=EQUITY,
     )
     assert verdict.binding == "risk"
-    assert verdict.required_equity == Decimal("6.847500000")
+    assert verdict.required_equity == Decimal("7.0400")
     assert verdict.affordable is True
     assert verdict.shortfall == Decimal("0")
 
@@ -147,3 +147,36 @@ def test_the_prediction_matches_the_gate_actual_decision():
     assert decision.approved is False
     assert decision.rejection_code is RejectionCode.SIZING_BELOW_EXCHANGE_MINIMUM
     assert verdict.affordable is False
+
+
+def test_rounded_stop_does_not_make_a_too_small_account_look_feasible():
+    equity = Decimal("24.4")
+    verdict = assess("SHIB/EUR", price=PRICE, atr_14=ATR, constraints=CONSTRAINTS,
+                     config=config(), equity=equity)
+    now = datetime(2026, 11, 4, 12, 0, tzinfo=timezone.utc)
+    snapshot = MarketSnapshot(symbol="SHIB/EUR", price=PRICE, ema_200_h4=PRICE * Decimal("0.9"),
+                              atr_14_h4=ATR, last_closed_h1_return_atr=Decimal(0),
+                              tick_at=now, now=now)
+    decision = evaluate(TradeIntent(Action.BUY, 0.95, MarketRegime.TRENDING_UP), snapshot,
+                        AccountState(equity_quote=equity, free_quote=equity),
+                        CONSTRAINTS, config())
+    assert not verdict.affordable
+    assert not decision.approved
+    assert verdict.required_equity == Decimal("24.64")
+
+
+def test_net_cost_scenario_can_rule_out_a_trade_at_any_equity():
+    costly = RiskConfig(cost_aware=True, execution_fee_pct=Decimal("0.02"))
+    verdict = assess("SHIB/EUR", price=PRICE, atr_14=ATR, constraints=CONSTRAINTS,
+                     config=costly, equity=Decimal("10000"))
+    assert not verdict.affordable
+    assert verdict.binding == "net_reward"
+    assert verdict.required_equity is None
+
+
+def test_structural_stop_is_not_assessed_using_an_invented_atr_stop():
+    from app.engine.risk_gate import StopMode
+
+    with pytest.raises(ValueError, match="préflight ATR"):
+        assess("SHIB/EUR", price=PRICE, atr_14=ATR, constraints=CONSTRAINTS,
+               config=RiskConfig(stop_mode=StopMode.STRUCTURAL_D1), equity=EQUITY)

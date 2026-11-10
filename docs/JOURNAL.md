@@ -6,6 +6,23 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Diagnostic public de faisabilité R4
+
+Le diagnostic lit les marchés publics sans clé ni fichier de configuration, utilise
+les coûts et l'arrondi du stop, refuse les bougies H4 périmées ou trouées et ne
+présente plus les stops structurels comme mesurables par ATR. Sa portée reste
+mécanique ; il ne remplace ni le pare-feu ni la validation économique.
+
+Python 3.13.17 et PostgreSQL 17 jetable : **754 tests réussis**, dont les 35
+contrats PostgreSQL. Le golden a réussi sans modification. Sur données publiques
+Kraken vers 08:38 UTC, avec 9,37 EUR de capital actif **hypothétique**, profil
+prudent, frais 0,80 % et glissement 5 pb par côté, BTC/EUR, ETH/EUR et SOL/EUR
+échouent au scénario de gain net minimal. La fraîcheur source du dernier prix et
+les frais réels du compte ne sont pas établis ; cette mesure ponctuelle ne valide
+pas la stratégie. Aucun compte consulté, ordre ou changement de budget. D-079.
+
+---
+
 ## 2026-11-10 — Budget prévu LIVE et plafond absolu de position
 
 Le dimensionnement LIVE inclut les coûts prévus et ne relève plus le risque pour

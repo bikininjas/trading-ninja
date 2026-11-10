@@ -1862,3 +1862,15 @@ avec l'allocation petit compte, en PAPER comme en LIVE.
 La configuration reste chargeable pour gérer une position existante et les
 urgences. Ce budget est prévisionnel : les gaps et exécutions dégradées peuvent
 le dépasser. Les frais, le glissement et le mandat cible restent à qualifier.
+
+---
+
+## D-079 — Préflight public prudent et explicite (2026-11-10)
+
+Le diagnostic public fonctionne sans clé ni fichier local, avec capital actif et
+hypothèses de coûts explicites. Il reprend l'arrondi du stop ATR, les plafonds de
+risque, d'exposition et de trésorerie et le scénario de gain net du pare-feu.
+Une série H4 périmée ou discontinue est refusée ; le stop structurel et l'allocation
+petit compte sont déclarés non mesurables au lieu d'être assimilés à un stop ATR.
+La fraîcheur source du ticker et les frais réels du compte restent à qualifier.
+La faisabilité mécanique ne valide ni le signal ni la rentabilité.

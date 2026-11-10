@@ -72,6 +72,25 @@ Les tarifs et minima d’anciennes mesures ne sont pas des constantes. La faisab
 dépend aussi du prix, de l’ATR, des frais, du glissement et du plafond d’exposition.
 Le plus petit ordre peut rester incompatible avec le budget de perte retenu.
 
+Pour un scénario **public sans clé ni fichier de configuration**, donner
+explicitement le capital actif hypothétique, le profil et les hypothèses de coût :
+
+```bash
+cd backend
+.venv/bin/python scripts/check_kraken.py --affordable --public-live-risk \
+  --profile prudent --equity 9.37 --fee-pct 0.008 --slippage-bps 5
+```
+
+Ce diagnostic applique les coûts prévus en LIVE et la grille de prix du stop ;
+il refuse des bougies H4 périmées ou discontinues et indique les scénarios de gain
+net incompatibles. Il suppose le capital entièrement libre et le stop ATR ; un stop
+structurel ou une allocation petit compte ne sont pas modélisés et sont refusés.
+Le prix du dernier échange n'est pas assorti d'une fraîcheur source vérifiée et les
+frais sont des hypothèses, pas le tarif du compte. « Possible » signifie seulement
+que les contraintes calculées passent : le signal, les autres filtres, le carnet,
+le compte et le Risk Gateway réel peuvent encore refuser. Le budget de perte totale
+et le capital actif sont deux grandeurs distinctes.
+
 Le profil `progressif` et ses enveloppes sont PAPER uniquement. Réserve et cagnotte
 sont des écritures comptables, pas des retraits Kraken ; les clés du bot ne doivent
 pas autoriser de retrait. Les critères économiques et tout changement de budget

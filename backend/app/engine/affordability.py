@@ -25,8 +25,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_CEILING
 
-from app.engine.risk_gate import ExchangeConstraints, RiskConfig
-from app.engine.costs import entry_cost, planned_loss
+from app.engine.risk_gate import ExchangeConstraints, RiskConfig, StopMode
+from app.engine.costs import entry_cost, exit_proceeds, planned_loss
 
 __all__ = ["Affordability", "assess"]
 
@@ -40,7 +40,7 @@ class Affordability:
     stop_distance_pct: Decimal
     effective_risk_pct_at_minimum: Decimal
     required_equity: Decimal | None
-    binding: str  # "risk" | "exposure" | "absolute_cap" — ce qui fixe l'équité requise
+    binding: str  # risk | exposure | cash | absolute_cap | net_reward
     affordable: bool
     equity: Decimal
 
@@ -76,16 +76,20 @@ def assess(
     effective_risk = risk_pct if risk_pct is not None else config.effective_risk_pct(0)
     if effective_risk <= 0:
         raise ValueError("le budget de risque doit être strictement positif")
+    if config.stop_mode is not StopMode.ATR or config.small_account_full_allocation:
+        raise ValueError("préflight ATR sans allocation petit compte uniquement")
 
-    stop_distance_pct = (config.stop_atr_multiple * atr_14) / price
+    stop = price - config.stop_atr_multiple * atr_14
+    stop = (stop // constraints.price_tick) * constraints.price_tick
+    if stop <= 0 or stop >= price:
+        raise ValueError("stop ATR invalide après arrondi")
+    stop_distance_pct = (price - stop) / price
     minimum_amount = max(constraints.min_amount, constraints.min_notional / price)
     minimum_amount = (minimum_amount / constraints.amount_step).to_integral_value(
         rounding=ROUND_CEILING) * constraints.amount_step
     min_order_quote = minimum_amount * price
-    loss_per_unit = price * stop_distance_pct
+    loss_per_unit = price - stop
     if config.cost_aware:
-        stop = price - loss_per_unit
-        stop = (stop // constraints.price_tick) * constraints.price_tick
         loss_per_unit = planned_loss(price, stop, config.execution_fee_pct,
                                      config.execution_slippage_pct)
     risk_at_minimum = minimum_amount * loss_per_unit / equity
@@ -102,10 +106,33 @@ def assess(
             equity=equity,
         )
 
+    if config.cost_aware:
+        target_r = (config.take_profit_r_multiple if config.take_profit_r_multiple > 0
+                    else config.opportunity_r_multiple)
+        target = ((price + target_r * (price - stop)) // constraints.price_tick
+                  * constraints.price_tick)
+        reward = exit_proceeds(target, config.execution_fee_pct,
+                               config.execution_slippage_pct) - entry_cost(
+                                   price, config.execution_fee_pct,
+                                   config.execution_slippage_pct)
+        if reward < config.min_net_reward_to_risk * loss_per_unit:
+            return Affordability(
+                symbol=symbol, min_order_quote=min_order_quote,
+                stop_distance_pct=stop_distance_pct,
+                effective_risk_pct_at_minimum=risk_at_minimum,
+                required_equity=None, binding="net_reward", affordable=False,
+                equity=equity,
+            )
+
     required_by_risk = minimum_amount * loss_per_unit / effective_risk
-    required_by_exposure = min_order_quote / config.max_notional_pct
-    binding = "risk" if required_by_risk >= required_by_exposure else "exposure"
-    required_equity = max(required_by_risk, required_by_exposure)
+    required_by_exposure = min_order_quote / min(config.max_notional_pct, Decimal("0.50"))
+    if not Decimal(0) <= config.fee_buffer_pct < Decimal(1):
+        raise ValueError("fee_buffer_pct doit être dans [0, 1[")
+    required_by_cash = min_order_quote / (Decimal(1) - config.fee_buffer_pct)
+    binding, required_equity = max(
+        (("risk", required_by_risk), ("exposure", required_by_exposure),
+         ("cash", required_by_cash)), key=lambda item: item[1]
+    )
 
     return Affordability(
         symbol=symbol,

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 
@@ -58,7 +59,12 @@ def _closed_candles(exchange, symbol: str, timeframe: str = "4h", limit: int = 8
     candles = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
     timeframe_ms = exchange.parse_timeframe(timeframe) * 1000
     now_ms = exchange.milliseconds()
-    return [c for c in candles if c[0] + timeframe_ms <= now_ms]
+    closed = [c for c in candles if c[0] + timeframe_ms <= now_ms]
+    if len(closed) < 15 or closed[-1][0] != (now_ms // timeframe_ms - 1) * timeframe_ms:
+        raise ValueError("dernière bougie clôturée attendue indisponible")
+    if any(b[0] - a[0] != timeframe_ms for a, b in zip(closed[-15:], closed[-14:])):
+        raise ValueError("trou dans les bougies nécessaires à l'ATR")
+    return closed
 
 
 def _atr_14(candles: list[list]) -> Decimal:
@@ -90,12 +96,20 @@ def _print_affordability(exchange, symbols, equity: Decimal, risk_config, quote:
             print(f"  {symbol:12} ATR indisponible : {exc}")
             failures += 1
             continue
-        verdict = assess(
-            symbol, price=price, atr_14=atr, constraints=info.constraints,
-            config=risk_config, equity=equity,
+        try:
+            verdict = assess(
+                symbol, price=price, atr_14=atr, constraints=info.constraints,
+                config=risk_config, equity=equity,
+            )
+        except ValueError as exc:
+            print(f"  {symbol:12} non mesurable : {exc}")
+            failures += 1
+            continue
+        required = verdict.binding if verdict.required_equity is None else f"{verdict.required_equity:.2f}"
+        state = "possible" if verdict.affordable else (
+            f"refus {verdict.binding}" if verdict.required_equity is None
+            else f"manque {verdict.shortfall:.2f}"
         )
-        required = "plafond absolu" if verdict.required_equity is None else f"{verdict.required_equity:.2f}"
-        state = "OK" if verdict.affordable else f"manque {verdict.shortfall:.2f}"
         print(f"  {symbol:12} {verdict.min_order_quote:10.2f} {atr / price:7.2%} "
               f"{verdict.stop_distance_pct:7.2%} {verdict.effective_risk_pct_at_minimum:14.2%} "
               f"{required:>15}  {state}")
@@ -144,18 +158,29 @@ def _print_scan(exchange, equity: Decimal, risk_config, quote: str, top: int,
     print(f"  {'paire':12} {'volume 24h':>13} {'min ordre':>10} {'ATR H4':>7} "
           f"{'équité req.':>12}  verdict")
     affordable = []
+    failures = 0
     for volume, symbol, price in candidates[:top]:
         try:
             atr = _atr_14(_closed_candles(exchange, symbol))
-        except Exception:  # noqa: BLE001 — une paire sans historique ne bloque pas le scan
+        except Exception as exc:  # noqa: BLE001 — une paire sans historique ne bloque pas le scan
+            print(f"  {symbol:12} ATR non mesurable : {type(exc).__name__}")
+            failures += 1
             continue
         info = market_info(exchange, symbol)
-        verdict = assess(
-            symbol, price=price, atr_14=atr, constraints=info.constraints,
-            config=risk_config, equity=equity,
-        )
+        try:
+            verdict = assess(
+                symbol, price=price, atr_14=atr, constraints=info.constraints,
+                config=risk_config, equity=equity,
+            )
+        except ValueError as exc:
+            print(f"  {symbol:12} non mesurable : {exc}")
+            failures += 1
+            continue
         required = "—" if verdict.required_equity is None else f"{verdict.required_equity:.2f}"
-        state = "OK" if verdict.affordable else f"manque {verdict.shortfall:.2f}"
+        state = "possible" if verdict.affordable else (
+            f"refus {verdict.binding}" if verdict.required_equity is None
+            else f"manque {verdict.shortfall:.2f}"
+        )
         print(f"  {symbol:12} {volume:13,.0f} {verdict.min_order_quote:10.2f} "
               f"{atr / price:7.2%} {required:>12}  {state}")
         if verdict.affordable:
@@ -164,9 +189,11 @@ def _print_scan(exchange, equity: Decimal, risk_config, quote: str, top: int,
     if affordable:
         print(f"\n  {len(affordable)} paires tradables : " + ", ".join(affordable))
         print("  Pour les utiliser : TRADING_SYMBOLS=" + ",".join(affordable))
+    elif not failures:
+        print("\n  Aucune paire évaluée ne passe ces contraintes ; le scan n'est pas exhaustif.")
     else:
-        print("\n  Aucune paire tradable avec cette équité et ce profil.")
-    return 0
+        print("\n  Diagnostic incomplet : aucune conclusion sur les paires non mesurables.")
+    return 1 if failures else 0
 
 
 def _credentials(env: dict[str, str]) -> tuple[str, str]:
@@ -203,13 +230,29 @@ def main() -> int:
     parser.add_argument("--equity", help="équité à simuler (sinon lue sur le compte, en lecture)")
     parser.add_argument("--profile", help="profil de risque à simuler (prudent, micro...)")
     parser.add_argument("--symbol", action="append", help="paire à inspecter (répétable)")
+    parser.add_argument("--public-live-risk", action="store_true", help=(
+        "simulation publique du risque LIVE, sans clé ni fichier de configuration ; "
+        "exige --affordable, --equity et --profile"))
+    parser.add_argument("--fee-pct", help="frais taker simulés par côté (public-live-risk ; défaut 0.008)")
+    parser.add_argument("--slippage-bps", help="glissement simulé par côté (public-live-risk ; défaut 5 pb)")
     args = parser.parse_args()
+    if not args.public_live_risk and (args.fee_pct is not None or args.slippage_bps is not None):
+        parser.error("--fee-pct et --slippage-bps exigent --public-live-risk")
+    if args.public_live_risk and (
+        not args.affordable or args.scan or args.permissions or not args.equity
+        or not args.profile or args.profile == "progressif"
+    ):
+        parser.error("--public-live-risk exige --affordable --equity --profile LIVE, sans --scan ni --permissions")
     if not (args.markets or args.permissions or args.affordable or args.scan):
         args.markets = args.permissions = True
 
-    env = load_env()
+    env = {} if args.public_live_risk else load_env()
     api_key, secret = _credentials(env)
     exchange = build_exchange(api_key=api_key, secret=secret)
+    if args.public_live_risk:
+        # CCXT désactive par défaut les réglages proxy/CA de requests. Ce mode
+        # public et sans identifiants respecte ceux de l'environnement courant.
+        exchange.session.trust_env = True
     exchange.load_markets()
     symbols = args.symbol or list(DEFAULT_SYMBOLS)
     failures = 0
@@ -259,13 +302,27 @@ def main() -> int:
     equity = None
     quote = None
     if args.affordable or args.scan:
-        overrides = {"RISK_PROFILE": args.profile} if args.profile else None
+        overrides = {"RISK_PROFILE": args.profile} if args.profile else {}
+        if args.public_live_risk:
+            overrides.update({
+                "EXCHANGE_ID": "kraken", "TRADING_SYMBOL": (args.symbol or list(DEFAULT_SYMBOLS))[0],
+                "COST_AWARE": "true", "TAKER_FEE_PCT": args.fee_pct or "0.008",
+                "PAPER_SLIPPAGE_BPS": args.slippage_bps or "5",
+            })
         try:
-            settings = load_settings(overrides=overrides)
+            settings = load_settings(overrides=overrides, use_environment=not args.public_live_risk)
         except RuntimeError as exc:
             print(f"  ÉCHEC  profil de risque invalide : {exc}")
             return 1
-        base = args.symbol or list(settings.exchange.allowed_symbols) or list(DEFAULT_SYMBOLS)
+        if args.public_live_risk:
+            settings = replace(settings, risk=replace(settings.risk,
+                small_account_max_risk_pct=min(settings.risk.small_account_max_risk_pct,
+                                               settings.risk.risk_per_trade_pct)))
+            print(f"Simulation publique : frais {settings.risk.execution_fee_pct:.2%}/côté, "
+                  f"glissement {settings.risk.execution_slippage_pct * Decimal(10000)} pb/côté ; prix de dernier échange "
+                  "sans fraîcheur source vérifiée, ATR sur bougies clôturées ; "
+                  "aucun compte ni ordre. Ce diagnostic ne valide pas la stratégie.")
+        base = args.symbol or (list(DEFAULT_SYMBOLS) if args.public_live_risk else list(settings.exchange.allowed_symbols)) or list(DEFAULT_SYMBOLS)
         quote = base[0].split("/")[-1].upper()
         equity = _resolve_equity(exchange, quote, api_key, secret, args.equity)
         if equity is None or equity <= 0:
@@ -275,7 +332,7 @@ def main() -> int:
 
     if args.affordable and equity is not None:
         # Par défaut, on évalue l'univers configuré ; --symbol teste une paire hors liste.
-        assessed = args.symbol or list(settings.exchange.allowed_symbols) or list(DEFAULT_SYMBOLS)
+        assessed = args.symbol or (list(DEFAULT_SYMBOLS) if args.public_live_risk else list(settings.exchange.allowed_symbols)) or list(DEFAULT_SYMBOLS)
         failures += _print_affordability(exchange, assessed, equity, settings.risk, quote)
 
     if args.scan and equity is not None:
