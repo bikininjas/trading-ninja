@@ -15,7 +15,7 @@ versions intégrales restent consultables dans Git :
 - [Audit pré go live](https://github.com/bikininjas/trading-ninja/blob/b032e83/docs/AUDIT_PRE_GO_LIVE_2026-11-09.md).
 - [Ancienne liste d’améliorations](https://github.com/bikininjas/trading-ninja/blob/b032e83/AMELIORATIONS_2026-11-09.md).
 
-Pour l’état actuel, lire le [suivi des corrections](../../CORRECTIONS_PRE_GO_LIVE.md),
-la [preuve Supabase](../../DEPLOIEMENT_SUPABASE_2026-11-10.md) et les
-[portes du go live](../../GO_LIVE.md). Les besoins non réalisés sont conservés dans
-les [briefs techniques](../../IDEES_ET_BRIEFS_TECHNIQUES.md).
+Pour l’état actuel, lire le [suivi des corrections](../../JOURNAL.md#correctifs-pre-go-live),
+la [preuve Supabase](../../JOURNAL.md#deploiement-supabase) et les
+[portes du go live](../../ROADMAP.md). Les besoins non réalisés sont conservés dans
+les [briefs techniques](../../ROADMAP.md#ameliorations).

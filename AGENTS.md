@@ -25,16 +25,17 @@ prix et stop sont toujours calculés par le code.
 - Le profil `progressif` est réservé au papier. Il inclut un risque prévu net
   de frais/glissement, un trailing et trois enveloppes : capital actif, réserve et
   cagnotte. Seul le capital actif dimensionne ; les pertes ne sont pas rechargées
-  depuis la réserve ou la cagnotte. Voir `docs/PROGRESSION.md`, D-069 et D-070.
+  depuis la réserve ou la cagnotte. Voir le capital progressif dans
+  `docs/OBSERVATION_ET_RECHERCHE.md`, D-069 et D-070.
 - Treize migrations sont versionnées, dont `0010_capital_ledger.sql` et
   `0011_insights_and_controls.sql`. Les treize sont appliquées sur Supabase trninja
   et leurs empreintes vérifiées le 10 novembre 2026. Preuves et limites de sauvegarde :
-  `docs/DEPLOIEMENT_SUPABASE_2026-11-10.md`.
+  `docs/JOURNAL.md`.
 - 744 tests Python sont collectés, dont 35 contrats PostgreSQL locaux opt-in ;
   31 tests Node et un contrôle navigateur complètent les preuves.
 - Le statut reste **NO-GO** pour le réel. Les corrections intégrées et leurs
-  preuves sont dans `docs/CORRECTIONS_PRE_GO_LIVE.md` ; le plan de passage est
-  `docs/GO_LIVE.md` (R0–R7). L’audit historique de 39db447 reste référencé dans
+  preuves sont dans `docs/JOURNAL.md` ; le plan de passage est
+  `docs/ROADMAP.md` (R0–R7). L’audit historique de 39db447 reste référencé dans
   `docs/audits/2026-11-09/README.md`. La cible est désormais en 0013, droits
   privilégiés fermés ; l’exploitation et l’économie restent à qualifier.
 - Les dix briefs I-01 à I-10 ont une première version implémentée (D-073) :
@@ -65,8 +66,7 @@ le comportement actuel, appliquer cet ordre :
 | 1 | `backend/db/migrations/*.sql` | Schéma, énumérations, contraintes |
 | 2 | `backend/app/engine/risk_gate.py` | Logique de risque et codes de rejet |
 | 3 | `docs/DECISIONS.md` | Le pourquoi de chaque choix |
-| 4 | `docs/ROADMAP.md` | Avancement et critères de passage |
-| 5 | `docs/IDEES_ET_BRIEFS_TECHNIQUES.md` | Briefs et critères ; comportement livré dans OBSERVATION_ET_RECHERCHE.md |
+| 4 | `docs/ROADMAP.md` | Avancement, portes du go live et améliorations ouvertes |
 
 Le rang 1 et le rang 2 doivent rester **identiques** : le test
 `backend/tests/test_schema_contract.py` compare mécaniquement l'énumération
@@ -117,7 +117,6 @@ docs/ROADMAP.md            étapes, statuts, critères de passage
 docs/JOURNAL.md            historique daté + commande de vérification
 docs/DECISIONS.md          décisions datées, le pourquoi
 docs/ARCHITECTURE.md       couches, modules, modèle de données
-docs/IDEES_ET_BRIEFS_TECHNIQUES.md  dix briefs, état livré et qualification
 docs/OBSERVATION_ET_RECHERCHE.md  commandes, API et limites des observations
 scripts/check.sh           vérification globale
 scripts/manage.sh          start/stop/restart api|dashboard|all
@@ -188,8 +187,8 @@ La CI exécute les contrats complets sur un PostgreSQL jetable, jamais sur Supab
   explicite, un accès privé/TLS et la recette R3.
 - **Ollama** : l'endpoint OpenAI-compatible ignore `think` et `format`. Le client
   utilise `/api/chat` natif avec `think=false`, timeout 8 s (D-028).
-- **Kraken spot n'a pas de testnet** dans CCXT 4.5.91 (`urls['test']` absent). La
-  phase 3 est donc redéfinie en **pré-live canary** : un aller-retour réel minuscule,
+- **Kraken spot n'a pas de testnet** dans CCXT 4.5.91 (`urls['test']` absent). Le
+  canary R6 est donc un **pré-live réel** : un aller-retour réel minuscule,
   sous-compte dédié, après validation à blanc. Ne jamais supposer qu'un bac à sable
   existe.
 

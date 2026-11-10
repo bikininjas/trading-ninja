@@ -1,7 +1,7 @@
 # Architecture
 
 État au 10 novembre 2026. Livraison : Python 3.13.17 et dépendances figées ;
-Supabase en 0013. Le plan de qualification reste [GO_LIVE.md](GO_LIVE.md).
+Supabase en 0013. Le plan de qualification reste [Roadmap](ROADMAP.md).
 
 ## 1. Le flux de décision
 
@@ -108,7 +108,7 @@ d'administration, garde le JWT côté serveur et pousse l'état en SSE. Il expos
 lecture seule les drawdowns et les plafonds hebdomadaire / depuis le plus haut / de
 pertes consécutives ; seuls les réglages explicitement autorisés sont modifiables.
 L'historique détaillé passe par une liste blanche de quatre tables et une limite de
-50 lignes. Détails et contrat API dans [`DASHBOARD.md`](DASHBOARD.md).
+50 lignes. Détails et contrat API dans [Dashboard](../dashboard/README.md).
 
 La carte ligne par ligne (modules, classes, méthodes, migrations, tests) est dans
 [`CODE_INDEX.md`](CODE_INDEX.md). Elle est **générée** par `scripts/index_codebase.py` et
@@ -124,8 +124,8 @@ parallèle d’ordre. La sélection de paire reste en observation par défaut ; 
 l’option PAPER explicite peut changer le candidat, avec revalidation finale.
 La stratégie attachée à la position reste immuable ; les limites de sécurité sont
 courantes. Le guide [Observation et recherche](OBSERVATION_ET_RECHERCHE.md) décrit
-les paquets et contrats d’observation. Le [suivi des corrections](CORRECTIONS_PRE_GO_LIVE.md)
-et la [preuve Supabase](DEPLOIEMENT_SUPABASE_2026-11-10.md) couvrent le durcissement
+les paquets et contrats d’observation. Le [suivi des corrections](JOURNAL.md#correctifs-pre-go-live)
+et la [preuve Supabase](JOURNAL.md#deploiement-supabase) couvrent le durcissement
 et les treize migrations appliquées.
 
 Le chemin LIVE partage un verrou financier interprocessus entre moteur, reprise et
@@ -222,4 +222,4 @@ sur les ordres accélère sa lecture et ne constitue pas ce coupe-circuit à lui
 - Le LLM ne dimensionne pas et n’a aucun avantage statistique démontré. La
   validation économique reste indépendante des tests logiciels.
 
-Nouvelles propositions et briefs techniques : [IDEES_ET_BRIEFS_TECHNIQUES.md](IDEES_ET_BRIEFS_TECHNIQUES.md).
+Nouvelles propositions et briefs techniques : [Améliorations restantes](ROADMAP.md#ameliorations).

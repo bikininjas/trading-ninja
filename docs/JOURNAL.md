@@ -6,6 +6,136 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Dossier de preuves des correctifs et du déploiement SQL
+
+Les deux rapports séparés sont regroupés ici. Les dates, limites de sauvegarde,
+commits et critères restent ceux des opérations effectuées.
+
+<a id="correctifs-pre-go-live"></a>
+
+### Suivi des corrections pré go live — 10 novembre 2026
+
+La base de l’audit reste le commit 39db447. Ses reproductions et snapshots sont
+historiques : leurs assertions décrivent le défaut de cette version. Les nouveaux
+contrats de non-régression se trouvent dans les tests backend, et imposent désormais
+le comportement corrigé. La qualification du réel reste celle de [Roadmap](ROADMAP.md).
+
+| Lot | Corrections | Preuves / publication |
+|---|---|---|
+| 1 | A02 kill-switch sans mutation exchange, A09 migration de maintenance privée, refus de promotion PAPER/LIVE par surcharge | 698 Python, 31 Node ; master `7fe2683`, SHA distant vérifié |
+| 2 | A01 compte live relu avant dimensionnement final, A08 clôtures attendues/ticker daté, A04 raison HALT, A05 âge des coûts, A10 fills annulés partiels | 703 Python ; master `8cf3b92`, SHA distant vérifié |
+| 3 | A03/D01 journal durable et identifiants avant envoi, UNKNOWN bloquant, reprise et verrou financier commun, fills cumulatifs/idempotents, protection du reliquat et IDs de stops, A07 sonde validate-only | Suite 731 puis contrat durable supplémentaire, 732 collectés ; master `f2a2785`, SHA distant vérifié |
+| 4 | A06 autorisation durable atomique avec permission et état, révision conservée ; fenêtre H1 et continuité vérifiées avant entrée, prix sans horodatage refusé ou fondé sur un trade public daté de moins de 5 secondes, quota inconnu explicite, dépendances figées et CI | 738 Python dont 31 SQL, 31 Node, navigateur ; master `ed0a750`, SHA distant vérifié |
+| 5 | Rapport panic durable conservé, pertes consécutives non réinitialisées, snapshot cash interdit avec reliquat, frais du fill non suivi conservés | 740 Python puis 14 contrats ciblés dont un SQL ajouté : 741 collectés ; master `50b4304`, SHA distant vérifié |
+| 6 | Arrêt brutal réel d’un processus sur PREPARED/ACKNOWLEDGED/FILLED, exclusion concurrente, HALT immédiat et reprise bloquée, reçus durables après reconnexion | 744 Python dont 35 PostgreSQL passés, avec 3 contrats d’arrêt brutal réel ; master `24a449c`, CI réussie (42772119512) |
+| 7 | Application Supabase 0010–0013 après autorisation, contrôles distants et intégrité | Treize empreintes conformes ; master documentaire `b032e83`, CI réussie (42774443151) ; preuve de déploiement liée ci-dessous |
+
+La CI cible Python 3.13.17, disponible via uv, sur un environnement installé depuis
+`requirements.lock`. Le Python système et l’ancien interpréteur de travail ne sont
+pas remplacés. Les captures de cycle restent liées à leur environnement de calcul ;
+un changement de Python n’autorise pas le rejeu d’un paquet incompatible.
+
+La suspension bloque les nouvelles **autorisations** d’achat. Une intention déjà
+préparée durablement peut finir ; elle est rapprochée avant tout nouvel envoi.
+Le kill-switch conserve les stops ; la liquidation est une commande distincte.
+
+#### Cible et qualification restantes
+
+Seb a explicitement autorisé les migrations le 10 novembre, puis les exports et
+sauvegardes. Les migrations 0010–0013 ont été appliquées sur trninja et les treize
+empreintes vérifiées. Écritures/rollback, droits fermés et intégrité des réglages
+et de l’historique contrôlés. La préparation/restauration était ciblée sur le schéma
+et les fonctions ; la sauvegarde complète reste à qualifier.
+Voir [Preuve Supabase](JOURNAL.md#deploiement-supabase).
+
+La CI GitHub du lot 4 a réussi : [run 42771455250](https://github.com/bikininjas/trading-ninja/actions/runs/42771455250),
+Python/SQL/Node/index/navigateur sur `ed0a750`. Chaque nouveau commit doit
+repasser le workflow ; les protections de branche restent à qualifier séparément. De même, les
+pannes simulées ne remplacent pas la recette opérateur sur la cible, les tests
+multi-processus de toute la matrice d’interruption, l’installation du surveillant,
+le canal d’alerte réel, la rétention et la validation économique.
+
+Aucun ordre réel, augmentation de budget, installation de clé, armement live ou
+canary n’est autorisé par ces corrections. Les durées PAPER et de stabilisation
+réelle du plan ne sont pas réputées acquises.
+
+<a id="deploiement-supabase"></a>
+
+### Migrations Supabase — 10 novembre 2026
+
+Projet `trninja` (`sugbashfjondgmlejpnl`), PostgreSQL 17.11.0.011.
+Autorisation explicite de Seb pour les migrations, puis pour les exports et sauvegardes.
+Source : master `24a449c`. Les migrations existantes n’ont pas été modifiées.
+
+#### Application et contrôles
+
+Les empreintes 0001–0009 de la cible correspondaient au dépôt. Les migrations
+0010–0013 ont été appliquées dans l’ordre via le connecteur Supabase ; chacune
+inclut son inscription atomique dans `public.schema_migrations`. Le registre
+Supabase contient aussi les quatre applications datées. Les treize empreintes
+applicatives concordent avec master après application.
+
+| Migration | Registre Supabase | Résultat |
+|---|---|---|
+| 0010_capital_ledger | 20261110071316 | Appliquée |
+| 0011_insights_and_controls | 20261110071327 | Appliquée |
+| 0012_private_maintenance | 20261110071340 | Appliquée |
+| 0013_durable_executions | 20261110071350 | Appliquée |
+
+- 44 relations, 6 vues, 16 partitions des deux journaux critiques.
+- RLS présente sur toutes les tables publiques ; aucune lecture/écriture de table
+  ou vue autorisée à `anon`/`authenticated`.
+- Aucune fonction privilégiée publique exécutable par ces rôles ; six vues en
+  `security_invoker`. Les nouveaux index et colonnes sont présents.
+- Test distant des écritures critiques et de l’unicité monoposition réussi,
+  transaction entièrement annulée. Appels réels de maintenance refusés aux deux
+  rôles exposés ; borne de 24 mois vérifiée.
+- Aucun ordre ni position avant/après. Les trois réglages existants et les
+  **323 374 bougies** conservent exactement leurs empreintes avant/après.
+- Advisor sécurité : les avertissements EXECUTE ont disparu. Restent 41 notices
+  INFO « RLS sans policy » : les tables sont privées et les droits publics fermés.
+  [Explication Supabase](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy).
+
+Preuve structurée sans contenu financier :
+[supabase_migrations.json](audits/2026-11-10/supabase_migrations.json).
+
+#### Sauvegarde : portée exacte
+
+La revue automatique a initialement refusé un export global de tables privées,
+avant l’autorisation explicite d’export. La préparation a donc conservé les
+définitions de fonctions, ACLs, options des vues et empreintes de données, sans
+exporter les contenus privés. Positions et ordres étaient vides ; les migrations
+sont additives et ne réécrivent pas les réglages ni l’historique marché.
+
+Le schéma 0001–0009 et les fonctions sauvegardées ont été restaurés sur un
+PostgreSQL 17 local séparé, puis les quatre charges de migration exactes rejouées.
+`db_migrate.py verify` y a réussi avant l’application distante.
+
+Cette préparation ciblée **ne constitue pas une sauvegarde complète de la base**.
+La sauvegarde complète, sa conservation hors machine et sa restauration avec les
+données restent à qualifier en R3. Les autorisations nécessaires sont désormais
+accordées ; elles ne constituent pas une preuve d’exécution de cette recette.
+
+Le déploiement des services, la surveillance et la qualification économique
+restent ouverts dans [Roadmap](ROADMAP.md). Aucun ordre réel, démarrage de
+moteur LIVE, suppression de données ou hausse de budget n’a été effectué.
+
+## 2026-11-10 — Lot 9 : README à trois liens et six documents fusionnés
+
+README racine limité à trois liens. Fusion des deux roadmaps, du guide dashboard,
+des rapports de corrections/déploiement, du profil progressif et des briefs livrés
+dans leurs références uniques ; conservation des critères et besoins ouverts.
+Huit documents principaux restent dans docs/ au lieu de quatorze. Les besoins
+C-01 à C-07 et les qualifications I-01 à I-10 sont dans ROADMAP.md ; les seuils
+R2–R7 ont été comparés au plan d’origine. L’outil check.sh contrôle désormais
+les huit portes R0–R7 ; son empreinte dans l’index a été régénérée.
+
+Vérification réelle : 41 liens relatifs valides ; README à trois liens ;
+`bash scripts/check.sh` entièrement vert sur une base locale jetable : 709 Python
+hors contrats opt-in, 31 Node, migrations locales et drawdowns contrôlés. Les
+35 contrats SQL opt-in n’ont pas été exécutés par ce passage. Aucun code moteur
+ni donnée Supabase modifié. Commit/push master avec comparaison du SHA distant.
+
 ## 2026-11-10 — Lot 8 : documentation consolidée et documents remplacés retirés
 
 Retrait de AMELIORATIONS_2026-11-09.md et du rapport narratif pré go live,
@@ -107,7 +237,7 @@ Demande de Seb : une séquence unique, précise et vérifiable jusqu’à l’ex
 réelle durable. Rédaction du plan, critères de passage, responsabilités, règles
 NO-GO et marche arrière. Aucun correctif applicatif ni activation dans cette étape.
 
-**Livré** : [GO_LIVE.md](GO_LIVE.md), huit étapes R0–R7 avec travaux, preuves,
+**Livré** : [Roadmap](ROADMAP.md), huit étapes R0–R7 avec travaux, preuves,
 responsabilités et NO-GO. Protocole proposé : recette cible de 14 jours ET
 20 cycles ; au moins 100 trades simulés avec validation hors calibration ;
 canary d’au moins trois allers-retours ; stabilisation de 30 jours ET dix trades

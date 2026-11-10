@@ -1,7 +1,7 @@
 # Backtest — mesurer les décisions, sans argent
 
 Le profil papier `progressif`, le comparatif hors ligne des petits budgets et ses
-limites sont décrits dans [PROGRESSION.md](PROGRESSION.md). Le rejeu H4 valorise
+limites sont décrits dans [Capital progressif](OBSERVATION_ET_RECHERCHE.md#capital-progressif-paper). Le rejeu H4 valorise
 désormais chaque clôture pendant la détention, coûts de liquidation compris.
 `replay` utilise la configuration versionnée `backtest_settings.json` lorsqu'elle
 est présente à côté du golden ; les décisions et métriques du golden restent intactes.

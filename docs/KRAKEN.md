@@ -2,7 +2,7 @@
 
 État au **10 novembre 2026**. Le moteur utilise CCXT **4.5.92**, version figée dans
 `backend/requirements.lock`. L’exécution LIVE est écrite ; le passage au réel reste
-soumis à [GO_LIVE.md](GO_LIVE.md). Les observations de clés, tarifs et minima de
+soumis à [Roadmap](ROADMAP.md). Les observations de clés, tarifs et minima de
 novembre 2026 conservées dans le journal ne valent pas qualification de la clé cible.
 
 ## Modules et responsabilités
@@ -51,7 +51,7 @@ PREPARED. Les états ACKNOWLEDGED/FILLED sont rapprochés ; UNKNOWN bloque le re
 et la reprise automatique. Après un fill partiel, le cumul est dédupliqué et la
 protection porte sur le reliquat confirmé. Le nouvel ID d’un stop remplacé est
 persisté et réutilisé. Les contrats testés et leurs limites sont dans
-[CORRECTIONS_PRE_GO_LIVE.md](CORRECTIONS_PRE_GO_LIVE.md).
+[Preuves des correctifs](JOURNAL.md#correctifs-pre-go-live).
 
 Le kill-switch **API** suspend les achats sans signer chez Kraken ni annuler les
 stops ; la gestion d’une position existante continue. La liquidation par
@@ -68,7 +68,7 @@ Le plus petit ordre peut rester incompatible avec le budget de perte retenu.
 Le profil `progressif` et ses enveloppes sont PAPER uniquement. Réserve et cagnotte
 sont des écritures comptables, pas des retraits Kraken ; les clés du bot ne doivent
 pas autoriser de retrait. Les critères économiques et tout changement de budget
-relèvent de GO_LIVE.md, pas du résultat d’un scan de marchés.
+relèvent de ROADMAP.md, pas du résultat d’un scan de marchés.
 
 ## Commandes
 

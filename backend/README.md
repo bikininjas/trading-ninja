@@ -10,7 +10,7 @@ Les dix briefs sont implémentés en première version : voir
 contrats JSON, API, CLI et limites. `scripts/insights.py --help` donne les commandes.
 Replay, expériences et analyse de confiance par fichier fonctionnent hors ligne.
 Les migrations 0001–0013 sont appliquées sur trninja, vérifiées le 10 novembre
-2026 : [preuve de déploiement](../docs/DEPLOIEMENT_SUPABASE_2026-11-10.md).
+2026 : [preuve de déploiement](../docs/JOURNAL.md#deploiement-supabase).
 Sur une autre base, vérifier les migrations avant de démarrer l’instrumentation.
 
 Les tests n’utilisent aucune clé du shell et interdisent les connexions externes.
@@ -51,7 +51,7 @@ uv pip sync --python .venv/bin/python requirements.lock
 ## Commandes
 
 Le profil papier `progressif` et le comparatif de budgets sont décrits dans
-[`../docs/PROGRESSION.md`](../docs/PROGRESSION.md). L'exemple utilise 9,37 EUR
+[Capital progressif](../docs/OBSERVATION_ET_RECHERCHE.md#capital-progressif-paper). L'exemple utilise 9,37 EUR
 virtuels ; il ne modifie pas les réglages locaux existants.
 
 ```bash
@@ -163,5 +163,5 @@ backend/.venv/bin/python scripts/check_dashboard_browser.py /tmp/captures-capita
 
 Ce contrôle sert une interface avec réponses factices : aucun serveur de trading,
 compte réel ou ordre. Il est exécuté par la CI, séparément de `scripts/check.sh`.
-Les règles d’enveloppes sont dans [PROGRESSION.md](../docs/PROGRESSION.md) ;
-les évolutions encore ouvertes dans les [briefs](../docs/IDEES_ET_BRIEFS_TECHNIQUES.md).
+Les règles d’enveloppes sont dans [Capital progressif](../docs/OBSERVATION_ET_RECHERCHE.md#capital-progressif-paper) ;
+les évolutions encore ouvertes dans les [briefs](../docs/ROADMAP.md#ameliorations).

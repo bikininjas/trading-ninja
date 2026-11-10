@@ -123,22 +123,14 @@ if [ -n "${COMPTE:-}" ]; then
   fi
 fi
 
-# Le statut de la phase 1 doit correspondre à l'état réel de ses étapes : annoncée
-# « en cours » avec zéro étape 🟨 (ou l'inverse) est le genre d'incohérence qui
-# s'installe sans qu'on la voie.
-FIL_P1=$(awk '/^## Phase 1/,/^## Phase 2/' docs/ROADMAP.md 2>/dev/null)
-if [ -n "$FIL_P1" ]; then
-  EN_COURS=$(printf '%s\n' "$FIL_P1" | grep -c '🟨')
-  if printf '%s\n' "$FIL_P1" | head -1 | grep -q '🟨' && [ "$EN_COURS" -le 1 ]; then
-    ko "phase 1 annoncée en cours mais aucune de ses étapes n'est 🟨"
-  elif printf '%s\n' "$FIL_P1" | head -1 | grep -q '⬜' && [ "$EN_COURS" -gt 0 ]; then
-    ko "phase 1 annoncée non commencée mais $EN_COURS étape(s) sont 🟨"
+# La roadmap unique doit conserver les huit portes de qualification.
+for PORTE in {0..7}; do
+  if grep -qE "^## R${PORTE} — " docs/ROADMAP.md; then
+    ok "porte R${PORTE} présente dans la roadmap"
   else
-    ok "statut de la phase 1 cohérent avec ses étapes ($EN_COURS en cours)"
+    ko "porte R${PORTE} absente de docs/ROADMAP.md"
   fi
-else
-  alerte "phase 1 introuvable dans docs/ROADMAP.md"
-fi
+done
 
 # --- 6. Index du code -------------------------------------------------------
 # L'index est calculé depuis les sources ; s'il n'est pas régénéré après une

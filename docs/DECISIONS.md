@@ -1801,7 +1801,7 @@ et vérifiés par la suite complète. L’ancien Python de travail reste intact.
 La CI reproduit Python, SQL jetable, Node et navigateur ; sa présence ne prouve
 pas un run distant réussi. Aucune migration distante ni activation réelle
 ne découle de cette décision. Les preuves et publications restent dans
-[CORRECTIONS_PRE_GO_LIVE.md](CORRECTIONS_PRE_GO_LIVE.md).
+[Preuves des correctifs](JOURNAL.md#correctifs-pre-go-live).
 
 
 ---
@@ -1821,3 +1821,20 @@ mesures historiques restent dans JOURNAL.md, BACKTEST.md et les décisions.
 KRAKEN.md décrit l’intégration existante ; installation, versions, tests et
 sémantique des commandes sont alignés sur le code et les preuves du 10 novembre.
 Aucun changement applicatif, de schéma ou de mode de trading.
+
+
+---
+
+## D-076 — Trois points d’entrée et fusion des documents redondants (2026-11-10)
+
+Le README racine présente uniquement l’installation backend, le dashboard et
+ROADMAP.md. Cette roadmap reprend intégralement les portes R0–R7 de GO_LIVE.md
+et les besoins ouverts ; l’ancienne roadmap parallèle est remplacée. Les briefs
+de conception déjà livrés restent dans Git, avec leur guide d’usage courant.
+
+Suppression après fusion de GO_LIVE.md et IDEES_ET_BRIEFS_TECHNIQUES.md dans
+ROADMAP.md ; DASHBOARD.md dans dashboard/README.md ; PROGRESSION.md dans le guide
+d’observation ; CORRECTIONS_PRE_GO_LIVE.md et DEPLOIEMENT_SUPABASE_2026-11-10.md
+dans JOURNAL.md. Les preuves JSON, montants, critères, limitations et besoins non
+réalisés restent conservés. Le contrôle documentaire vérifie désormais les portes
+R0–R7. Aucun changement du moteur, des données ou du risque.
