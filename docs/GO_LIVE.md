@@ -3,8 +3,9 @@
 **Version mise à jour le 10 novembre 2026. Statut actuel : NO-GO pour le réel.**
 
 Les lots de correction sont suivis dans [CORRECTIONS_PRE_GO_LIVE.md](CORRECTIONS_PRE_GO_LIVE.md).
-Le code corrigé ne vaut pas application des migrations sur Supabase, recette
-continue, preuve économique ou autorisation de trading réel.
+Les migrations 0010–0013 sont désormais appliquées et vérifiées sur Supabase :
+[preuve de déploiement](DEPLOIEMENT_SUPABASE_2026-11-10.md). La recette continue,
+la sauvegarde complète, la preuve économique et l’activation réelle restent distinctes.
 
 Ce document devient le plan de référence pour le passage en réel. La
 [roadmap générale](ROADMAP.md) conserve l’historique ; l’[audit technique](AUDIT_PRE_GO_LIVE_2026-11-09.md)
@@ -27,9 +28,9 @@ soumise à une autorisation explicite de Seb ; demander une roadmap ne l’autor
 | Étape | Résultat à obtenir | État actuel |
 |---|---|---|
 | R0 | Une version candidate unique, intégrée et reproductible | Portage de sécurité intégré ; environnement qualifié et première CI réussie ; vérifier la CI de chaque candidat |
-| R1 | Isolation PAPER et accès SQL fermés | Isolation PAPER corrigée et testée ; fermeture SQL cible en attente d’autorisation |
+| R1 | Isolation PAPER et accès SQL fermés | Isolation PAPER corrigée et testée ; droits SQL cible fermés et vérifiés le 10 novembre |
 | R2 | Exécution, risque et simulations fiables | Correctifs et contrats locaux livrés ; matrice complète multi-processus à qualifier |
-| R3 | Déploiement PAPER supervisé et récupérable | À faire : cible en 0009, exploitation non qualifiée |
+| R3 | Déploiement PAPER supervisé et récupérable | Schéma cible en 0013 ; sauvegarde complète, services et exploitation à qualifier |
 | R4 | Politique économique qualifiée et taille d’ordre finançable | Bloqué : preuve hors calibration insuffisante |
 | R5 | Recette PAPER de la version candidate sur la cible | À faire après R0–R4 |
 | R6 | Canary réel explicitement autorisé et réconcilié | Non autorisé à ce stade |
@@ -64,9 +65,9 @@ correctif nécessaire uniquement présent dans un checkout non publié. Tag ou c
 candidat unique. Les tests existants constituent une base, pas un quota suffisant.
 
 **R1 : code du premier lot vérifié le 9 novembre 2026** (698 Python, 31 Node).
-Isolation du kill-switch et migration 0012 livrées ; application Supabase en attente
-d’autorisation explicite après refus de la revue automatique. La porte complète
-reste ouverte jusqu’à recette des autres points d’entrée et validation cible.
+Isolation du kill-switch et migration 0012 livrées ; durcissement appliqué sur
+Supabase le 10 novembre après autorisation explicite. Droits et tests négatifs
+validés sur la cible ; preuve dans DEPLOIEMENT_SUPABASE_2026-11-10.md.
 
 ## R1 — Fermer immédiatement les deux frontières de sécurité
 

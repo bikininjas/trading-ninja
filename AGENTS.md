@@ -14,7 +14,7 @@ dimensionne ou la refuse ; l'exécution passe par un exchange via CCXT — aujou
 **simulée en papier**. Le LLM peut déclencher, mais il ne dimensionne rien : taille,
 prix et stop sont toujours calculés par le code.
 
-## 2. État de reprise — 9 novembre 2026
+## 2. État de reprise — 10 novembre 2026
 
 - Le bot reste en **simulation spot long uniquement** ; aucun capital réel engagé.
   Le chemin live exige les trois verrous de configuration et une réconciliation
@@ -27,17 +27,18 @@ prix et stop sont toujours calculés par le code.
   cagnotte. Seul le capital actif dimensionne ; les pertes ne sont pas rechargées
   depuis la réserve ou la cagnotte. Voir `docs/PROGRESSION.md`, D-069 et D-070.
 - Treize migrations sont versionnées, dont `0010_capital_ledger.sql` et
-  `0011_insights_and_controls.sql`. Leur validation
-  locale ne prouve pas leur déploiement sur Supabase ; vérifier la base cible avant
-  exploitation. Les défauts ouverts restent dans `AMELIORATIONS_2026-11-09.md`.
+  `0011_insights_and_controls.sql`. Les treize sont appliquées sur Supabase trninja
+  et leurs empreintes vérifiées le 10 novembre 2026. Preuves et limites de sauvegarde :
+  `docs/DEPLOIEMENT_SUPABASE_2026-11-10.md`.
 - 744 tests Python sont collectés, dont 35 contrats PostgreSQL locaux opt-in ;
   31 tests Node et un contrôle navigateur complètent les preuves.
 - La revue suivante de `master` 39db447 conclut **NO-GO** :
   `docs/AUDIT_PRE_GO_LIVE_2026-11-09.md`. Des défauts sont reproduits malgré les
   tests verts, dont une mutation exchange possible en PAPER par le kill-switch API.
   Le plan de passage en réel de référence est `docs/GO_LIVE.md` (R0–R7).
-  La cible Supabase est relue en 0009 ; fonctions privilégiées et intentions
-  financières demandent des corrections. Lire l’audit avant toute activation.
+  L’audit décrit 39db447 ; les corrections publiées sont suivies dans
+  `docs/CORRECTIONS_PRE_GO_LIVE.md`. La cible est désormais en 0013, droits
+  privilégiés fermés ; l’exploitation et l’économie restent à qualifier.
 - Les dix briefs I-01 à I-10 ont une première version implémentée (D-073) :
   journal/rejeu, diagnostics, suspension, politiques, expériences, coûts/classement,
   parcours, surveillance et scores. Guide : `docs/OBSERVATION_ET_RECHERCHE.md`.

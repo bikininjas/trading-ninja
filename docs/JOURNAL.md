@@ -6,6 +6,22 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Lot 7 : migrations appliquées sur Supabase trninja
+
+Après autorisation explicite de Seb, application via le connecteur des migrations
+0010–0013 du master 24a449c, avec historique applicatif atomique et quatre entrées
+Supabase datées. Treize empreintes conformes ; 44 relations, 6 vues, 16 partitions.
+Écritures critiques, unicité, refus anon/authenticated et borne de maintenance
+testés sur cible, puis rollback complet. Réglages et 323 374 bougies inchangés.
+Les WARN des fonctions privilégiées ont disparu ; 41 INFO RLS sans policy sont
+intentionnelles pour les tables privées sans droit public.
+
+Le premier export global a été refusé par la revue automatique avant l’autorisation
+d’export donnée ensuite. Préparation limitée aux définitions et empreintes ;
+restauration locale du schéma et des fonctions suivie des charges exactes de migration validée.
+Aucune sauvegarde complète des données n’est revendiquée. Aucun ordre réel ni
+suppression. Preuves : DEPLOIEMENT_SUPABASE_2026-11-10.md et JSON lié.
+
 ## 2026-11-10 — Lot 6 : interruptions de processus vérifiées
 
 Contrats sur PostgreSQL jetable, avec un interpréteur enfant distinct tué

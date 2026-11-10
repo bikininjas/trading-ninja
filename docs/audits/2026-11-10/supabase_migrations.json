@@ -1,0 +1,142 @@
+{
+  "project": "trninja",
+  "project_ref": "sugbashfjondgmlejpnl",
+  "date": "2026-11-10",
+  "source_commit": "24a449c7cb6b4601f490273970cb06a777665aff",
+  "migrations": [
+    {
+      "version": "0001_init.sql",
+      "checksum": "88819ddcfd553ef9f49353b59319c4211ec64cf88328de4e6b0e60872bbbb20e",
+      "applied_at": "2026-11-04T07:11:08.344824+00:00",
+      "execution_ms": 415
+    },
+    {
+      "version": "0002_lock_public_api.sql",
+      "checksum": "9d94e34132ed06ab1dc9382a84ce296340832c6e0a6923c44a5689225e121ecd",
+      "applied_at": "2026-11-04T07:14:17.262319+00:00",
+      "execution_ms": 59
+    },
+    {
+      "version": "0003_audit_fixes.sql",
+      "checksum": "b056f06b2f20524e1570fd9a47de2fd955c20ad43b1ae84011f64f5bf0d47b4e",
+      "applied_at": "2026-11-04T08:01:19.523062+00:00",
+      "execution_ms": 164
+    },
+    {
+      "version": "0004_llm_autonomy.sql",
+      "checksum": "f7db945414d01e8b34981f6a57c9faf5d59ac56b0029594e0f406ba20aed4074",
+      "applied_at": "2026-11-04T12:39:02.319628+00:00",
+      "execution_ms": 48
+    },
+    {
+      "version": "0005_runtime_settings.sql",
+      "checksum": "25635ab217d0fd176c61f0f88cc65c9203ad5a41c75d0f8a98b9a1d9dfcc869f",
+      "applied_at": "2026-11-04T12:49:49.972866+00:00",
+      "execution_ms": 84
+    },
+    {
+      "version": "0006_shadow_trades.sql",
+      "checksum": "1ed2b9d6ca12e17dbe4e8bd88f8a6629a0f16242ae1db9b75b3312866eb8c612",
+      "applied_at": "2026-11-04T13:10:10.360206+00:00",
+      "execution_ms": 104
+    },
+    {
+      "version": "0007_lessons.sql",
+      "checksum": "8d777948555dad77380a129b03ffeddd0212fe3c1a91365ed439a67fd9c7f8f0",
+      "applied_at": "2026-11-04T13:16:53.011924+00:00",
+      "execution_ms": 67
+    },
+    {
+      "version": "0008_market_candles_history.sql",
+      "checksum": "20741976e192a4e8c5c74fb65f4c0c4e65ae847b17df15fcbb9c22cf4f748b3b",
+      "applied_at": "2026-11-04T14:18:21.834903+00:00",
+      "execution_ms": 128
+    },
+    {
+      "version": "0009_allow_1d_timeframe.sql",
+      "checksum": "5a723f6bf4cebebc8e6269715f8c9d90cc6c596124fdd824a20ea5973687b8ac",
+      "applied_at": "2026-11-04T16:16:44.839012+00:00",
+      "execution_ms": 3778
+    },
+    {
+      "version": "0010_capital_ledger.sql",
+      "checksum": "a50d05de57781027e8de12c4653d8a2cab5cf4a28a00a11909462cae4cf24b32",
+      "applied_at": "2026-11-10T07:13:16.664626+00:00",
+      "execution_ms": 0
+    },
+    {
+      "version": "0011_insights_and_controls.sql",
+      "checksum": "8255b2ad35d67ae6dd1b43f40c9a4521f39ed561d643b148965d113725c06673",
+      "applied_at": "2026-11-10T07:13:27.615555+00:00",
+      "execution_ms": 0
+    },
+    {
+      "version": "0012_private_maintenance.sql",
+      "checksum": "22ee82f612177223853715ddab76a2262fdee702698092be7ec21eea5a84c420",
+      "applied_at": "2026-11-10T07:13:40.635736+00:00",
+      "execution_ms": 0
+    },
+    {
+      "version": "0013_durable_executions.sql",
+      "checksum": "9a6361b65c47cc02264feeede8c26adc7ba704e1edf105435ce36408fde21d4f",
+      "applied_at": "2026-11-10T07:13:50.419331+00:00",
+      "execution_ms": 0
+    }
+  ],
+  "counts": {
+    "relation_count": 44,
+    "view_count": 6,
+    "partitions": 16
+  },
+  "integrity": {
+    "runtime_settings": {
+      "before": {
+        "md5": "e1df8b4f576874641e956fd34be299a2",
+        "rows": 3
+      },
+      "after": {
+        "md5": "e1df8b4f576874641e956fd34be299a2",
+        "rows": 3
+      },
+      "unchanged": true
+    },
+    "market_history": {
+      "before": {
+        "md5": "40b4320df334d4c0c84fce94e7974c5b",
+        "rows": 323374
+      },
+      "after": {
+        "md5": "40b4320df334d4c0c84fce94e7974c5b",
+        "rows": 323374
+      },
+      "unchanged": true
+    },
+    "financial_counts": {
+      "before": {
+        "orders": 0,
+        "positions": 0
+      },
+      "after": {
+        "orders": 0,
+        "positions": 0
+      },
+      "unchanged": true
+    }
+  },
+  "security": {
+    "rls_missing": [],
+    "public_table_access": [],
+    "public_function_access": [],
+    "views_without_invoker": []
+  },
+  "smoke_test": {
+    "critical_writes": true,
+    "single_open_position_constraint": true,
+    "anon_maintenance_denied": true,
+    "authenticated_maintenance_denied": true,
+    "maintenance_bound_enforced": true,
+    "rolled_back": true
+  },
+  "backup_scope": "Function definitions, ACLs and schema reconstructed from exact 0001-0009 migrations; no complete database/data backup.",
+  "live_trading_activated": false
+}

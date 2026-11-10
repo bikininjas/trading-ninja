@@ -11,7 +11,7 @@ Statuts : ⬜ à faire · 🟨 en cours · ✅ fait et vérifié · ⛔ bloqué 
 
 **Décision au 9 novembre 2026 : NO-GO.** La revue de `master` 39db447 a
 reproduit des défauts bloquants, dont un appel d’annulation exchange en PAPER.
-Le schéma cible est encore en 0009. Voir
+Le schéma était alors en 0009 ; il est passé en 0013 le 10 novembre 2026. Voir
 [AUDIT_PRE_GO_LIVE_2026-11-09.md](AUDIT_PRE_GO_LIVE_2026-11-09.md) et ses portes G0–G6.
 
 ## Corrections pré go live — 10 novembre 2026
@@ -30,6 +30,12 @@ Le schéma cible est encore en 0009. Voir
   Durabilité PREPARED/ACKNOWLEDGED/FILLED, verrou commun et blocage de reprise
   après arrêt brutal vérifiés, sans exchange. Suite complète : 744 Python dont
   35 contrats SQL. La matrice intégrale de pannes reste à qualifier en R2.
+
+- ✅ **Lot 7 : migrations Supabase autorisées et appliquées** *(2026-11-10)*.
+  0010–0013 appliquées, treize empreintes conformes, intégrité et droits vérifiés
+  sur cible ; test des écritures entièrement annulé. Préparation ciblée, sauvegarde
+  complète et exploitation encore à qualifier :
+  [preuve et limites](DEPLOIEMENT_SUPABASE_2026-11-10.md).
 
 ## Vue d'ensemble
 
