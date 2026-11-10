@@ -30,7 +30,7 @@ prix et stop sont toujours calculés par le code.
   `0011_insights_and_controls.sql`. Leur validation
   locale ne prouve pas leur déploiement sur Supabase ; vérifier la base cible avant
   exploitation. Les défauts ouverts restent dans `AMELIORATIONS_2026-11-09.md`.
-- 738 tests Python sont collectés, dont 31 contrats PostgreSQL locaux opt-in ;
+- 741 tests Python sont collectés, dont 32 contrats PostgreSQL locaux opt-in ;
   31 tests Node et un contrôle navigateur complètent les preuves.
 - La revue suivante de `master` 39db447 conclut **NO-GO** :
   `docs/AUDIT_PRE_GO_LIVE_2026-11-09.md`. Des défauts sont reproduits malgré les

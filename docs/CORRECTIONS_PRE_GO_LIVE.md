@@ -10,7 +10,9 @@ le comportement corrigé. La qualification du réel reste celle de [GO_LIVE.md](
 | 1 | A02 kill-switch sans mutation exchange, A09 migration de maintenance privée, refus de promotion PAPER/LIVE par surcharge | 698 Python, 31 Node ; master `7fe2683`, SHA distant vérifié |
 | 2 | A01 compte live relu avant dimensionnement final, A08 clôtures attendues/ticker daté, A04 raison HALT, A05 âge des coûts, A10 fills annulés partiels | 703 Python ; master `8cf3b92`, SHA distant vérifié |
 | 3 | A03/D01 journal durable et identifiants avant envoi, UNKNOWN bloquant, reprise et verrou financier commun, fills cumulatifs/idempotents, protection du reliquat et IDs de stops, A07 sonde validate-only | Suite 731 puis contrat durable supplémentaire, 732 collectés ; master `f2a2785`, SHA distant vérifié |
-| 4 | A06 autorisation durable atomique avec permission et état, révision conservée ; fenêtre H1 et continuité vérifiées avant entrée, prix sans horodatage refusé ou fondé sur un trade public daté de moins de 5 secondes, quota inconnu explicite, dépendances figées et CI | 738 Python dont 31 SQL, 31 Node, navigateur ; push master à vérifier après commit |
+| 4 | A06 autorisation durable atomique avec permission et état, révision conservée ; fenêtre H1 et continuité vérifiées avant entrée, prix sans horodatage refusé ou fondé sur un trade public daté de moins de 5 secondes, quota inconnu explicite, dépendances figées et CI | 738 Python dont 31 SQL, 31 Node, navigateur ; master `ed0a750`, SHA distant vérifié |
+
+| 5 | Rapport panic durable conservé, pertes consécutives non réinitialisées, snapshot cash interdit avec reliquat, frais du fill non suivi conservés | 740 Python puis 14 contrats ciblés dont un SQL ajouté : 741 collectés ; publication en cours |
 
 La CI cible Python 3.13.17, disponible via uv, sur un environnement installé depuis
 `requirements.lock`. Le Python système et l’ancien interpréteur de travail ne sont

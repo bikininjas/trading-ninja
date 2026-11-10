@@ -22,6 +22,10 @@ Le schéma cible est encore en 0009. Voir
   État détaillé : [CORRECTIONS_PRE_GO_LIVE.md](CORRECTIONS_PRE_GO_LIVE.md).
   La cible SQL, l’exploitation et la qualification économique restent distinctes.
 
+- 🟨 **Lot 5 : compte rendu des liquidations durables** *(2026-11-10)*.
+  Vérifier les fills retournés à l’opérateur, les pertes consécutives et l’absence
+  de faux snapshot de portefeuille vide après une liquidation partielle.
+
 ## Vue d'ensemble
 
 | Phase | Objectif | Statut | Avancement |

@@ -242,8 +242,17 @@ async def record_panic_exits(
         fill = getattr(item, "fill", None)
         if fill is None:
             continue
-        if mode=='LIVE' and hasattr(repo,'account_exit'):
-            await repo.account_exit(mode,str(item.symbol),fill,purpose='EMERGENCY_EXIT',reason=reason,quote=quote_currency,taker_fee=taker_fee,emergency=True)
+        if mode == "LIVE" and hasattr(repo, "account_exit"):
+            result = await repo.account_exit(
+                mode, str(item.symbol), fill, purpose="EMERGENCY_EXIT", reason=reason,
+                quote=quote_currency, taker_fee=taker_fee, emergency=True,
+            )
+            if result is not None:
+                records.append(PanicRecord(
+                    symbol=str(item.symbol), amount=fill.amount, exit_price=fill.price,
+                    net_pnl_quote=result["net"], fees_quote=result["fees"],
+                    orders_canceled=0, tracked=result["tracked"],
+                ))
             continue
         symbol = str(item.symbol)
         position = by_symbol.pop(symbol, None)
@@ -293,7 +302,15 @@ async def record_panic_exits(
 
     # Un solde illisible ne doit pas écrire une équité fausse (0 EUR) : on halte
     # et on signale, mais on laisse la dernière valeur connue intacte.
-    if free_quote_after is not None:
+    durable_live = mode == "LIVE" and hasattr(repo, "account_exit")
+    if durable_live:
+        # account_exit a déjà appliqué les pertes cumulatives. Ne pas les écraser
+        # avec le compte lu avant les ventes ; un reliquat n'est pas du cash nul.
+        consecutive = (await repo.account(mode, starting_equity)).consecutive_losses
+        residual_positions = await repo.open_positions(mode)
+    else:
+        residual_positions = []
+    if free_quote_after is not None and not residual_positions:
         equity = free_quote_after
         await repo.update_after_close(
             mode, consecutive_losses=consecutive, equity=equity

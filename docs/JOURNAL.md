@@ -6,6 +6,13 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Lot 5 : compte rendu des liquidations durables (en cours)
+
+Relecture complémentaire du chemin panic : conserver les reçus retournés
+à l’opérateur et les pertes comptabilisées, sans valoriser un reliquat comme zéro.
+Vérification : suite complète 740 passed, puis contrat SQL de frais non suivis
+avec idempotence et tests panic/golden : 14 passed (741 tests collectés au total).
+
 ## 2026-11-10 — Lot 4 : autorisation atomique et qualification continue (en cours)
 
 Autorisation durable d’achat sérialisée avec la permission d’entrée et l’état ;

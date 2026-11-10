@@ -179,7 +179,8 @@ class PostgresRepository(InsightsStore):
                 "SELECT * FROM positions WHERE mode=$1::execution_mode AND symbol=$2 AND status='OPEN' FOR UPDATE",
                 mode, symbol,
             )
-            net = fees = gross = Decimal(0)
+            net = gross = Decimal(0)
+            fees = fill.fee_quote
             remaining = Decimal(0)
             if row:
                 available = row['initial_amount'] - row['closed_amount']

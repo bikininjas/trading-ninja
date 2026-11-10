@@ -183,7 +183,7 @@ async def test_panic_exits_write_the_real_fill_to_the_ledger():
     from types import SimpleNamespace
 
     from app.execution.paper import Fill
-    from app.runtime.recovery import PanicLiquidationError, record_panic_exits
+    from app.runtime.recovery import record_panic_exits
 
     pos = position()
     repo = FakeRepo(pos)
@@ -235,4 +235,51 @@ async def test_panic_exits_record_an_untracked_balance_and_surface_errors():
     assert caught.value.liquidated[0].tracked is False
     assert repo.inserted[0]["position_id"] is None
     assert repo.closed is None
+    assert repo.halted is not None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("remaining", [Decimal(0), Decimal("0.02")])
+async def test_durable_panic_reports_fills_without_resetting_losses_or_erasing_residual(remaining):
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    from app.execution.paper import Fill
+    from app.runtime.recovery import record_panic_exits
+
+    class DurableRepo(FakeRepo):
+        booked = False
+
+        async def account(self, mode, starting):
+            account = await super().account(mode, starting)
+            return replace(account, consecutive_losses=3 if self.booked else 2)
+
+        async def open_positions(self, mode):
+            return [self.pos] if self.pos and (not self.booked or remaining) else []
+
+        async def account_exit(self, mode, symbol, fill, **kwargs):
+            self.booked = True
+            return dict(net=Decimal("-0.20"), fees=Decimal("0.05"),
+                        tracked=True, remaining=remaining)
+
+    repo = DurableRepo(position())
+    fill = Fill(price=Decimal("90"), amount=Decimal("0.026"),
+                notional_quote=Decimal("2.34"), fee_quote=Decimal("0.02"),
+                slippage_quote=Decimal(0), order_id="durable-panic")
+    records = await record_panic_exits(
+        repo, [SimpleNamespace(symbol="BTC/EUR", fill=fill)], "LIVE",
+        quote_currency="EUR", starting_equity=Decimal("9.37"),
+        free_quote_after=Decimal("5"), taker_fee=Decimal("0.008"), now=NOW,
+    )
+    assert len(records) == 1
+    assert records[0].amount == fill.amount
+    assert records[0].net_pnl_quote == Decimal("-0.20")
+    assert records[0].tracked
+    assert not repo.inserted  # Le journal durable est l'unique comptable.
+    if remaining:
+        assert repo.snapshots == []
+        assert repo.after is None
+    else:
+        assert repo.after["consecutive_losses"] == 3
+        assert repo.snapshots[0]["equity"] == Decimal(5)
     assert repo.halted is not None

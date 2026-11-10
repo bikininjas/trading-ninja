@@ -361,3 +361,22 @@ async def test_pause_does_not_overwrite_a_human_emergency(pg):
     with pytest.raises(StateTransitionError,match='pause refusée'):
         await repo.force_lock('PAPER','pause')
     assert await repo.halt_details('PAPER')=='protection à vérifier'
+
+
+async def test_untracked_emergency_fill_reports_actual_fees_and_is_idempotent(pg):
+    from app.execution.paper import Fill
+
+    repo, conn = pg
+    fill = Fill(price=D(100), amount=D('.1'), notional_quote=D(10),
+                fee_quote=D('.08'), slippage_quote=D(0), order_id='untracked-emergency')
+    result = await repo.account_exit(
+        'PAPER', 'BTC/EUR', fill, purpose='EMERGENCY_EXIT', reason='TEST',
+        quote='EUR', taker_fee=D('.008'), emergency=True,
+    )
+    assert result['tracked'] is False and result['fees'] == D('.08')
+    assert await conn.fetchval('SELECT fee_amount FROM orders WHERE exchange_order_id=$1',
+                               fill.order_id) == D('.08')
+    assert await repo.account_exit(
+        'PAPER', 'BTC/EUR', fill, purpose='EMERGENCY_EXIT', reason='TEST',
+        quote='EUR', taker_fee=D('.008'), emergency=True,
+    ) is None
