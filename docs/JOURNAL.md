@@ -6,6 +6,52 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Groupes SQL PAPER appliqués et vérifiés sur Supabase
+
+D-089 livrée : migration **0014_paper_service_roles.sql** réellement appliquée
+sur trninja via le plugin Supabase, après 26 tests ciblés puis **861 tests Python
+réussis dont 54 PostgreSQL** locaux. Les quatorze empreintes correspondent au
+dépôt. Quatre groupes NOLOGIN/NOBYPASSRLS, ledger filtré PAPER, sonde en lecture
+seule, surveillant limité aux observations et HALT sans reprise ni heartbeat.
+Moteur/API ne peuvent écrire une observation saine ; le prévol refuse une
+connexion administrateur ou des groupes multiples/inadaptés.
+
+Lectures réelles `SET LOCAL ROLE` sur Supabase pour chacun des quatre groupes :
+aucun mode autre que PAPER visible, pas de maintenance, lecture des quatorze
+migrations, droits d'ordre/heartbeat/observation conformes. Les tables positions,
+orders, execution_requests et decision_cycles restent vides ; aucun LOGIN ou mot
+de passe créé. Preuve : `audits/2026-11-10/paper-roles-verification.json`.
+Taille cible 78 894 771 octets, plancher libre respecté.
+
+Advisors après application : santé sans constat, aucune alerte sécurité de niveau
+WARN/ERROR ; 17 INFO RLS sans policy concernent les partitions, accessibles aux
+services uniquement par leurs parents. [Référence du contrôle RLS](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy).
+Les deux clés étrangères signalées ont désormais un index. Les 63 index encore
+inutilisés sont conservés en l'absence d'activité, sans les supprimer pour verdir
+l'advisor. [Référence du contrôle des index](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index).
+
+Contrôle global vert : 807 tests hors base et 54 ignorés, 31 Node, quatorze
+migrations locales, drawdowns et index. Les droits sont exercés avec le vrai
+runtime local, incluant création PAPER et paquet complet ; les mutations LIVE,
+reprises par le surveillant et faux heartbeat sont refusés. La CI du lot
+économique `b92eda4` est verte :
+[42849734757](https://github.com/bikininjas/trading-ninja/actions/runs/42849734757).
+La création privée des identités de connexion et la recette WSL restent à faire
+quand la cible sera accessible ; aucun statut prêt ni ordre réel n'est déduit.
+
+---
+
+## 2026-11-10 — Droits SQL PAPER : lot commencé
+
+Après `b92eda4`, préparation de groupes privés sans connexion, permissions
+explicites et RLS PAPER. Seb autorise l'application via le plugin Supabase ;
+aucun mot de passe, connexion de service ou armement réel n'est créé par la
+migration. Advisors cible relus avant changement : sécurité INFO pour RLS sans
+policy, santé sans constat ; deux clés étrangères sans index et index encore
+inutilisés, en l'absence d'activité de trading. Recette locale avant application.
+
+---
+
 ## 2026-11-10 — Historique complété, prudent assoupli et refus économique mesuré
 
 Supabase trninja contient désormais **324 250 bougies**, après ajout réel de

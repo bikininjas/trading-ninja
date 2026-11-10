@@ -49,7 +49,7 @@ Le plafond courant de 2,811 EUR reste inférieur aux minima observés.
 
 Au premier lancement sur WSL, archiver dans un dossier privé :
 
-- le commit exact et les 13 empreintes de migrations ;
+- le commit exact et les 14 empreintes de migrations ;
 - le digest réel de `qwen3.5:9b`, prompt, leçons, politique et révisions appliquées ;
 - les paramètres expurgés et leurs empreintes, Python 3.13.17 et les dépendances verrouillées ;
 - les données source, leurs dates et leurs empreintes ;

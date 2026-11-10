@@ -2019,3 +2019,21 @@ stress. Aucun choix automatique après résultat et aucune hausse supplémentair
 pour franchir les minima. Un résultat sans achat reste un échec de faisabilité,
 sans être présenté comme une stratégie sans perte. La qualification du LLM reste
 prospective et distincte, sur captures du modèle réel.
+
+---
+
+## D-089 — Groupes SQL PAPER et permissions imposées en base (2026-11-10)
+
+La migration 0014 prépare quatre groupes sans LOGIN ni secret pour moteur, API,
+surveillant et sonde. RLS PAPER sur les tables de ledger et de contrôle, contenus
+immuables en insertion seulement, sonde limitée à quatre lectures. Le surveillant
+peut imposer HALT avec cooldown nul mais pas reprendre, falsifier le heartbeat,
+modifier une position ou écrire un fill. Moteur/API ne peuvent écrire un état
+sain de surveillance. Les accès publics et la maintenance restent fermés.
+
+Les LOGIN et secrets distincts seront créés dans le stockage privé de la cible,
+après accès au WSL ; aucun mot de passe n'entre dans SQL versionné, argv ou chat.
+Le prévol refuse administrateur, plusieurs groupes ou groupe inadapté et accès
+LIVE. Le moteur l'exige au démarrage ; la sonde garde l'alerte de panne SQL.
+Deux index de clés étrangères soutiennent les nouvelles jointures RLS, sans
+suppression des index de protection encore inutilisés faute d'activité.

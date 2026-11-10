@@ -4,14 +4,14 @@
 
 Ce document est la référence unique pour l’avancement, les portes du go live et
 les améliorations restantes. Les preuves datées sont conservées dans
-[JOURNAL.md](JOURNAL.md) ; le [snapshot SQL vérifié](audits/2026-11-10/supabase_migrations.json)
-confirme les treize migrations et les contrôles d’intégrité.
+[JOURNAL.md](JOURNAL.md) ; le [snapshot SQL vérifié](audits/2026-11-10/paper-roles-verification.json)
+confirme les quatorze migrations, les groupes et les contrôles d’intégrité.
 
 État vérifié : lots de sécurité, surveillance et préparation d'exploitation,
-851 tests Python dont 44 PostgreSQL sur base jetable, 31 Node ; CI à vérifier
+861 tests Python dont 54 PostgreSQL sur base jetable, 31 Node ; CI à vérifier
 pour chaque candidat.
 Supabase trninja est en
-0013, droits publics fermés et 324 250 bougies. Seb a retiré le 10 novembre la
+0014, droits publics fermés et 324 250 bougies. Seb a retiré le 10 novembre la
 sauvegarde complète des prérequis bloquants du démarrage initial, sans ordre ni
 position. Le WSL domestique est la cible retenue ; son accès reste indisponible.
 
@@ -89,6 +89,14 @@ frais taker privés 0,80 %/côté, et les trois paires restent refusées au diag
 🟨 **R3 — délai de progression du cycle** *(commencé le 10 novembre 2026)* :
 contrôle direct malgré un heartbeat actif, budget de trente secondes, échec
 conservé pour les cycles annulés. Recette du WSL et du canal encore ouverte.
+
+🟨 **R1/R3 — identités SQL PAPER séparées** *(commencé le 10 novembre 2026)* :
+préparer et vérifier les groupes moteur/API, surveillant et sonde, sans mot de
+passe dans une migration. Filtrage PAPER imposé en base, sonde en lecture seule
+et surveillant limité aux observations et HALT. Application cible autorisée par Seb.
+Migration 0014 appliquée et quatorze empreintes vérifiées sur trninja ; permissions
+des quatre groupes contrôlées par SET ROLE. LOGIN privés et probes WSL restent à
+effectuer. Aucun service n'est réputé installé par cette migration.
 
 Responsabilité technique : préparation du code, migrations, tests, déploiement
 PAPER et dossier de preuves. Responsabilité de Seb : validation du mandat de risque,

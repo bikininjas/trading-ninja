@@ -58,7 +58,16 @@ def test_missing_or_public_configuration_refuses_without_executing(tmp_path):
 @pytest.mark.asyncio
 async def test_real_sql_preflight_checks_all_migration_checksums(postgres_test_url, monkeypatch):
     from scripts.paper_component import probe
+    import asyncpg
+    connect = asyncpg.connect
+    async def isolated_connect(**kwargs):
+        conn = await connect(**kwargs)
+        await conn.execute('SET ROLE tn_paper_observer')
+        return conn
+    monkeypatch.setattr(asyncpg, 'connect', isolated_connect)
     _, env = launch_spec("observer", {"DATABASE_URL": postgres_test_url,
                                        "OBSERVER_WEBHOOK_URL": "https://alerts.example"}, {})
     result = await probe("observer", env)
-    assert result["database"] == "VERIFIED" and result["migrations"] == 13
+    from pathlib import Path
+    assert result["database"] == "VERIFIED" and result["migrations"] == len(list((Path(__file__).parents[1] / 'db/migrations').glob('*.sql')))
+    assert result['sql_scope'] == 'ISOLATED_PAPER'

@@ -46,8 +46,10 @@ privé doivent être configurés séparément avec le fichier livré avant la re
    sécurisé, jamais dans Git ni dans une commande. Le dashboard ne reçoit aucun
    accès SQL. La sonde reçoit une identité SQL de lecture distincte permettant
    `bot_state`, `protection_observations`, `decision_cycles` et `schema_migrations` ; le surveillant
-   reçoit les seuls droits nécessaires à ses observations et HALT. La création
-   des rôles/droits cible doit être préparée et contrôlée après sauvegarde.
+   reçoit les seuls droits nécessaires à ses observations et HALT. La migration
+   `0014_paper_service_roles.sql` prépare les quatre groupes sans connexion ;
+   leur matrice et la création privée des LOGIN sont décrites ci-dessous. Le dump
+   initial reste optionnel selon D-084 ; ne pas le réintroduire comme porte.
 5. Générer les secrets admin avec les outils existants `hash_password.py` et
    `totp_setup.py`. Conserver le TOTP opérateur hors machine, exercer login et
    réautorisation. Ne jamais afficher ces secrets dans le dossier de preuves.
@@ -59,6 +61,38 @@ privé doivent être configurés séparément avec le fichier livré avant la re
 Le lanceur `backend/scripts/paper_component.py` impose PAPER, désarme LIVE et vide
 toutes les clés exchange, même si le fichier ou l'environnement demande le réel.
 Il n'accepte pas de webhook dans argv. Les ports 8080/8081 restent sur loopback.
+
+### Connexions SQL privées distinctes
+
+La migration 0014 crée des groupes **NOLOGIN, NOBYPASSRLS**, sans mot de passe :
+
+| Composant | Groupe à accorder au LOGIN dédié | Portée |
+|---|---|---|
+| Moteur | `tn_paper_engine` | Ledger/captures PAPER ; aucune observation saine écrivable |
+| API | `tn_paper_api` | Administration PAPER et acquittement d'incident |
+| Surveillant | `tn_paper_observer` | Lecture PAPER, observations/incidents, HALT sans reprise |
+| Sonde | `tn_paper_probe` | Quatre tables en lecture, aucune donnée d'ordre |
+
+Sur le stockage sécurisé du WSL, créer quatre LOGIN privés distincts, chacun
+NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOREPLICATION, NOBYPASSRLS, avec un secret
+aléatoire propre, et accorder uniquement le groupe correspondant. Utiliser une
+connexion d'administration privée pour cette opération ; aucun secret dans une
+migration, argv, le journal ou le chat. Reporter chaque URL TLS dans son seul
+fichier privé. Ne pas donner de connexion SQL au dashboard. Les groupes ne sont
+pas encore des identifiants de service utilisables : aucun LOGIN n'est créé ici.
+
+`paper_component.py <composant> --env <fichier privé> --probe` refuse une identité
+administrateur, une appartenance multiple, un groupe inadéquat, CREATE sur le
+schéma, la maintenance privilégiée ou une lecture LIVE. Le moteur vérifie aussi
+cela automatiquement au démarrage. Exercer les quatre probes avant d'activer
+les services. La sonde conserve son comportement d'alerte en cas de panne SQL ;
+son lancement n'est pas bloqué par un prévol qui supprimerait cette notification.
+
+Les politiques RLS filtrent PAPER à la lecture et à l'écriture. Les partitions
+ne sont accessibles qu'à travers leurs parents. Les artefacts sont immuables ;
+les tables de suivi n'autorisent pas DELETE, sauf les sorties en attente après
+comptabilisation. Le moteur ne peut ni écrire une observation saine ni modifier
+un incident, et le surveillant ne peut ni falsifier le heartbeat ni reprendre.
 
 ## Vérification avant démarrage
 

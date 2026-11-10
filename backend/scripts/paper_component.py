@@ -24,6 +24,23 @@ EXCHANGE_SECRETS = (
     "KRAKEN_SECRET_KEY", "BINANCE_API_KEY", "BINANCE_SECRET_KEY",
     "OBSERVER_API_KEY", "OBSERVER_SECRET",
 )
+SQL_ROLES = {'engine': 'tn_paper_engine', 'api': 'tn_paper_api',
+             'observer': 'tn_paper_observer', 'watchdog': 'tn_paper_probe'}
+
+
+async def verify_sql_role(conn, component):
+    expected = SQL_ROLES[component]
+    row = await conn.fetchrow(
+        "SELECT rolsuper,rolbypassrls,rolcreaterole,rolcreatedb, "
+        "has_schema_privilege(current_user,'public','CREATE') AS schema_write, "
+        "has_function_privilege(current_user,'ensure_partitions(integer)','EXECUTE') AS maintenance "
+        "FROM pg_roles WHERE rolname=current_user")
+    memberships = [name for name in SQL_ROLES.values()
+                   if await conn.fetchval('SELECT pg_has_role(current_user,$1,\'MEMBER\')', name)]
+    if row is None or any(row.values()) or memberships != [expected]:
+        raise ValueError('identité SQL PAPER isolée requise pour ce composant')
+    if await conn.fetchval("SELECT EXISTS(SELECT 1 FROM bot_state WHERE mode<>'PAPER')"):
+        raise ValueError('isolation SQL PAPER absente')
 
 
 def launch_spec(component, values, inherited=None):
@@ -94,12 +111,13 @@ async def probe(component, env):
             actual = {r["version"]: r["checksum"] for r in await conn.fetch("SELECT version,checksum FROM schema_migrations")}
             if actual != expected:
                 raise ValueError("migrations absentes ou divergentes")
+            await verify_sql_role(conn, component)
             if component == "engine":
                 await engine_state_check(conn)
             size = await conn.fetchval("SELECT pg_database_size(current_database())")
             if size > int(env.get("SUPABASE_DB_QUOTA_MB", "500")) * 1_000_000 - 100_000_000:
                 raise ValueError("plancher de stockage non respecté")
-            result.update(database="VERIFIED", database_bytes=size, migrations=len(actual))
+            result.update(database="VERIFIED", database_bytes=size, migrations=len(actual), sql_scope="ISOLATED_PAPER")
         finally:
             await conn.close(timeout=2)
     if component == "engine":

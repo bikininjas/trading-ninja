@@ -3,19 +3,19 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `a5156f2093f73131`
+Empreinte des sources : `5a83fd7036e19fc1`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
-| Modules Python | 153 |
-| Lignes Python | 34422 |
+| Modules Python | 154 |
+| Lignes Python | 34571 |
 | Classes | 148 |
-| Fonctions et méthodes | 1114 |
-| Cas de test collectés par pytest | 851 |
-| Fonctions de test (comptage statique) | 660 |
-| Migrations SQL | 13 |
+| Fonctions et méthodes | 1122 |
+| Cas de test collectés par pytest | 861 |
+| Fonctions de test (comptage statique) | 666 |
+| Migrations SQL | 14 |
 | Scripts shell | 3 |
 
 ## 2. Carte des fichiers
@@ -109,7 +109,7 @@ Empreinte des sources : `a5156f2093f73131`
 | `backend/scripts/lessons.py` | 168 | Mémoire de leçons — relecture des résultats, affichage, purge. |
 | `backend/scripts/live_probe.py` | 157 | Sonde Kraken AddOrder en validation seulement (aucun ordre créé). |
 | `backend/scripts/market_dataset.py` | 69 | Export public uniquement, snapshot SQL cohérent ; audit local reproductible. |
-| `backend/scripts/paper_component.py` | 149 | Lance un composant PAPER depuis un fichier privé, avec mode et clés verrouillés. |
+| `backend/scripts/paper_component.py` | 167 | Lance un composant PAPER depuis un fichier privé, avec mode et clés verrouillés. |
 | `backend/scripts/probe_backtest.py` | 92 | Sonde : combien de décisions LLM un backtest coûterait-il sur BTC/EUR ? |
 | `backend/scripts/qualify_economics.py` | 117 | Comparaison exploratoire hors ligne, sans SQL, clé, modèle ou ordre réel. |
 | `backend/scripts/reconcile.py` | 123 | Audit de réconciliation — lecture seule, aucun ordre, aucune écriture. |
@@ -159,7 +159,8 @@ Empreinte des sources : `a5156f2093f73131`
 | `backend/tests/test_notifications.py` | 298 | Preuves de reprise : disque, arrêt brutal, récidive et réponse perdue. |
 | `backend/tests/test_orchestrator.py` | 791 | Tests de bout en bout de l'orchestrateur, avec des doubles. |
 | `backend/tests/test_paper.py` | 78 | Tests de l'exécution papier : frais, slippage, gaps, priorité du stop. |
-| `backend/tests/test_paper_component.py` | 64 | Le service PAPER ne peut hériter d'un armement réel ni reprendre une intention inconnue. |
+| `backend/tests/test_paper_component.py` | 73 | Le service PAPER ne peut hériter d'un armement réel ni reprendre une intention inconnue. |
+| `backend/tests/test_paper_roles_postgres.py` | 122 | Droits réels des services PAPER, cible locale jetable uniquement. |
 | `backend/tests/test_pre_live_fixes.py` | 199 | Contre-exemples pré live convertis en contrats à respecter. |
 | `backend/tests/test_progressif.py` | 190 | Le petit budget ne doit ni forcer un achat ni masquer ses coûts. |
 | `backend/tests/test_qualify_economics.py` | 29 |  |
@@ -191,6 +192,7 @@ Empreinte des sources : `a5156f2093f73131`
 | `backend/db/migrations/0011_insights_and_controls.sql` | 116 | migration SQL |
 | `backend/db/migrations/0012_private_maintenance.sql` | 54 | migration SQL |
 | `backend/db/migrations/0013_durable_executions.sql` | 19 | migration SQL |
+| `backend/db/migrations/0014_paper_service_roles.sql` | 85 | migration SQL |
 
 ## 3. API interne, module par module
 
@@ -1394,10 +1396,11 @@ le code, pas une copie de celui-ci.
 
 *Lance un composant PAPER depuis un fichier privé, avec mode et clés verrouillés.*
 
-- `def launch_spec(component, values, inherited=None)` (l.29)
-- `async def engine_state_check(conn)` (l.72)
-- `async def probe(component, env)` (l.83)
-- `def main(argv=None)` (l.122)
+- `async def verify_sql_role(conn, component)` (l.31)
+- `def launch_spec(component, values, inherited=None)` (l.46)
+- `async def engine_state_check(conn)` (l.89)
+- `async def probe(component, env)` (l.100)
+- `def main(argv=None)` (l.140)
 
 ### `backend/scripts/probe_backtest.py`
 
@@ -2341,6 +2344,18 @@ le code, pas une copie de celui-ci.
 - `def test_missing_or_public_configuration_refuses_without_executing(tmp_path)` (l.47)
 - `async def test_real_sql_preflight_checks_all_migration_checksums(postgres_test_url, monkeypatch)` (l.59)
 
+### `backend/tests/test_paper_roles_postgres.py`
+
+*Droits réels des services PAPER, cible locale jetable uniquement.*
+
+- `async def connection(postgres_test_url)` (l.22)
+- `async def test_roles_cannot_login_bypass_rls_see_live_or_change_schema(connection, role)` (l.34)
+- `async def test_probe_cannot_write_or_read_financial_details(connection)` (l.50)
+- `async def test_observer_can_persist_incident_and_halt_but_cannot_resume_or_fill(connection)` (l.61)
+- `async def test_runtime_works_under_real_rls_and_cannot_write_live(connection, postgres_test_url, role)` (l.83)
+- `async def test_public_api_roles_still_have_no_table_or_maintenance_access(connection)` (l.112)
+- `async def test_preflight_refuses_an_administrator_connection(connection)` (l.120)
+
 ### `backend/tests/test_pre_live_fixes.py`
 
 *Contre-exemples pré live convertis en contrats à respecter.*
@@ -2718,6 +2733,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_orchestrator.py` | 26 |
 | `backend/tests/test_paper.py` | 9 |
 | `backend/tests/test_paper_component.py` | 16 |
+| `backend/tests/test_paper_roles_postgres.py` | 10 |
 | `backend/tests/test_pre_live_fixes.py` | 10 |
 | `backend/tests/test_progressif.py` | 14 |
 | `backend/tests/test_qualify_economics.py` | 2 |
@@ -2733,7 +2749,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_swing_backtest.py` | 7 |
 | `backend/tests/test_trade_history.py` | 8 |
 | `backend/tests/test_watchdog.py` | 12 |
-| **Total** | **851** |
+| **Total** | **861** |
 
 ## 5. Schéma SQL
 
@@ -2803,6 +2819,10 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 ### `backend/db/migrations/0013_durable_executions.sql`
 
 - Tables : `execution_requests`
+
+### `backend/db/migrations/0014_paper_service_roles.sql`
+
+- Aucun objet créé (droits, index ou contraintes).
 
 ## 6. Rafraîchir
 

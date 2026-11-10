@@ -18,9 +18,9 @@ Les migrations 0001–0013 sont appliquées sur trninja, vérifiées le 10 novem
 Sur une autre base, vérifier les migrations avant de démarrer l’instrumentation.
 
 Les tests n’utilisent aucune clé du shell et interdisent les connexions externes.
-La suite normale collecte 851 tests : 791 passent hors base, 44 contrats SQL sont
+La suite normale collecte 861 tests : 807 passent hors base, 54 contrats SQL sont
 ignorés sans base jetable. Pour tout vérifier, démarrer PostgreSQL 17 local avec
-les rôles `anon`/`authenticated`, appliquer les treize migrations et utiliser :
+les rôles `anon`/`authenticated`, appliquer les quatorze migrations et utiliser :
 
 ```bash
 TN_TEST_DATABASE_URL="$TN_REVIEW_DSN" .venv/bin/python -m pytest \
@@ -59,7 +59,7 @@ Le profil papier `progressif` et le comparatif de budgets sont décrits dans
 virtuels ; il ne modifie pas les réglages locaux existants.
 
 ```bash
-.venv/bin/python -m pytest                     # 851 tests collectés ; 44 PostgreSQL opt-in, voir ci-dessous
+.venv/bin/python -m pytest                     # 861 tests collectés ; 54 PostgreSQL opt-in, voir ci-dessous
 .venv/bin/python -m app.main --once            # un cycle papier complet (données réelles)
 .venv/bin/python -m app.main --serve           # une évaluation par bougie H4 clôturée
 .venv/bin/python -m app.main --status          # état + 3 dernières lignes par table

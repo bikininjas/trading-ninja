@@ -27,16 +27,16 @@ prix et stop sont toujours calculés par le code.
   cagnotte. Seul le capital actif dimensionne ; les pertes ne sont pas rechargées
   depuis la réserve ou la cagnotte. Voir le capital progressif dans
   `docs/OBSERVATION_ET_RECHERCHE.md`, D-069 et D-070.
-- Treize migrations sont versionnées, dont `0010_capital_ledger.sql` et
-  `0011_insights_and_controls.sql`. Les treize sont appliquées sur Supabase trninja
+- Quatorze migrations sont versionnées, dont `0010_capital_ledger.sql` et
+  `0014_paper_service_roles.sql`. Les quatorze sont appliquées sur Supabase trninja
   et leurs empreintes vérifiées le 10 novembre 2026. Preuves et limites de sauvegarde :
   `docs/JOURNAL.md`.
-- 851 tests Python sont collectés, dont 44 contrats PostgreSQL locaux opt-in ;
+- 861 tests Python sont collectés, dont 54 contrats PostgreSQL locaux opt-in ;
   31 tests Node et un contrôle navigateur complètent les preuves.
 - Le statut reste **NO-GO** pour le réel. Les corrections intégrées et leurs
   preuves sont dans `docs/JOURNAL.md` ; le plan de passage est
   `docs/ROADMAP.md` (R0–R7). L’audit historique de 39db447 reste référencé dans
-  `docs/audits/2026-11-09/README.md`. La cible est désormais en 0013, droits
+  `docs/audits/2026-11-09/README.md`. La cible est désormais en 0014, droits
   privilégiés fermés ; l’exploitation et l’économie restent à qualifier.
 - Les dix briefs I-01 à I-10 ont une première version implémentée (D-073) :
   journal/rejeu, diagnostics, suspension, politiques, expériences, coûts/classement,
@@ -53,6 +53,13 @@ prix et stop sont toujours calculés par le code.
 - Le budget de perte totale de 9,37 EUR et le modèle `qwen3.5:9b` sont déjà
   documentés. Les minima Kraken peuvent empêcher les achats ; ne pas relâcher le
   risque ni augmenter le budget pour les financer sans décision explicite.
+- D-088 : Seb a explicitement demandé un prudent un peu assoupli. Le candidat
+  PAPER utilise 0,75 % de risque et 30 % d'exposition via surcharges, preset
+  d'origine conservé. Révision souhaitée SQL 1, non appliquée par un moteur.
+  Les deux profils refusent tous les achats sur la mesure mécanique 2026.
+- D-089 : quatre groupes SQL PAPER sans LOGIN sont installés. Les LOGIN et
+  secrets distincts restent à créer dans le stockage privé du WSL. Le prévol
+  refuse une connexion administrateur ; ne pas remplacer ces groupes par postgres.
 - `docs/ROADMAP.md` donne l'avancement ; `docs/JOURNAL.md` les preuves datées.
   `docs/CODE_INDEX.md` est généré depuis le code, jamais rédigé manuellement.
 
