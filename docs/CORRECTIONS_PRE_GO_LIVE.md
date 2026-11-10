@@ -13,6 +13,7 @@ le comportement corrigé. La qualification du réel reste celle de [GO_LIVE.md](
 | 4 | A06 autorisation durable atomique avec permission et état, révision conservée ; fenêtre H1 et continuité vérifiées avant entrée, prix sans horodatage refusé ou fondé sur un trade public daté de moins de 5 secondes, quota inconnu explicite, dépendances figées et CI | 738 Python dont 31 SQL, 31 Node, navigateur ; master `ed0a750`, SHA distant vérifié |
 | 5 | Rapport panic durable conservé, pertes consécutives non réinitialisées, snapshot cash interdit avec reliquat, frais du fill non suivi conservés | 740 Python puis 14 contrats ciblés dont un SQL ajouté : 741 collectés ; master `50b4304`, SHA distant vérifié |
 | 6 | Arrêt brutal réel d’un processus sur PREPARED/ACKNOWLEDGED/FILLED, exclusion concurrente, HALT immédiat et reprise bloquée, reçus durables après reconnexion | 744 Python dont 35 PostgreSQL passés, avec 3 contrats d’arrêt brutal réel ; master `24a449c`, CI réussie (42772119512) |
+| 7 | Application Supabase 0010–0013 après autorisation, contrôles distants et intégrité | Treize empreintes conformes ; master documentaire `b032e83`, CI réussie (42774443151) ; preuve de déploiement liée ci-dessous |
 
 La CI cible Python 3.13.17, disponible via uv, sur un environnement installé depuis
 `requirements.lock`. Le Python système et l’ancien interpréteur de travail ne sont

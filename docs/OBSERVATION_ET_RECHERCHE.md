@@ -7,15 +7,16 @@ Les comportements et limites précis de cette livraison sont décrits ici ; les
 [briefs](IDEES_ET_BRIEFS_TECHNIQUES.md) conservent les objectifs et critères de
 qualification à long terme.
 
-**État après relecture : NO-GO.** Consulter l’[audit du 9 novembre](AUDIT_PRE_GO_LIVE_2026-11-09.md)
-pour les défauts reproduits, notamment kill-switch API en PAPER, revalidation live,
-fills partiels, fraîcheur marché et fidélité de certaines simulations. Les limites
-découvertes par cette revue prennent le pas sur une lecture générale de ce guide.
+**État au 10 novembre 2026 : NO-GO pour le réel.** Les défauts reproduits sur
+39db447 ont reçu les [correctifs publiés](CORRECTIONS_PRE_GO_LIVE.md). Supabase est
+en 0013, [droits et intégrité vérifiés](DEPLOIEMENT_SUPABASE_2026-11-10.md). La recette
+de déploiement, la surveillance et la preuve économique restent à qualifier.
 
 ## Installation et réglages
 
-Appliquer les migrations sur la base de déploiement après sauvegarde, puis
-redémarrer le moteur, l'API et le dashboard avec la même version du code :
+Sur une nouvelle base, sauvegarder et vérifier les migrations avant de les
+appliquer. Sur trninja, 0001–0013 sont déjà appliquées ; ne pas recréer les tables.
+Le moteur, l’API et le dashboard doivent utiliser la même version du code :
 
 ```bash
 cd backend
@@ -28,7 +29,8 @@ La migration `0011_insights_and_controls.sql` ajoute les politiques, révisions,
 cycles, artefacts dédupliqués, événements, expériences, incidents et commandes de
 surveillance. Les dix nouvelles tables ont la RLS activée ; `anon` et
 `authenticated` n'ont aucun droit. Le backend utilise sa connexion privée.
-`0010` et les migrations antérieures restent inchangées.
+`0012` ferme la maintenance privilégiée et `0013` ajoute les reçus d’exécution
+durables. Les fichiers de migrations déjà appliquées restent immuables.
 
 Variables dans `backend/.env.example` :
 
@@ -47,9 +49,10 @@ Aucune variable d'armement live n'est changée par ces fonctionnalités.
 Le panneau « Comprendre les décisions » permet de suspendre les achats sans
 vendre. La permission est persistée par mode et survit au redémarrage. Les
 positions existantes suivent encore leurs stops, sorties et règles de gestion.
-Le moteur relit la permission avant l'analyse puis avant l'envoi ; une suspension
-pendant l'inférence interdit l'achat prévu. Une exécution déjà envoyée doit être
-rapprochée ; cette commande n'annule pas un ordre exécuté par l'exchange.
+Le moteur contrôle la permission avant l’analyse et l’autorisation durable.
+L’autorisation PREPARED est sérialisée en SQL avec la permission et l’état : une
+suspension antérieure bloque l’achat ; une intention déjà autorisée peut finir.
+Elle est rapprochée avant tout nouvel envoi. La suspension n’annule pas un ordre.
 
 La réautorisation exige une révision courante et un **nouveau code TOTP**. Elle
 prend le verrou du moteur et refuse HALT, circuit breaker, EXECUTING ou une sortie

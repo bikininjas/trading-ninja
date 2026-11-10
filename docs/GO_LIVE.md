@@ -8,9 +8,9 @@ Les migrations 0010–0013 sont désormais appliquées et vérifiées sur Supaba
 la sauvegarde complète, la preuve économique et l’activation réelle restent distinctes.
 
 Ce document devient le plan de référence pour le passage en réel. La
-[roadmap générale](ROADMAP.md) conserve l’historique ; l’[audit technique](AUDIT_PRE_GO_LIVE_2026-11-09.md)
-porte les constats sur le master `39db447`. Leurs anciennes checklists ne permettent
-pas de sauter une porte définie ici.
+[roadmap générale](ROADMAP.md) donne l’avancement ; les [preuves d’audit historiques](audits/2026-11-09/README.md)
+portent sur `39db447` et le [suivi des corrections](CORRECTIONS_PRE_GO_LIVE.md)
+décrit les correctifs livrés. Les anciennes checklists ne permettent pas de sauter une porte.
 
 Objectif final : un bot déployé sur une version figée, dont les ordres, protections,
 comptabilité, limites et récupération sont qualifiés sur le compte dédié, puis

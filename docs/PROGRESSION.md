@@ -95,9 +95,10 @@ refusés en live et les autres réserves de l'audit live restent à traiter.
 
 ### Mise en service papier
 
-Appliquer la nouvelle migration avec le coureur du dépôt sur la base choisie
-avant de lancer le nouveau moteur. La migration déployée n'a pas été appliquée
-pendant ce travail : seuls deux PostgreSQL locaux jetables ont servi aux tests.
+Sur une nouvelle base, appliquer les migrations manquantes après sauvegarde et
+vérification. Sur trninja, 0001–0013 sont appliquées et vérifiées depuis le
+10 novembre 2026 : [preuve et portée](DEPLOIEMENT_SUPABASE_2026-11-10.md).
+Cela ne prouve pas l’installation des services ni la recette PAPER.
 
 Les comptes papier existants démarrent le contrôleur **à plat** : l'équité et la
 réserve déjà constatées deviennent la nouvelle référence, sans redistribuer

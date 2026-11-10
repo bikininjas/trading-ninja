@@ -11,7 +11,8 @@ dashboard/
   public/app.js          rendu et commandes (aucun innerHTML avec des données)
   public/style.css       thème sombre, sans framework
   public/favicon.svg     icône locale, aucune requête externe
-  test/server.test.js    26 tests (session, proxy, historique, panic, SSE, origine)
+  test/server.test.js    session, proxy, historique, panic, SSE, origine
+  test/insights.test.js  routes privées d’observation et contrôles
 ```
 
 Documentation détaillée : [`docs/DASHBOARD.md`](../docs/DASHBOARD.md).
@@ -154,8 +155,12 @@ Limites assumées : 50 lignes d'historique par vue, 200 points d'équité pour l
 npm test          # ou : node --test test/
 ```
 
-Les 26 tests démarrent une fausse API sur un port éphémère et vérifient le contrat du
+Les 31 tests démarrent une fausse API sur un port éphémère et vérifient le contrat du
 dashboard : redirection sans session, cookie HttpOnly, proxy du statut, historique
 borné et liste blanche, refus d'origine étrangère, panic sans code, transmission du
 TOTP, SSE, expiration. `bash scripts/check.sh` ajoute la syntaxe, l'index du code et la
 cohérence documentaire.
+
+Le contrôle navigateur bureau/mobile est exécuté en CI via
+`scripts/check_dashboard_browser.py`, avec réponses API factices. Il ne valide
+pas l’installation cible. État courant et portes : [GO_LIVE.md](../docs/GO_LIVE.md).

@@ -9,12 +9,14 @@ Les dix briefs sont implémentés en première version : voir
 [`OBSERVATION_ET_RECHERCHE.md`](../docs/OBSERVATION_ET_RECHERCHE.md) pour les
 contrats JSON, API, CLI et limites. `scripts/insights.py --help` donne les commandes.
 Replay, expériences et analyse de confiance par fichier fonctionnent hors ligne.
-Appliquer 0011 sur la base cible avant de démarrer l’instrumentation.
+Les migrations 0001–0013 sont appliquées sur trninja, vérifiées le 10 novembre
+2026 : [preuve de déploiement](../docs/DEPLOIEMENT_SUPABASE_2026-11-10.md).
+Sur une autre base, vérifier les migrations avant de démarrer l’instrumentation.
 
 Les tests n’utilisent aucune clé du shell et interdisent les connexions externes.
 La suite normale collecte 744 tests : 709 passent hors base, 35 contrats SQL sont
 ignorés sans base jetable. Pour tout vérifier, démarrer PostgreSQL 17 local avec
-les rôles `anon`/`authenticated`, appliquer les onze migrations et utiliser :
+les rôles `anon`/`authenticated`, appliquer les treize migrations et utiliser :
 
 ```bash
 TN_TEST_DATABASE_URL="$TN_REVIEW_DSN" .venv/bin/python -m pytest \
@@ -25,22 +27,18 @@ TN_TEST_DATABASE_URL="$TN_REVIEW_DSN" .venv/bin/python -m pytest \
 `trading_ninja_review` jetable. Les tests SQL annulent leurs écritures ; ils ne
 valident pas le schéma Supabase déployé. Le golden est inclus dans la suite.
 
-Runtime de livraison qualifié : **Python 3.13.17**, dépendances complètes dans
-`requirements.lock`. Le tableau ci-dessous conserve les références de l’ancien
-environnement de travail. La CI installe le runtime de livraison depuis zéro.
+## Outillage qualifié
 
-## Outillage
+| Outil | Référence de livraison |
+|---|---|
+| Python | **3.13.17**, `.python-version` à la racine et dans `backend/` |
+| Dépendances runtime et tests | `requirements.lock`, versions exactes |
+| Node.js | **24**, utilisé par la CI ; dashboard sans dépendance npm |
+| PostgreSQL | **17**, local jetable pour les tests, Supabase pour le déploiement |
+| uv | Création du venv et synchronisation du lock |
 
-| Outil | Version | Emplacement |
-|---|---|---|
-| Python | 3.15.2 | `~/.local/share/uv/python/` (lien `~/.pyenv/versions/3.15.2`) |
-| Node.js | 26.13.0 LTS | `~/.local/node/current` |
-| npm | 11.20.0 | préfixe global `~/.local` |
-| uv | 0.13.7 | `~/.local/bin/uv` |
-
-Le Python système (`/usr/bin/python3`, 3.12.3) n'a **pas** été touché :
-Ubuntu 24.04 et `apt` en dépendent. Les versions récentes vivent dans
-`~/.local`, qui est en tête de `PATH`.
+L’ancien Python de travail 3.15.2 peut rester installé. Le Python système doit
+rester intact ; toutes les commandes projet utilisent le venv.
 
 ## Installation
 
@@ -78,7 +76,7 @@ virtuels ; il ne modifie pas les réglages locaux existants.
 .venv/bin/python scripts/backtest.py measure       # règle + LLM sur les 7 paires (réseau + LLM)
 .venv/bin/python scripts/backtest.py swing --months 60   # swing macro D1, sans LLM
 .venv/bin/python scripts/backtest.py meanrev --months 60 # mean reversion BB, laboratoire sans LLM
-.venv/bin/python scripts/live_probe.py --confirm-live    # sonde 3.1 : ordre réel volontairement rejeté
+.venv/bin/python scripts/live_probe.py --confirm-live    # validation privée validate=true, aucun ordre
 .venv/bin/python scripts/lab_rotation.py --months 60 --abs-filter dual  # rotation + momentum absolu, laboratoire
 .venv/bin/python -m uvicorn app.api.main:create_app --factory \
     --host 127.0.0.1 --port 8080                   # API d'administration
@@ -111,12 +109,13 @@ qu'après vérification de sa ligne de commande.
 
 ## Exchange
 
-La cible est **Kraken spot** (étape 1.6). Les écarts avec le brief d'origine, les
-contraintes mesurées et ce qui reste à écrire sont dans [`../docs/KRAKEN.md`](../docs/KRAKEN.md).
+La cible est **Kraken spot**. Les contrats d’exécution, les clés, la reprise et
+les limites de qualification sont dans [`../docs/KRAKEN.md`](../docs/KRAKEN.md).
 
 ## Index du code
 
-`docs/CODE_INDEX.md` est la carte ligne par ligne du dépôt. Il est **généré** :
+`docs/CODE_INDEX.md` est la carte ligne par ligne du dépôt. Il est **généré** ;
+commandes depuis la racine du dépôt :
 
 ```bash
 backend/.venv/bin/python scripts/index_codebase.py          # régénère l'index
@@ -148,22 +147,21 @@ SUPABASE_POOLER_REGION=eu-west-1
   `I_UNDERSTAND_REAL_MONEY=true`.
 
 
-## Vérification des enveloppes et de PostgreSQL
+## Vérification des enveloppes et du navigateur
 
-La suite collecte 643 tests Python, dont 6 contrats SQL opt-in ; sans base locale,
-ces six tests sont sautés. Pour les exécuter, utiliser une base PostgreSQL 17
-**jetable locale**, migrée par `scripts/db_migrate.py apply`, avec les rôles
-`anon` et `authenticated` créés pour le contrôle des droits. Les tests refusent
-une cible autre que localhost:55432 et annulent chaque transaction.
+Les 35 contrats PostgreSQL utilisent exclusivement une base locale jetable
+`trading_ninja_review`, avec les rôles `anon` et `authenticated` et les treize
+migrations. Les anciens contrats d’enveloppes exigent le port 55432.
+La commande complète et les garde-fous de connexion figurent en tête de ce guide.
+
+Pour le contrôle navigateur depuis la racine du dépôt, utiliser un Python muni de
+Playwright 1.62.0 et Chromium :
 
 ```bash
-TN_TEST_DATABASE_URL='postgresql://postgres:mot_de_passe_local@127.0.0.1:55432/base_test' .venv/bin/python -m pytest tests/test_capital_postgres.py
-# Navigateur optionnel : Python avec Playwright et Chromium installés.
-python scripts/check_dashboard_browser.py /tmp/captures-capital  # depuis la racine du dépôt
+backend/.venv/bin/python scripts/check_dashboard_browser.py /tmp/captures-capital
 ```
 
-Les règles, l'initialisation d'un compte papier existant et les limites des paliers
-sont dans `docs/PROGRESSION.md`. Le plafond actif de l'exemple est 20 EUR ; il ne
-force aucune réduction d'une enveloppe initiale plus grande, mais bloque sa promotion.
-
-Nouvelles propositions et briefs techniques : [IDEES_ET_BRIEFS_TECHNIQUES.md](../docs/IDEES_ET_BRIEFS_TECHNIQUES.md).
+Ce contrôle sert une interface avec réponses factices : aucun serveur de trading,
+compte réel ou ordre. Il est exécuté par la CI, séparément de `scripts/check.sh`.
+Les règles d’enveloppes sont dans [PROGRESSION.md](../docs/PROGRESSION.md) ;
+les évolutions encore ouvertes dans les [briefs](../docs/IDEES_ET_BRIEFS_TECHNIQUES.md).

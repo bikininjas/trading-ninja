@@ -32,12 +32,10 @@ prix et stop sont toujours calculés par le code.
   `docs/DEPLOIEMENT_SUPABASE_2026-11-10.md`.
 - 744 tests Python sont collectés, dont 35 contrats PostgreSQL locaux opt-in ;
   31 tests Node et un contrôle navigateur complètent les preuves.
-- La revue suivante de `master` 39db447 conclut **NO-GO** :
-  `docs/AUDIT_PRE_GO_LIVE_2026-11-09.md`. Des défauts sont reproduits malgré les
-  tests verts, dont une mutation exchange possible en PAPER par le kill-switch API.
-  Le plan de passage en réel de référence est `docs/GO_LIVE.md` (R0–R7).
-  L’audit décrit 39db447 ; les corrections publiées sont suivies dans
-  `docs/CORRECTIONS_PRE_GO_LIVE.md`. La cible est désormais en 0013, droits
+- Le statut reste **NO-GO** pour le réel. Les corrections intégrées et leurs
+  preuves sont dans `docs/CORRECTIONS_PRE_GO_LIVE.md` ; le plan de passage est
+  `docs/GO_LIVE.md` (R0–R7). L’audit historique de 39db447 reste référencé dans
+  `docs/audits/2026-11-09/README.md`. La cible est désormais en 0013, droits
   privilégiés fermés ; l’exploitation et l’économie restent à qualifier.
 - Les dix briefs I-01 à I-10 ont une première version implémentée (D-073) :
   journal/rejeu, diagnostics, suspension, politiques, expériences, coûts/classement,
@@ -184,9 +182,10 @@ La CI exécute les contrats complets sur un PostgreSQL jetable, jamais sur Supab
 - **Les clés exchange vivent dans `.env.local` (racine)** : `KRAKEN_API_KEY` /
   `KRAKEN_SECRET_KEY`, plus les anciennes `BINANCE_API_KEY` / `BINANCE_SECRET_KEY`.
   Le code accepte aussi `EXCHANGE_API_KEY` / `EXCHANGE_SECRET`, prioritaires.
-- **Le dashboard écoute sur `0.0.0.0:8081`** (choix de Seb) : HTTP sans TLS, mot de
-  passe et code Authy en clair sur le réseau. L'API reste sur `127.0.0.1:8080` ; ne
-  jamais ouvrir le port 8081 sur Internet.
+- **Le dashboard écoute sur `127.0.0.1:8081` par défaut.** L’ancienne installation
+  utilisait `0.0.0.0` à la demande de Seb ; l’écoute effective de la cible reste à
+  qualifier. L’API utilise `127.0.0.1:8080`. Un accès distant exige le réglage
+  explicite, un accès privé/TLS et la recette R3.
 - **Ollama** : l'endpoint OpenAI-compatible ignore `think` et `format`. Le client
   utilise `/api/chat` natif avec `think=false`, timeout 8 s (D-028).
 - **Kraken spot n'a pas de testnet** dans CCXT 4.5.91 (`urls['test']` absent). La

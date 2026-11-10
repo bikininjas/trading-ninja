@@ -1802,3 +1802,22 @@ La CI reproduit Python, SQL jetable, Node et navigateur ; sa présence ne prouve
 pas un run distant réussi. Aucune migration distante ni activation réelle
 ne découle de cette décision. Les preuves et publications restent dans
 [CORRECTIONS_PRE_GO_LIVE.md](CORRECTIONS_PRE_GO_LIVE.md).
+
+
+---
+
+## D-075 — Un état documentaire courant, retrait des audits remplacés (2026-11-10)
+
+**Remplace partiellement D-072** concernant la conservation de l’ancienne liste
+AMELIORATIONS_2026-11-09.md. Les lots de sécurité et le déploiement Supabase ont
+rendu ses statuts obsolètes. Retrait de ce document et du rapport narratif
+AUDIT_PRE_GO_LIVE_2026-11-09.md, remplacés par CORRECTIONS_PRE_GO_LIVE.md, le rapport
+de déploiement et GO_LIVE.md. Leurs versions intégrales restent accessibles dans
+Git ; les preuves datées gardent un index précisant leur version et leurs limites.
+
+Les besoins UI non réalisés sont transférés dans les briefs C-01 à C-07, sans les
+présenter comme livrés. ROADMAP.md devient une vue d’avancement actuelle ; les
+mesures historiques restent dans JOURNAL.md, BACKTEST.md et les décisions.
+KRAKEN.md décrit l’intégration existante ; installation, versions, tests et
+sémantique des commandes sont alignés sur le code et les preuves du 10 novembre.
+Aucun changement applicatif, de schéma ou de mode de trading.

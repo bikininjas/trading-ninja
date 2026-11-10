@@ -6,6 +6,21 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Lot 8 : documentation consolidée et documents remplacés retirés
+
+Retrait de AMELIORATIONS_2026-11-09.md et du rapport narratif pré go live,
+remplacés par le suivi des corrections, la preuve Supabase et GO_LIVE.md. Les
+preuves historiques gardent un index et des liens Git datés ; les besoins non
+réalisés deviennent C-01 à C-07. ROADMAP.md décrit l’état courant ; KRAKEN.md,
+installation, architecture, observations et dashboard sont alignés sur le code.
+D-075 remplace la conservation de l’ancienne liste prévue dans D-072.
+
+Vérifié : 70 liens relatifs sans cible manquante, cinq aides CLI cohérentes,
+744 tests collectés, CODE_INDEX.md à jour et diff sans erreur d’espaces. Aucun
+changement applicatif ni de base ; les tests complets n’ont pas été relancés
+localement pour ce changement documentaire. CI de la base b032e83 verte (42774443151).
+Commit/push master avec comparaison du SHA distant.
+
 ## 2026-11-10 — Lot 7 : migrations appliquées sur Supabase trninja
 
 Après autorisation explicite de Seb, application via le connecteur des migrations
@@ -136,7 +151,7 @@ la base jetable, transaction annulée. Heartbeats cible NULL ; disponibilité de
 services non établie. Les avis sur `rls_auto_enable()` sont distingués : c’est une
 fonction event_trigger, pas une preuve d’invocation RPC ordinaire.
 
-**Livrable** : [audit priorisé](AUDIT_PRE_GO_LIVE_2026-11-09.md), sources, scripts,
+**Livrable** : [audit priorisé historique](https://github.com/bikininjas/trading-ninja/blob/b032e83/docs/AUDIT_PRE_GO_LIVE_2026-11-09.md), sources, scripts,
 résultats synthétiques et portes G0–G6. Aucun correctif métier, aucune migration
 cible et aucun armement. Les défauts bloquants restent ouverts ; cette entrée
 achève la revue, pas la qualification du passage en réel.

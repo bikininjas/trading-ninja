@@ -6,9 +6,10 @@ fail-closed.
 
 **État actuel : simulation ; le chemin réel existe mais n'est pas activé.**
 
-**Revue pré go live du 9 novembre : NO-GO.** Les défauts reproduits, l’écart de
-schéma Supabase et les portes de passage sont dans
-[l’audit technique](docs/AUDIT_PRE_GO_LIVE_2026-11-09.md).
+**État au 10 novembre 2026 : NO-GO pour le réel.** Les correctifs de sécurité
+sont publiés et Supabase trninja est à jour jusqu’à `0013`, droits et intégrité
+vérifiés. La sauvegarde complète, l’exploitation et la qualification économique
+restent à démontrer dans [le plan R0–R7](docs/GO_LIVE.md).
 
 L'objectif est une progression modeste dans la durée, nette de frais, avec des
 pertes contenues. Le profil papier **`progressif`** inclut les coûts dans le risque
@@ -20,7 +21,8 @@ virtuels** ; un budget insuffisant peut empêcher tout achat. Règles et limites
 
 | Fichier | Contenu |
 |---|---|
-| [`docs/AUDIT_PRE_GO_LIVE_2026-11-09.md`](docs/AUDIT_PRE_GO_LIVE_2026-11-09.md) | Revue de master, défauts reproduits et décision NO-GO avant réel |
+| [`docs/CORRECTIONS_PRE_GO_LIVE.md`](docs/CORRECTIONS_PRE_GO_LIVE.md) | Correctifs publiés, preuves et limites de qualification |
+| [`docs/DEPLOIEMENT_SUPABASE_2026-11-10.md`](docs/DEPLOIEMENT_SUPABASE_2026-11-10.md) | Migrations réellement appliquées, intégrité et droits de la cible |
 | [`docs/GO_LIVE.md`](docs/GO_LIVE.md) | Plan unique R0–R7 jusqu’au go live définitif, critères et responsabilités |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Les étapes, leur statut, et le critère qui permet de passer à la suivante |
 | [`docs/JOURNAL.md`](docs/JOURNAL.md) | Ce qui a été fait, quand, et par quelle commande c'est vérifié |
@@ -29,21 +31,24 @@ virtuels** ; un budget insuffisant peut empêcher tout achat. Règles et limites
 | [`dashboard/README.md`](dashboard/README.md) | Dashboard de supervision (Node.js, zéro dépendance) |
 | [`docs/DASHBOARD.md`](docs/DASHBOARD.md) | Architecture, panneaux, contrat API et sécurité du dashboard |
 | [`docs/BACKTEST.md`](docs/BACKTEST.md) | Backtest historique, golden et tests récurrents |
-| [`docs/IDEES_ET_BRIEFS_TECHNIQUES.md`](docs/IDEES_ET_BRIEFS_TECHNIQUES.md) | Dix briefs : état livré, conception et critères de qualification |
+| [`docs/IDEES_ET_BRIEFS_TECHNIQUES.md`](docs/IDEES_ET_BRIEFS_TECHNIQUES.md) | Dix briefs livrés et besoins complémentaires encore ouverts |
 | [`docs/OBSERVATION_ET_RECHERCHE.md`](docs/OBSERVATION_ET_RECHERCHE.md) | Journal/rejeu, diagnostics, suspension, politiques, expériences et surveillance |
 | [`docs/PROGRESSION.md`](docs/PROGRESSION.md) | Profil progressif papier, enveloppes de capital et limites |
-| [`AMELIORATIONS_2026-11-09.md`](AMELIORATIONS_2026-11-09.md) | Audit daté des défauts et validations encore nécessaires |
 
 ## Démarrage rapide
 
 ```bash
 cd backend
-uv venv --python 3.15.2 .venv
-uv pip install -r requirements.txt -r requirements-dev.txt
+uv venv --python 3.13.17 .venv
+uv pip sync --python .venv/bin/python requirements.lock
 .venv/bin/python -m pytest
 .venv/bin/python scripts/compare_budgets.py  # hors ligne, sans argent réel
-.venv/bin/python scripts/db_migrate.py verify
+.venv/bin/python scripts/db_migrate.py status  # vérifier la cible configurée
 ```
+
+Les tests PostgreSQL exigent une base locale jetable ; procédure complète dans
+[backend/README.md](backend/README.md). Le runtime qualifié est Python 3.13.17 ;
+la CI utilise Node.js 24.
 
 ## Dashboard
 

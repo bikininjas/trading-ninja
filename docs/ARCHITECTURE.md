@@ -1,5 +1,8 @@
 # Architecture
 
+État au 10 novembre 2026. Livraison : Python 3.13.17 et dépendances figées ;
+Supabase en 0013. Le plan de qualification reste [GO_LIVE.md](GO_LIVE.md).
+
 ## 1. Le flux de décision
 
 ```
@@ -16,8 +19,10 @@
                           └─────────────────┬───────────────────┘
                                             │ accepté
                                             ▼
-                          [ Executor CCXT ]  achat marché
-                                 │           puis stop distant, immédiatement
+                          [ Reçu PREPARED + verrou financier ]
+                                 │
+                                 ▼
+                          [ Executor CCXT ]  achat + stop attaché
                                  ▼
                           [ PostgreSQL ]  signals → évaluations → ordres
                                           → positions → écrémages
@@ -36,49 +41,49 @@ et **31 tests** Node (775 au total), répartis ci-dessous.
 
 | Composant | Fichier | État |
 |---|---|---|
-| Pare-feu déterministe | `app/engine/risk_gate.py` | ✅ écrit (129 assertions) |
-| Contrat schéma ↔ code | `tests/test_schema_contract.py` | ✅ écrit (15 assertions) |
-| Configuration et presets de risque | `app/core/settings.py` | ✅ écrit (25 assertions) |
-| Résolution de connexion Postgres | `app/core/db.py` | ✅ écrit (10 assertions) |
-| Verdict de la sonde exchange | `tests/test_check_exchange.py` | ✅ écrit (9 assertions) |
+| Pare-feu déterministe | `app/engine/risk_gate.py` | ✅ écrit |
+| Contrat schéma ↔ code | `tests/test_schema_contract.py` | ✅ écrit |
+| Configuration et presets de risque | `app/core/settings.py` | ✅ écrit |
+| Résolution de connexion Postgres | `app/core/db.py` | ✅ écrit |
+| Verdict de la sonde exchange | `tests/test_check_exchange.py` | ✅ écrit |
 | Passerelle Kraken spot | `app/exchange/kraken.py` | ✅ préparation d'ordre, aucun envoi |
-| Exécuteur réel | `app/execution/live.py` | ✅ écrit (10 assertions), aucun ordre réel envoyé |
+| Exécuteur réel | `app/execution/live.py` | ✅ écrit, aucun ordre réel envoyé |
 | Choix du broker | `app/execution/factory.py` | ✅ paper/live, testnet refusé |
-| Flux de marché et indicateurs | `app/market/feed.py` | ✅ écrit (9 assertions) |
-| Client LLM local | `app/llm/client.py` | ✅ écrit (16 assertions) |
-| Machine à états | `app/engine/machine.py` | ✅ écrit (4 assertions) |
-| Exécution papier | `app/execution/paper.py` | ✅ écrit (9 assertions) |
-| Orchestrateur | `app/runtime/orchestrator.py` | ✅ écrit (9 assertions) |
+| Flux de marché et indicateurs | `app/market/feed.py` | ✅ écrit |
+| Client LLM local | `app/llm/client.py` | ✅ écrit |
+| Machine à états | `app/engine/machine.py` | ✅ écrit |
+| Exécution papier | `app/execution/paper.py` | ✅ écrit |
+| Orchestrateur | `app/runtime/orchestrator.py` | ✅ écrit |
 | Persistance PostgreSQL | `app/db/repository.py` | ✅ vérifié sur le schéma réel |
-| Profit Sweeper | `app/engine/sweep.py` | ✅ écrit (13 assertions) |
-| Liquidation d'urgence | `app/runtime/recovery.py` | ✅ écrit (3 assertions) |
-| API — authentification | `app/api/security.py` | ✅ écrit (22 assertions) |
-| API — routes | `app/api/main.py` | ✅ écrit (12 assertions) |
+| Profit Sweeper | `app/engine/sweep.py` | ✅ écrit |
+| Liquidation d'urgence | `app/runtime/recovery.py` | ✅ écrit |
+| API — authentification | `app/api/security.py` | ✅ écrit |
+| API — routes | `app/api/main.py` | ✅ écrit |
 | API — lecture et contrôle | `app/api/service.py` | ✅ écrit |
 | Dashboard Node.js | `dashboard/server.js` | ✅ écrit (31 tests Node, zéro dépendance) |
 | Gestion des processus | `scripts/manage.sh` | ✅ écrit (start/stop/restart/status/logs) |
-| Backtest historique | `app/backtest/engine.py` | ✅ écrit (7 assertions) |
+| Backtest historique | `app/backtest/engine.py` | ✅ écrit |
 | Golden de régression | `tests/fixtures/backtest_golden.json` | ✅ 44 décisions figées |
-| Faisabilité avec petit capital | `app/engine/affordability.py` | ✅ écrit (6 assertions) |
-| Règle d'entrée déterministe | `app/engine/entry_rule.py` | ✅ écrit (28 assertions), deux modes |
-| Garde-fou de sortie LLM | `app/engine/exit_guard.py` | ✅ écrit (9 assertions) |
+| Faisabilité avec petit capital | `app/engine/affordability.py` | ✅ écrit |
+| Règle d'entrée déterministe | `app/engine/entry_rule.py` | ✅ écrit, deux modes |
+| Garde-fou de sortie LLM | `app/engine/exit_guard.py` | ✅ écrit |
 | Sonde de clé Kraken | `scripts/check_kraken.py` | ✅ lecture seule |
 | Lecture `.env` / `.env.local` | `app/core/env.py` | ✅ écrit |
-| Schéma SQL + migrations | `db/migrations/` | ✅ 11 migrations versionnées ; 0010/0011 validées localement, cible à vérifier |
+| Schéma SQL + migrations | `db/migrations/` | ✅ 13 migrations versionnées et appliquées sur trninja, empreintes vérifiées |
 | Coureur de migrations | `scripts/db_migrate.py` | ✅ status / apply / verify |
 | Démonstration du pare-feu | `scripts/demo_guardrails.py` | ✅ exécutable |
-| Sonde de clé exchange (lecture seule) | `scripts/check_exchange.py` | ✅ écrit — mainnet vérifié, testnet sans clé |
+| Sonde de clé exchange (lecture seule) | `scripts/check_exchange.py` | Sonde historique Binance ; utiliser check_kraken.py pour la cible actuelle |
 | Réconciliation base ↔ exchange | `app/runtime/reconciliation.py` | ✅ lecture + verdict + application (`--apply`) |
 | Shadow trades (achats non pris) | `app/runtime/shadow.py` | ✅ simulation stop/TP + rapport |
 | Rapport shadow | `scripts/shadow_report.py` | ✅ résumé + `--evaluate` |
 | Mémoire de leçons | `app/llm/lessons.py` | ✅ digest, validation, relecture |
 | Relecture CLI | `scripts/lessons.py` | ✅ review / show / history / clear |
 | Audit de réconciliation | `scripts/reconcile.py` | ✅ audit ; `--apply --confirm` en live |
-| Lecture ZIP distante par plages | `app/market/kraken_archive.py` | ✅ écrit (12 assertions), ZIP64 |
-| Historique OHLCVT persistant | `app/market/history.py` | ✅ écrit (22 assertions) |
-| Ingestion multi-années | `scripts/ingest_history.py` | ✅ 158 600 bougies en base |
+| Lecture ZIP distante par plages | `app/market/kraken_archive.py` | ✅ écrit, ZIP64 |
+| Historique OHLCVT persistant | `app/market/history.py` | ✅ écrit |
+| Ingestion multi-années | `scripts/ingest_history.py` | ✅ 323 374 bougies vérifiées sur cible le 10 novembre |
 | Balayage statistique | `backtest.py sweep` | ✅ écrit — 48 scénarios, deux modes |
-| Cadence d'évaluation | `app/runtime/scheduler.py` | ✅ écrit (8 assertions) |
+| Cadence d'évaluation | `app/runtime/scheduler.py` | ✅ écrit |
 | Observation et recherche | `app/insights/`, `app/api/insights.py` | ✅ dix briefs, comportements et limites dans le guide |
 | Journal/rejeu | `app/insights/replay.py` | ✅ vrai runtime, I/O enregistrées, code et environnement vérifiés |
 | Pilotage versionné | `app/insights/policy.py`, `store.py` | ✅ suspension, politiques, révisions demandées/appliquées |
@@ -119,7 +124,16 @@ parallèle d’ordre. La sélection de paire reste en observation par défaut ; 
 l’option PAPER explicite peut changer le candidat, avec revalidation finale.
 La stratégie attachée à la position reste immuable ; les limites de sécurité sont
 courantes. Le guide [Observation et recherche](OBSERVATION_ET_RECHERCHE.md) décrit
-les onze migrations, paquets, nouveaux contrats privés et limites de déploiement.
+les paquets et contrats d’observation. Le [suivi des corrections](CORRECTIONS_PRE_GO_LIVE.md)
+et la [preuve Supabase](DEPLOIEMENT_SUPABASE_2026-11-10.md) couvrent le durcissement
+et les treize migrations appliquées.
+
+Le chemin LIVE partage un verrou financier interprocessus entre moteur, reprise et
+urgences. Une intention est commitée avant la mutation exchange ; UNKNOWN bloque
+le renvoi. Les fills cumulatifs sont dédupliqués et les reliquats rapprochés. La
+suspension interdit de nouvelles autorisations sans annuler une intention déjà
+autorisée. Les tests d’arrêt brutal couvrent trois frontières ; la matrice complète
+reste une porte R2.
 
 ## 3. Les 15 étapes de filtrage et les 23 codes de rejet
 
@@ -153,10 +167,10 @@ Le détail des calculs est en tête de `risk_gate.py` et dans `docs/DECISIONS.md
 
 ## 4. Modèle de données
 
-8 tables créées par les migrations, plus `schema_migrations` créée par le coureur de
-migrations lui-même (elle n'est donc pas sous l'autorité du DDL, mais sous celle de
-`db_migrate.py`). Les migrations 0005, 0006 et 0007 ajoutent `runtime_settings`,
-`shadow_trades` et `lessons`, ce qui porte le total à 11 tables métier.
+Le schéma courant compte **27 tables logiques**, dont `schema_migrations`,
+plus 17 partitions physiques (44 relations au total) et six vues. Le coureur gère
+l’historique applicatif ; Supabase conserve aussi les quatre applications distantes
+0010–0013. Le DDL versionné définit le schéma métier.
 
 | Table | Rôle | Partitionnée |
 |---|---|---|
@@ -171,36 +185,41 @@ migrations lui-même (elle n'est donc pas sous l'autorité du DDL, mais sous cel
 | `runtime_settings` | Réglages du dashboard, un payload JSONB par mode | non |
 | `shadow_trades` | Achats non pris (BUY refusé / HOLD sur setup) et issue simulée | oui (par mois) |
 | `lessons` | Leçons actives, versionnées, générées à partir des résultats | non |
+| `market_candles_history` | Historique OHLCVT pour les simulations | non |
+| `capital_accounts`, `capital_events` | Enveloppes et mouvements liés aux clôtures | non |
+| `pending_exits` | Intentions de sortie à rapprocher | non |
+| `position_policies` | Politiques stratégiques immuables | non |
+| `entry_controls` | Permission d’achat révisionnée par mode | non |
+| `decision_cycles`, `decision_artifacts`, `decision_cycle_artifacts` | Captures et artefacts dédupliqués | non |
+| `opportunity_events` | Parcours causal des opportunités | non |
+| `observation_experiments` | Expériences reproductibles | non |
+| `protection_observations`, `protection_incidents`, `observation_commands` | Surveillance et commandes HALT | non |
+| `execution_requests` | Intentions durables avant mutations exchange | non |
 | `schema_migrations` | Migrations appliquées + empreinte SHA-256 | non |
 
-Toutes les tables de **données** portent une colonne `mode` (`PAPER` / `TESTNET` /
-`LIVE`) : les statistiques de simulation et d'argent réel ne se mélangent jamais.
-`schema_migrations` fait exception, par nature. Les vues qui agrègent (`v_system_health`,
-`v_dashboard_pnl_metrics`, `v_dashboard_pnl_daily`, `v_risk_rejection_stats`) groupent ou
-filtrent explicitement par mode.
+Les lectures financières filtrent `mode` (`PAPER` / `TESTNET` / `LIVE`). Les
+politiques et artefacts dédupliqués sont rattachés par identifiant ; l’historique
+marché et les registres de migrations ne représentent pas un compte de trading.
+Toutes les tables publiques ont la RLS activée et les rôles exposés n’ont pas de
+droit de lecture/écriture. Les six vues utilisent `security_invoker`.
 
-Quatre contraintes portent des garde-fous en base, pas seulement dans le code :
-`ux_positions_one_open_per_symbol` (monoposition), l'index `orders(mode, created_at)`
-(coupe-circuit d'ordres), `profit_sweeps.transfer_status` en énumération (un écrémage
-raté ne peut pas se faire passer pour réussi), et
-`chk_risk_eval_context_when_approved` (une décision acceptée doit documenter son contexte
-de marché ; un refus précoce peut ne pas l'avoir).
+La base impose notamment une position ouverte par `(symbol, mode)`, un fill par
+`(mode, exchange_order_id)`, la conservation des enveloppes et les types/contraintes
+des décisions. La limite d’ordres par heure est contrôlée par le moteur ; l’index
+sur les ordres accélère sa lecture et ne constitue pas ce coupe-circuit à lui seul.
 
-## 5. Ce qui empêche le système de perdre gros, par ordre d'efficacité
+## 5. Garde-fous et limites
 
-1. **Le stop distant** vit chez l'exchange : il survit à un crash du PC et à une coupure
-   réseau. C'est la protection la plus solide de l'ensemble.
-2. **Le plafond d'exposition** (20 % de l'équité, plus un plafond absolu) borne les
-   dégâts d'un bug de dimensionnement à une somme connue.
-3. **Le coupe-circuit à -10 % depuis le plus haut** arrête une stratégie qui a cessé de
-   fonctionner — c'est le seul qui protège d'une érosion lente.
-4. **La limite d'ordres par heure** arrête un bug de boucle, qui est le scénario
-   catastrophe réaliste (le krach, lui, est couvert par le stop).
-5. **Le triple verrou d'armement** empêche un déploiement accidentel d'engager de
-   l'argent : `live` + sandbox désactivé + `I_UNDERSTAND_REAL_MONEY`, et `paper`/`testnet`
-   refusent un sandbox désactivé.
-
-Ce qui **ne** protège de rien : le LLM. Il n'a pas d'avantage statistique démontré. Sa
-seule utilité est de dire « je ne vois rien » la plupart du temps.
+- Le stop distant réduit l’exposition après un arrêt du moteur ; un gap, le
+  glissement ou une panne exchange peuvent dépasser la perte prévue.
+- Le pare-feu borne taille, exposition, coûts et risque selon la configuration
+  réellement appliquée ; les plafonds dépendent du profil.
+- Les drawdowns, pertes consécutives et limites d’ordres peuvent bloquer les
+  entrées. Ils ne constituent pas une garantie de capital.
+- Les verrous de configuration exigent le mode LIVE, le sandbox désactivé et
+  l’acceptation explicite de l’argent réel. Un override de broker ne peut promouvoir
+  une configuration PAPER en LIVE.
+- Le LLM ne dimensionne pas et n’a aucun avantage statistique démontré. La
+  validation économique reste indépendante des tests logiciels.
 
 Nouvelles propositions et briefs techniques : [IDEES_ET_BRIEFS_TECHNIQUES.md](IDEES_ET_BRIEFS_TECHNIQUES.md).

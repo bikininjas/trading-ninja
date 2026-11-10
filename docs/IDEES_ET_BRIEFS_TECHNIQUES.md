@@ -1,12 +1,9 @@
 # Idées et briefs techniques — Trading Ninja
 
-Date : 9 novembre 2026. **Statut : première version des dix briefs implémentée
-(D-073), vérification locale ; activation réelle et qualification économique séparées.**
-
-**Relecture après livraison :** l’[audit pré go live](AUDIT_PRE_GO_LIVE_2026-11-09.md)
-a reproduit des défauts du runtime et de plusieurs outils. Les fonctionnalités
-restent livrées en première version ; leurs tests actuels ne suffisent pas à les
-qualifier pour le réel ou pour une conclusion économique.
+État au **10 novembre 2026** : première version des dix briefs implémentée
+(D-073), complétée par les correctifs de sécurité et le déploiement SQL en 0013.
+Le [suivi des corrections](CORRECTIONS_PRE_GO_LIVE.md) décrit les preuves et limites ;
+la qualification économique et le passage réel restent séparés dans [GO_LIVE.md](GO_LIVE.md).
 
 Le [guide d’utilisation](OBSERVATION_ET_RECHERCHE.md) décrit le comportement livré,
 les formats, commandes et limites. Les sections détaillées ci-dessous conservent
@@ -27,10 +24,10 @@ Le socle part de `master` au commit `96b3a9d`, avec capital progressif conservé
 | I-09 | Processus indépendant, clé lecture seule, incidents, fraîcheur, webhook, commandes HALT uniquement | Installer le processus, son canal réel et une sonde externe de disponibilité |
 | I-10 | Cohortes poids/prompt/leçons/politique, effectifs et biais de sélection | Accumuler des labels clos ; aucune modification automatique du seuil |
 
-Les critères de passage avant argent réel restent dans [ROADMAP.md](ROADMAP.md).
+Les critères de passage avant argent réel sont dans [GO_LIVE.md](GO_LIVE.md).
 Le profil papier et ses limites sont dans [PROGRESSION.md](PROGRESSION.md).
-L’[audit actif](../AMELIORATIONS_2026-11-09.md) distingue les défauts corrigés et
-les blocages live encore ouverts. Implémentation ne signifie pas validation de
+Les besoins complémentaires non réalisés sont conservés en fin de ce document.
+Implémentation ne signifie pas validation de
 rentabilité ni autorisation d’activation.
 
 ## 1. Vue d'ensemble et ordre conseillé
@@ -629,3 +626,25 @@ Pour démarrer un lot, créer sa décision et son étape dans la roadmap, détai
 les migrations/contrats nécessaires et figer ses critères avant l'implémentation.
 La réussite d'un test logiciel ne vaut pas validation économique. Aucun de ces lots
 ne supprime les critères de [ROADMAP.md](ROADMAP.md) ni les blocages de l’audit existant.
+
+
+## 4. Besoins complémentaires encore ouverts
+
+Ces briefs reprennent les besoins non réalisés de l’ancienne revue du 9 novembre.
+Leur présence ici ne signifie pas qu’ils sont implémentés. Les correctifs backend,
+la CI et les critères économiques déjà suivis dans CORRECTIONS_PRE_GO_LIVE.md et
+GO_LIVE.md ne constituent pas une seconde liste de travaux dans cette section.
+
+| ID / origine | Brief technique | Validation attendue |
+|---|---|---|
+| C-01 / F-01 | Compléter les parcours I-08 avec une cause dominante lisible : financement, minima, coûts, absence de setup ou incident. Réutiliser décisions et opportunités persistées ; aucun conseil automatique d’apport ou de hausse du risque. | Distinguer clairement une attente stratégique, un budget insuffisant et une panne sur scénarios figés. |
+| C-02 / F-02 | Exposer le montant manquant dans la cagnotte et les motifs de palier bloqué : pertes non récupérées, clôture non gagnante, délai, plafond actif ou promotion déjà consommée. Calculer depuis le contrôleur de capital, sans dupliquer ses règles dans le navigateur. | Une date seule ne promet pas de promotion ; montants, cadence et plafonds correspondent au ledger. |
+| C-03 / F-03 | Afficher les événements de `capital_events` liés à chaque clôture : PnL net, réserve, cagnotte et promotion active. Lectures privées par mode, pagination bornée et liens vers les diagnostics. | Reconstruire les soldes depuis la référence ; aucun transfert interne compté comme bénéfice. |
+| C-04 / F-04 | Séparer PnL brut et estimation nette après frais/glissement de sortie ; calculer le seuil de rentabilité avec le modèle de coûts du moteur. Afficher hypothèses, date et état inconnu si le prix manque. | Un mouvement brut positif encore déficitaire après coûts n’est jamais étiqueté gain net. |
+| C-05 / F-05 | Préserver le dernier statut valide pendant une panne, valider les événements SSE avant rendu, conserver leur date source et empêcher le chevauchement des rafraîchissements. Le quota UNKNOWN est déjà livré ; la robustesse générale du flux reste à qualifier. | Tester coupure, erreur 500, événement invalide, réponses hors ordre et reconnexion sans rafraîchir artificiellement les données. |
+| C-06 / F-06 | Ajouter un aperçu guidé de réconciliation PAPER : écarts, effets sur les enveloppes, confirmation et journal de correction. Réutiliser le plan de réconciliation et les transactions existants ; ne pas purger les historiques. | Une correction ne devient ni apport ni bénéfice fictif ; mode PAPER visible, refus de l’application d’un aperçu devenu périmé. |
+| C-07 / B-02 | Relire chaque handler API conservant la configuration de démarrage et préciser les champs courants, demandés et appliqués. Réutiliser les révisions CAS et la politique immuable déjà livrées. | Après modification concurrente, statut, prévisualisation et décision persistée réfèrent aux bonnes versions ; incompatibilités signalées sans faux succès. |
+
+Les tests financiers nouveaux doivent cibler la conservation des montants, les
+conflits de révision et les erreurs d’I/O. La recette du rendu complète ces
+contrats ; aucune commande financière supplémentaire n’est créée pour diagnostiquer.

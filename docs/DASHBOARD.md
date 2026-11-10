@@ -1,5 +1,8 @@
 # Dashboard — supervision et pilotage
 
+État au 10 novembre 2026. Le plan de déploiement et de passage au réel est
+[GO_LIVE.md](GO_LIVE.md).
+
 Le dashboard est une **interface d'administration**, pas un produit grand public. Il
 montre ce que fait le bot, laisse mettre en pause ou liquider, et permet de changer les
 réglages de risque sans éditer un fichier. Il ne calcule aucun prix, aucune taille et
@@ -121,11 +124,19 @@ inaccessible depuis le navigateur.
 | `GET /api/stats` | `GET /api/stats` | `pnl`, `equity_curve`, `daily`, `rejections`, `llm`, `shadow`, `lessons` |
 | `GET /api/history/{table}` | `GET /api/history/{table}?limit=N` | `{ "table": ..., "rows": [...] }` |
 | `GET /api/settings` | `GET /api/settings` | réglages + profils |
-| `POST /api/settings` | `POST /api/settings` | réglages appliqués |
+| `POST /api/settings` | `POST /api/settings` | révision demandée et état d’application, sans promesse d’application immédiate |
 | `POST /api/control/pause` | `POST /api/control/pause` | état |
 | `POST /api/control/resume` | `POST /api/control/resume` | état |
 | `POST /api/control/panic` | `POST /api/control/panic` | état, TOTP requis |
 | `GET /events` | interrogation de `/api/status` | flux SSE |
+| `POST /api/control/entries` | même route | suspension ou réautorisation révisionnée, TOTP à la réautorisation |
+| `GET/POST /api/insights/*` | routes privées autorisées | parcours, rejeu, expériences et incidents ; détails dans le guide d’observation |
+
+Le kill-switch API suspend les achats et conserve les protections sans appeler
+Kraken ; la gestion des positions existantes continue. Le panic-sell et le script
+de liquidation sont distincts. Une pause ne remplace pas un HALT humain et une
+reprise refuse les intentions non rapprochées. Le quota SQL indisponible apparaît
+UNKNOWN, sans valeur fictive d’espace libre.
 
 ### Historique
 
@@ -201,8 +212,8 @@ cd dashboard && node server.js     # http://127.0.0.1:8081
 Tests :
 
 ```bash
-cd dashboard && node --test test/       # 26 tests Node
-cd backend && .venv/bin/python -m pytest  # 581 tests Python
+cd dashboard && node --test test/       # 31 tests Node
+cd backend && .venv/bin/python -m pytest  # 744 collectés, dont 35 PostgreSQL opt-in
 bash scripts/check.sh                   # vérification globale
 ```
 
@@ -225,10 +236,10 @@ la documentation.
 
 ## 8. Limites connues
 
-- Pas de test navigateur automatisé dans `scripts/check.sh` : les tests Node couvrent
-  le serveur et le contrat, un smoke test Chromium manuel a validé le rendu (graphiques,
-  onglets, infobulle, jauges). Un vrai test E2E pourra être ajouté quand un navigateur
-  sera disponible dans l'outillage.
+- Le contrôle Playwright/Chromium est automatisé dans la CI, séparément de
+  `scripts/check.sh`. Il couvre capital, suspension/TOTP, rejeu, diagnostics et
+  mobile sans débordement avec une API factice ; ce n’est pas une recette du
+  déploiement cible ni de tous les scénarios de flux.
 - Les réglages ne demandent pas de TOTP frais : la session 2FA suffit. La question
   reste ouverte dans la feuille de route.
 - Les plafonds hebdomadaire, depuis le plus haut et de pertes consécutives sont en
