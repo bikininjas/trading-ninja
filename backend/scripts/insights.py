@@ -3,13 +3,14 @@
 
 import argparse
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.insights.codec import bounded, public
+from app.insights.notifications import NotificationOutbox, notification_path
 
 
 def read_json(path):
@@ -19,37 +20,62 @@ def read_json(path):
     return json.loads(p.read_text())
 
 
-class PendingNotifications:
-    """Incidents observés mais non encore confirmés par le destinataire.
+async def watch(config, args):
+    from app.db.repository import PostgresRepository
+    from app.insights.watch import observe_protection, notify_incident
+    from app.exchange.kraken import build_exchange
 
-    Conservé en mémoire : une sonde externe doit détecter l'arrêt du surveillant.
-    Une réponse perdue peut entraîner un doublon, jamais une livraison certaine.
-    """
-
-    def __init__(self):
-        self.active = set()
-        self.pending = {}
-
-    def observe(self, result):
-        issues = {issue["key"]: issue for issue in result["issues"]}
-        for key in issues.keys() - self.active:
-            self.pending[key] = {
-                "issue": issues[key],
-                "observed_at": result["observation"]["observed_at"],
-            }
-        self.active = set(issues)
-
-    async def deliver(self, url, result, notify):
-        if not self.pending:
-            return
-        keys = sorted(self.pending)
-        await notify(url, {
-            "new_incidents": keys,
-            "pending_incidents": [self.pending[key] for key in keys],
-            **result,
-        })
-        for key in keys:
-            del self.pending[key]
+    path = args.notification_state or notification_path("observer", config.execution_mode)
+    exchange = None
+    if config.mode == "live":
+        if not config.observer_api_key or config.observer_api_key == config.exchange.api_key:
+            raise ValueError("clé OBSERVER distincte de la clé de trading requise")
+        exchange = build_exchange(api_key=config.observer_api_key, secret=config.observer_secret)
+    repo = None
+    with NotificationOutbox(path, source="observer", mode=config.execution_mode) as notifications:
+        try:
+            while True:
+                try:
+                    if repo is None:
+                        repo = await PostgresRepository.connect(config.database())
+                    result = await observe_protection(
+                        repo, exchange, config.execution_mode,
+                        expect_runtime=args.expect_runtime,
+                        timeframe=config.exchange.daily_timeframe_decision,
+                        universe=config.exchange.allowed_symbols,
+                        on_observation=notifications.observe,
+                    )
+                except Exception as exc:
+                    result = {
+                        "observation": {"observed_at": datetime.now(timezone.utc),
+                                        "mode": config.execution_mode, "complete": False},
+                        "issues": [{"key": "OBSERVATION_UNKNOWN", "severity": "CRITICAL",
+                                    "reason": "lecture ou persistance inconnue",
+                                    "error_type": type(exc).__name__}],
+                    }
+                    if repo is not None:
+                        try:
+                            await repo.close()
+                        except Exception:
+                            pass
+                        repo = None
+                notifications.observe(result)
+                print(json.dumps(public(result), ensure_ascii=False), flush=True)
+                delivery_failed = False
+                if args.webhook and notifications.pending:
+                    try:
+                        await notifications.deliver(args.webhook, result, notify_incident)
+                    except Exception as exc:
+                        delivery_failed = True
+                        print(json.dumps({"notification": "FAILED", "error_type": type(exc).__name__}),
+                              file=sys.stderr, flush=True)
+                if not args.serve:
+                    unhealthy = bool(result["issues"]) or delivery_failed or notifications.pending
+                    return {"status": "ALERT" if unhealthy else "OBSERVED", "issues": len(result["issues"])}
+                await asyncio.sleep(config.observer_interval_seconds)
+        finally:
+            if repo is not None:
+                await repo.close()
 
 
 async def run(args):
@@ -77,6 +103,8 @@ async def run(args):
     from app.db.repository import PostgresRepository
 
     config = load_settings()
+    if args.action == "watch":
+        return await watch(config, args)
     repo = await PostgresRepository.connect(config.database())
     try:
         if args.action == "export":
@@ -96,47 +124,6 @@ async def run(args):
             if data is None:
                 raise ValueError("position introuvable")
             return trade_diagnostics(data, config.exchange.taker_fee)
-        from app.insights.watch import observe_protection, notify_incident
-        from app.exchange.kraken import build_exchange
-
-        exchange = None
-        if config.mode == "live":
-            if (
-                not config.observer_api_key
-                or config.observer_api_key == config.exchange.api_key
-            ):
-                raise ValueError("clé OBSERVER distincte de la clé de trading requise")
-            exchange = build_exchange(
-                api_key=config.observer_api_key, secret=config.observer_secret
-            )
-            await asyncio.to_thread(exchange.load_markets)
-        notifications = PendingNotifications()
-        while True:
-            result = await observe_protection(
-                repo,
-                exchange,
-                config.execution_mode,
-                expect_runtime=args.expect_runtime,
-                timeframe=config.exchange.daily_timeframe_decision,
-                universe=config.exchange.allowed_symbols,
-            )
-            notifications.observe(result)
-            active = {i["key"] for i in result["issues"]}
-            print(json.dumps(public(result), ensure_ascii=False), flush=True)
-            if args.webhook and notifications.pending:
-                try:
-                    await notifications.deliver(args.webhook, result, notify_incident)
-                except Exception as exc:
-                    print(
-                        json.dumps(
-                            {"notification": "FAILED", "error_type": type(exc).__name__}
-                        ),
-                        file=sys.stderr,
-                        flush=True,
-                    )
-            if not args.serve:
-                return {"status": "OBSERVED", "issues": len(active)}
-            await asyncio.sleep(config.observer_interval_seconds)
     finally:
         await repo.close()
 
@@ -161,6 +148,7 @@ def main(argv=None):
     p.add_argument("--serve", action="store_true")
     p.add_argument("--expect-runtime", action="store_true")
     p.add_argument("--webhook")
+    p.add_argument("--notification-state", help="file SQLite sur volume persistant privé")
     args = parser.parse_args(argv)
     try:
         result = asyncio.run(run(args))
@@ -169,7 +157,7 @@ def main(argv=None):
             Path(args.out).write_text(raw + "\n")
         else:
             print(raw)
-        return 0
+        return 1 if args.action == "watch" and result.get("status") == "ALERT" else 0
     except KeyboardInterrupt:
         return 130
     except Exception as exc:

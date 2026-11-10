@@ -6,6 +6,36 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Reprise : alertes durables et vie du moteur, lot commencé
+
+`master` récupéré et checkout synchronisé sur `0e34d43`. Sa CI a réussi :
+[run 42785598921](https://github.com/bikininjas/trading-ninja/actions/runs/42785598921).
+La file des alertes est encore en mémoire ; les cycles ne prouvent pas la vie du
+moteur entre deux clôtures. Début de la correction R3, avec essais de panne locaux.
+Le venv historique est en Python 3.15.2 ; Python 3.13.17 est installé séparément
+pour les vérifications qualifiées. Aucun service cible ni canal réel validé,
+aucune nouvelle migration cible ni activation LIVE.
+
+**Premier lot vérifié — D-081.** Files SQLite privées séparées pour surveillant
+et sonde, commit avant persistance SQL/envoi HTTPS, acquittement après réponse,
+identifiants stables, récidives conservées, exclusion concurrente. Une panne SQL
+initiale peut être notifiée et une alerte échouée survit à la résolution et au
+redémarrage. La sonde reste en alerte si une livraison attend malgré le retour SQL.
+
+Python 3.13.17 avec `requirements.lock`, PostgreSQL 17 jetable local :
+`TN_TEST_DATABASE_URL=… pytest --postgres-test-url …` → **773 réussis**, dont
+36 contrats SQL ; `backtest.py replay` identique sans bless ; `scripts/check.sh`
+entièrement vert (737 hors base, 31 Node, 13 migrations locales et drawdowns).
+Le test d'arrêt brutal exécute réellement SIGKILL puis rouvre la file sur disque.
+Les essais de processus/serveurs ont été exécutés hors du bac à sable qui les
+bloquait. Le golden conserve son résultat négatif : -34,8828 EUR sur ce jeu figé ;
+la régression n'est pas une qualification économique.
+
+Aucun accès Supabase dans ce lot, aucune migration nouvelle. Les volumes durables,
+la réception humaine, le canal réel et les délais cible restent à qualifier.
+
+---
+
 ## 2026-11-10 — Vérification de reprise sur la cible, en lecture seule
 
 Vers 08:41 UTC, les 13 empreintes du registre `schema_migrations` concordent

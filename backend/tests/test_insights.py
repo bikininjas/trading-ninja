@@ -707,10 +707,10 @@ async def test_observer_notification_uses_read_only_payload_and_does_not_follow_
 
 
 @pytest.mark.asyncio
-async def test_failed_alert_is_retried_even_if_incident_resolves_before_delivery():
-    from scripts.insights import PendingNotifications
+async def test_failed_alert_is_retried_even_if_incident_resolves_before_delivery(tmp_path):
+    from app.insights.notifications import NotificationOutbox
 
-    queue = PendingNotifications()
+    queue = NotificationOutbox(tmp_path / "outbox.sqlite3", source="test", mode="PAPER")
     issue = {"key": "STOP:1", "reason": "protection insuffisante"}
     first = {"observation": {"observed_at": NOW}, "issues": [issue]}
     queue.observe(first)
@@ -732,16 +732,20 @@ async def test_failed_alert_is_retried_even_if_incident_resolves_before_delivery
     await queue.deliver("https://alerts.example", resolved, succeed)
     assert len(calls) == 2
     assert calls[1]["new_incidents"] == ["STOP:1"]
-    assert calls[1]["pending_incidents"] == [{"issue": issue, "observed_at": NOW}]
+    pending = calls[1]["pending_incidents"]
+    assert pending[0]["issue"] == issue
+    assert pending[0]["observed_at"] == NOW.isoformat()
+    assert pending[0]["event_id"] == calls[0]["pending_incidents"][0]["event_id"]
     assert calls[1]["issues"] == []
     assert not queue.pending
+    queue.close()
 
 
 @pytest.mark.asyncio
-async def test_delivered_alert_is_deduplicated_until_incident_reopens():
-    from scripts.insights import PendingNotifications
+async def test_delivered_alert_is_deduplicated_until_incident_reopens(tmp_path):
+    from app.insights.notifications import NotificationOutbox
 
-    queue = PendingNotifications()
+    queue = NotificationOutbox(tmp_path / "outbox.sqlite3", source="test", mode="PAPER")
     result = {"observation": {"observed_at": NOW}, "issues": [{"key": "STOP:1"}]}
     sent = []
 
@@ -757,6 +761,7 @@ async def test_delivered_alert_is_deduplicated_until_incident_reopens():
     queue.observe(result)
     await queue.deliver("https://alerts.example", result, send)
     assert len(sent) == 2
+    queue.close()
 
 
 def test_confidence_does_not_mix_exit_policies_or_certify_unknown_versions():

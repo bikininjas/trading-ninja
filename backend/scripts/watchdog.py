@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.core.db import from_env
 from app.core.env import load_env
 from app.insights.watch import notify_incident
+from app.insights.notifications import NotificationOutbox, notification_path
 
 
 def classify(record, *, now, max_age_seconds, require_runtime=True):
@@ -71,7 +72,8 @@ async def read_observation(config, mode):
 
 
 async def check(mode, *, interval, webhook, read=read_observation,
-                notify=notify_incident, now=None, env=None, require_runtime=True):
+                notify=notify_incident, now=None, env=None, require_runtime=True,
+                notification_state=None):
     now = now or datetime.now(timezone.utc)
     try:
         config = from_env(env if env is not None else load_env())
@@ -82,14 +84,24 @@ async def check(mode, *, interval, webhook, read=read_observation,
         report = {"status": "UNKNOWN", "reason": "DATABASE_UNAVAILABLE",
                   "error_type": type(exc).__name__}
     report.update(mode=mode, checked_at=now.isoformat())
-    if report["status"] != "OK":
-        try:
-            await notify(webhook, {"source": "observer_watchdog", **report})
-        except Exception as exc:
-            report["notification"] = "FAILED"
-            report["notification_error_type"] = type(exc).__name__
-        else:
-            report["notification"] = "SENT"
+    path = notification_state or notification_path("watchdog", mode)
+    with NotificationOutbox(path, source="observer_watchdog", mode=mode) as outbox:
+        outbox.observe({
+            "observation": {"observed_at": now},
+            "issues": [] if report["status"] == "OK" else [{"key": report["reason"], **report}],
+        })
+        if outbox.pending:
+            try:
+                await outbox.deliver(webhook, report, notify)
+            except Exception as exc:
+                report["notification"] = "FAILED"
+                report["notification_error_type"] = type(exc).__name__
+                if report["status"] == "OK":
+                    report.update(status="ALERT", reason="NOTIFICATION_PENDING")
+            else:
+                report["notification"] = "SENT"
+                if outbox.pending and report["status"] == "OK":
+                    report.update(status="ALERT", reason="NOTIFICATION_PENDING")
     return report
 
 
@@ -100,6 +112,7 @@ def main(argv=None):
                         help="intervalle du surveillant en secondes (5–300, défaut 15)")
     parser.add_argument("--allow-idle", action="store_true",
                         help="ne pas exiger que le surveillant contrôle le moteur")
+    parser.add_argument("--notification-state", help="file SQLite sur volume persistant privé")
     args = parser.parse_args(argv)
     if not 5 <= args.interval <= 300:
         parser.error("--interval doit être entre 5 et 300 secondes")
@@ -111,7 +124,8 @@ def main(argv=None):
         print("WATCHDOG_WEBHOOK_URL HTTPS requis dans l'environnement", file=sys.stderr)
         return 2
     report = asyncio.run(check(args.mode, interval=args.interval, webhook=webhook,
-                               require_runtime=not args.allow_idle))
+                               require_runtime=not args.allow_idle,
+                               notification_state=args.notification_state))
     print(json.dumps(report, ensure_ascii=False))
     return 0 if report["status"] == "OK" else 1
 

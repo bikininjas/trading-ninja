@@ -1887,3 +1887,19 @@ et n'est pas affichée. Aucun ordre ni écriture ne sont envoyés par la sonde.
 L'indépendance et le délai effectifs exigent un service séparé, un canal testé et
 un contrôle externe de la sonde elle-même. La vie du moteur reste vérifiée selon
 la cadence des cycles et ne bénéficie pas encore d'un heartbeat continu.
+
+---
+
+## D-081 — Notifications durables hors base distante (2026-11-10)
+
+Le surveillant et sa sonde conservent une file SQLite locale privée, par source
+et mode, sur volume persistant. Un événement est committé avant l'appel HTTPS,
+acquitté après réponse réussie, et conserve son identifiant si la réponse se perd.
+Une récidive n'écrase pas un événement non livré. La déduplication active survit
+au redémarrage ; la suppression ou la corruption du volume n'est pas une reprise.
+Une panne SQL est notifiée depuis cette file sans dépendre de la base en panne.
+
+Ce stockage évite une migration cible avant sauvegarde complète. Il exige sa
+propre conservation et un contrôle externe du processus et de son volume. Une
+réponse 2xx prouve l'acceptation HTTP, pas la lecture humaine de l'alerte. Le canal
+et les délais de la cible restent à qualifier ; aucun service n'est installé.

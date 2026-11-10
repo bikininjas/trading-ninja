@@ -37,7 +37,7 @@ def test_incomplete_or_critical_observation_is_an_alert():
 
 
 @pytest.mark.asyncio
-async def test_database_outage_notifies_without_leaking_exception_text():
+async def test_database_outage_notifies_without_leaking_exception_text(tmp_path):
     sent = []
 
     async def failed_read(config, mode):
@@ -47,7 +47,8 @@ async def test_database_outage_notifies_without_leaking_exception_text():
         sent.append(payload)
 
     result = await check("LIVE", interval=15, webhook="https://alerts.example",
-                         read=failed_read, notify=send, now=NOW, env=DB_ENV)
+                         read=failed_read, notify=send, now=NOW, env=DB_ENV,
+                         notification_state=tmp_path / "outbox.sqlite3")
     assert result["status"] == "UNKNOWN"
     assert result["reason"] == "DATABASE_UNAVAILABLE"
     assert result["notification"] == "SENT"
@@ -56,7 +57,7 @@ async def test_database_outage_notifies_without_leaking_exception_text():
 
 
 @pytest.mark.asyncio
-async def test_failed_notification_keeps_an_unhealthy_exit_state():
+async def test_failed_notification_keeps_an_unhealthy_exit_state(tmp_path):
     async def read(config, mode):
         return observation(at=NOW - timedelta(minutes=2))
 
@@ -64,7 +65,8 @@ async def test_failed_notification_keeps_an_unhealthy_exit_state():
         raise TimeoutError("private URL")
 
     result = await check("PAPER", interval=15, webhook="https://alerts.example",
-                         read=read, notify=fail, now=NOW, env=DB_ENV)
+                         read=read, notify=fail, now=NOW, env=DB_ENV,
+                         notification_state=tmp_path / "outbox.sqlite3")
     assert result["status"] == "UNKNOWN" and result["notification"] == "FAILED"
     assert "private URL" not in str(result)
 

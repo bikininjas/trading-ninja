@@ -3,18 +3,18 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `73b766d574ba14ea`
+Empreinte des sources : `fa83be3502b5b664`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
-| Modules Python | 135 |
-| Lignes Python | 32362 |
+| Modules Python | 137 |
+| Lignes Python | 32672 |
 | Classes | 146 |
-| Fonctions et méthodes | 1032 |
-| Cas de test collectés par pytest | 765 |
-| Fonctions de test (comptage statique) | 612 |
+| Fonctions et méthodes | 1042 |
+| Cas de test collectés par pytest | 773 |
+| Fonctions de test (comptage statique) | 620 |
 | Migrations SQL | 13 |
 | Scripts shell | 3 |
 
@@ -68,11 +68,12 @@ Empreinte des sources : `73b766d574ba14ea`
 | `backend/app/insights/costs.py` | 87 | Coût de carnet observé : aucune espérance inventée et aucun sizing ici. |
 | `backend/app/insights/diagnostics.py` | 202 | Analyse descriptive, prix observés à la clôture et couverture explicite. |
 | `backend/app/insights/experiments.py` | 640 | Portefeuilles indépendants sur le véritable runtime, données entièrement locales. |
+| `backend/app/insights/notifications.py` | 93 | File locale durable : commit avant envoi, acquittement après réponse HTTPS. |
 | `backend/app/insights/policy.py` | 79 | Règles stratégiques immuables ; les limites de sécurité restent courantes. |
 | `backend/app/insights/ranking.py` | 42 | Classement observable ; sélection activable uniquement en papier. |
 | `backend/app/insights/replay.py` | 366 | Enregistre les frontières I/O et rejoue le vrai orchestrateur sans réseau ni base. |
 | `backend/app/insights/store.py` | 493 | Persistance des observations privées ; aucune instruction d'ordre exchange. |
-| `backend/app/insights/watch.py` | 186 | Surveillant de lecture séparé ; ses seules commandes sont des demandes de HALT. |
+| `backend/app/insights/watch.py` | 192 | Surveillant de lecture séparé ; ses seules commandes sont des demandes de HALT. |
 | `backend/app/llm/__init__.py` | 1 | Client LLM local. Aucune I/O à l'import. |
 | `backend/app/llm/client.py` | 568 | Client LLM local (Ollama) — auditeur de confluences, jamais exécutant. |
 | `backend/app/llm/lessons.py` | 190 | Mémoire de leçons — apprendre des résultats, pas du bruit de marché. |
@@ -97,7 +98,7 @@ Empreinte des sources : `73b766d574ba14ea`
 | `backend/scripts/eval_llm_swing.py` | 269 | Évalue le LLM sur les signaux swing D1, sans ordre ni écriture en base. |
 | `backend/scripts/hash_password.py` | 35 | Génère un hash de mot de passe administrateur (scrypt). |
 | `backend/scripts/ingest_history.py` | 471 | Ingestion de l'historique OHLCVT multi-années de Kraken. |
-| `backend/scripts/insights.py` | 181 | Observation et recherche : aucun chemin d'ordre ni d'armement live. |
+| `backend/scripts/insights.py` | 169 | Observation et recherche : aucun chemin d'ordre ni d'armement live. |
 | `backend/scripts/kill_switch.py` | 122 | Kill-switch autonome — solde la position et halte le bot, backend arrêté ou non. |
 | `backend/scripts/lab_rotation.py` | 294 | Laboratoire de rotation momentum D1 — aucun ordre, aucune écriture. |
 | `backend/scripts/lessons.py` | 168 | Mémoire de leçons — relecture des résultats, affichage, purge. |
@@ -108,7 +109,7 @@ Empreinte des sources : `73b766d574ba14ea`
 | `backend/scripts/short_lab.py` | 70 | Mesure le mandat short sur le golden, sans réseau ni ordre. |
 | `backend/scripts/totp_setup.py` | 51 | Génère un secret TOTP, son QR code et l'URI de provisionnement. |
 | `backend/scripts/verify_drawdowns.py` | 136 | Vérifie les drawdowns sur un jeu de données figé, dans une transaction annulée. |
-| `backend/scripts/watchdog.py` | 120 | Sonde séparée du surveillant : lecture SQL et notification, jamais d'ordre. |
+| `backend/scripts/watchdog.py` | 134 | Sonde séparée du surveillant : lecture SQL et notification, jamais d'ordre. |
 | `backend/tests/__init__.py` | 1 |  |
 | `backend/tests/conftest.py` | 74 | Les tests unitaires ne doivent jamais contacter un service externe. |
 | `backend/tests/test_affordability.py` | 182 | Tests de la faisabilité d'un ordre avec un petit capital. |
@@ -130,7 +131,7 @@ Empreinte des sources : `73b766d574ba14ea`
 | `backend/tests/test_exit_rule.py` | 67 | Tests du Chandelier Exit : niveau, cliquet et sortie à la clôture. |
 | `backend/tests/test_feed.py` | 167 | Tests du flux de marché et des indicateurs, sur bougies synthétiques. |
 | `backend/tests/test_history.py` | 255 | Historique OHLCVT : analyse pure du CSV Kraken, trous, agrégation, cohérence. |
-| `backend/tests/test_insights.py` | 860 | Contrats des dix briefs : calculs purs, frontières de rejeu et runtime réel. |
+| `backend/tests/test_insights.py` | 865 | Contrats des dix briefs : calculs purs, frontières de rejeu et runtime réel. |
 | `backend/tests/test_insights_api.py` | 205 | Parcours administratifs privés : observation, révisions et aucune exécution. |
 | `backend/tests/test_insights_postgres.py` | 382 | Preuves SQL des contrôles, paquets, incidents et révisions ; cible locale stricte. |
 | `backend/tests/test_kraken_adapter.py` | 307 | Tests de la passerelle Kraken, hors réseau. |
@@ -142,6 +143,7 @@ Empreinte des sources : `73b766d574ba14ea`
 | `backend/tests/test_llm_eval.py` | 89 | Métriques de l'évaluation LLM : rétention des gagnants, filtration des perdants. |
 | `backend/tests/test_machine.py` | 52 | Tests de la machine à états : le graphe est une contrainte, pas une convention. |
 | `backend/tests/test_mean_reversion.py` | 133 | Tests du laboratoire Mean Reversion — aucun réseau, aucun ordre. |
+| `backend/tests/test_notifications.py` | 202 | Preuves de reprise : disque, arrêt brutal, récidive et réponse perdue. |
 | `backend/tests/test_orchestrator.py` | 791 | Tests de bout en bout de l'orchestrateur, avec des doubles. |
 | `backend/tests/test_paper.py` | 78 | Tests de l'exécution papier : frais, slippage, gaps, priorité du stop. |
 | `backend/tests/test_pre_live_fixes.py` | 199 | Contre-exemples pré live convertis en contrats à respecter. |
@@ -156,7 +158,7 @@ Empreinte des sources : `73b766d574ba14ea`
 | `backend/tests/test_shadow.py` | 76 | Tests du simulateur de shadow trades — purs, sans réseau ni base. |
 | `backend/tests/test_sweep.py` | 71 | Tests du Profit Sweeper : calcul pur, seuil, absence de ligne sur perte. |
 | `backend/tests/test_swing_backtest.py` | 176 | Tests du rejeu swing Daily : entrée, stop structurel, breakeven, sortie. |
-| `backend/tests/test_watchdog.py` | 97 | Une surveillance morte ou illisible ne peut jamais être annoncée saine. |
+| `backend/tests/test_watchdog.py` | 99 | Une surveillance morte ou illisible ne peut jamais être annoncée saine. |
 | `scripts/backtest_watch.sh` | 27 | Veille de backtest — conçue pour un cron silencieux. |
 | `scripts/check.sh` | 206 | Vérification complète de l'état du dépôt en une commande. |
 | `scripts/manage.sh` | 307 | ============================================================================= |
@@ -845,6 +847,20 @@ le code, pas une copie de celui-ci.
 - `def validate_experiment(spec)` (l.355)
 - `async def run_experiment(spec, settings=None)` (l.471)
 
+### `backend/app/insights/notifications.py`
+
+*File locale durable : commit avant envoi, acquittement après réponse HTTPS.*
+
+- **class NotificationOutbox** (l.18)
+  - `def __init__(self, path, *, source, mode)` (l.19)
+  - `def close(self)` (l.48)
+  - `def __enter__(self)` (l.54)
+  - `def __exit__(self, *args)` (l.57)
+  - `def pending(self)` (l.61)
+  - `def observe(self, result)` (l.64)
+  - `async def deliver(self, url, result, notify)` (l.75)
+- `def notification_path(source, mode)` (l.92)
+
 ### `backend/app/insights/policy.py`
 
 *Règles stratégiques immuables ; les limites de sécurité restent courantes.*
@@ -925,8 +941,8 @@ le code, pas une copie de celui-ci.
 *Surveillant de lecture séparé ; ses seules commandes sont des demandes de HALT.*
 
 - `def verify_observer_key(exchange)` (l.13)
-- `async def observe_protection(repo, exchange, mode, *, now=None, expect_runtime=False, timeframe='4h', universe=())` (l.45)
-- `async def notify_incident(url, payload, *, transport=None)` (l.177)
+- `async def observe_protection(repo, exchange, mode, *, now=None, expect_runtime=False, timeframe='4h', universe=(), on_observation=None)` (l.45)
+- `async def notify_incident(url, payload, *, transport=None)` (l.183)
 
 ### `backend/app/llm/client.py`
 
@@ -1257,13 +1273,10 @@ le code, pas une copie de celui-ci.
 
 *Observation et recherche : aucun chemin d'ordre ni d'armement live.*
 
-- **class PendingNotifications** (l.22) — Incidents observés mais non encore confirmés par le destinataire.
-  - `def __init__(self)` (l.29)
-  - `def observe(self, result)` (l.33)
-  - `async def deliver(self, url, result, notify)` (l.42)
-- `def read_json(path)` (l.15)
-- `async def run(args)` (l.55)
-- `def main(argv=None)` (l.144)
+- `def read_json(path)` (l.16)
+- `async def watch(config, args)` (l.23)
+- `async def run(args)` (l.81)
+- `def main(argv=None)` (l.131)
 
 ### `backend/scripts/kill_switch.py`
 
@@ -1350,10 +1363,10 @@ le code, pas une copie de celui-ci.
 
 *Sonde séparée du surveillant : lecture SQL et notification, jamais d'ordre.*
 
-- `def classify(record, *, now, max_age_seconds, require_runtime=True)` (l.28) — Traite l'absence de preuve comme UNKNOWN, jamais comme un état sain.
-- `async def read_observation(config, mode)` (l.60)
-- `async def check(mode, *, interval, webhook, read=read_observation, notify=notify_incident, now=None, env=None, require_runtime=True)` (l.73)
-- `def main(argv=None)` (l.96)
+- `def classify(record, *, now, max_age_seconds, require_runtime=True)` (l.29) — Traite l'absence de preuve comme UNKNOWN, jamais comme un état sain.
+- `async def read_observation(config, mode)` (l.61)
+- `async def check(mode, *, interval, webhook, read=read_observation, notify=notify_incident, now=None, env=None, require_runtime=True, notification_state=None)` (l.74)
+- `def main(argv=None)` (l.108)
 
 ### `backend/tests/conftest.py`
 
@@ -1799,11 +1812,11 @@ le code, pas une copie de celui-ci.
 - `async def test_observation_failure_blocks_new_entries_but_keeps_existing_stop_management()` (l.613)
 - `def test_recording_limit_cannot_interrupt_an_already_executed_side_effect()` (l.661)
 - `async def test_observer_notification_uses_read_only_payload_and_does_not_follow_redirects()` (l.679)
-- `async def test_failed_alert_is_retried_even_if_incident_resolves_before_delivery()` (l.710)
-- `async def test_delivered_alert_is_deduplicated_until_incident_reopens()` (l.741)
-- `def test_confidence_does_not_mix_exit_policies_or_certify_unknown_versions()` (l.762)
-- `async def test_replay_preserves_model_identity_and_already_applied_settings_on_later_cycles()` (l.793)
-- `async def test_uncertain_live_entry_blocks_retry_without_sending_a_compensating_sell()` (l.832)
+- `async def test_failed_alert_is_retried_even_if_incident_resolves_before_delivery(tmp_path)` (l.710)
+- `async def test_delivered_alert_is_deduplicated_until_incident_reopens(tmp_path)` (l.745)
+- `def test_confidence_does_not_mix_exit_policies_or_certify_unknown_versions()` (l.767)
+- `async def test_replay_preserves_model_identity_and_already_applied_settings_on_later_cycles()` (l.798)
+- `async def test_uncertain_live_entry_blocks_retry_without_sending_a_compensating_sell()` (l.837)
 
 ### `backend/tests/test_insights_api.py`
 
@@ -2053,6 +2066,19 @@ le code, pas une copie de celui-ci.
 - `def test_the_gate_refuses_a_counter_trend_entry_and_the_lab_can_measure_it(tmp_path)` (l.84)
 - `def test_the_exit_can_wait_for_a_close_above_the_middle_band(tmp_path)` (l.105)
 - `def test_an_invalid_exit_mode_is_refused(tmp_path)` (l.128)
+
+### `backend/tests/test_notifications.py`
+
+*Preuves de reprise : disque, arrêt brutal, récidive et réponse perdue.*
+
+- `async def test_committed_incident_survives_real_sigkill_and_resolution(tmp_path)` (l.22)
+- `async def test_lost_reply_retries_same_id_after_restart_and_deduplicates_ack(tmp_path)` (l.60)
+- `async def test_recurrence_does_not_overwrite_undelivered_episode(tmp_path)` (l.86)
+- `def test_queue_excludes_concurrent_process_and_wrong_mode(tmp_path)` (l.101)
+- `def test_corrupt_spool_is_not_silently_reinitialized(tmp_path)` (l.111)
+- `async def test_watchdog_retries_database_outage_after_restart_and_recovery(tmp_path)` (l.122)
+- `async def test_observer_database_connect_failure_is_durable_and_alerts(tmp_path, monkeypatch)` (l.153)
+- `async def test_incident_is_durable_before_remote_persistence_fails(tmp_path)` (l.183)
 
 ### `backend/tests/test_orchestrator.py`
 
@@ -2466,10 +2492,10 @@ le code, pas une copie de celui-ci.
 - `def observation(body=HEALTHY, at=NOW)` (l.14)
 - `def test_missing_stale_or_invalid_information_is_not_healthy(record, reason)` (l.26)
 - `def test_incomplete_or_critical_observation_is_an_alert()` (l.31)
-- `async def test_database_outage_notifies_without_leaking_exception_text()` (l.40)
-- `async def test_failed_notification_keeps_an_unhealthy_exit_state()` (l.59)
-- `def test_live_cannot_disable_runtime_monitoring(monkeypatch)` (l.72)
-- `async def test_watchdog_reads_a_real_observation_from_disposable_postgres(postgres_test_url)` (l.80)
+- `async def test_database_outage_notifies_without_leaking_exception_text(tmp_path)` (l.40)
+- `async def test_failed_notification_keeps_an_unhealthy_exit_state(tmp_path)` (l.60)
+- `def test_live_cannot_disable_runtime_monitoring(monkeypatch)` (l.74)
+- `async def test_watchdog_reads_a_real_observation_from_disposable_postgres(postgres_test_url)` (l.82)
 
 ## 4. Tests
 
@@ -2510,6 +2536,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_llm_eval.py` | 5 |
 | `backend/tests/test_machine.py` | 4 |
 | `backend/tests/test_mean_reversion.py` | 4 |
+| `backend/tests/test_notifications.py` | 8 |
 | `backend/tests/test_orchestrator.py` | 26 |
 | `backend/tests/test_paper.py` | 9 |
 | `backend/tests/test_pre_live_fixes.py` | 10 |
@@ -2525,7 +2552,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_sweep.py` | 13 |
 | `backend/tests/test_swing_backtest.py` | 7 |
 | `backend/tests/test_watchdog.py` | 11 |
-| **Total** | **765** |
+| **Total** | **773** |
 
 ## 5. Schéma SQL
 

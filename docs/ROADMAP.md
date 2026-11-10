@@ -7,7 +7,7 @@ les améliorations restantes. Les preuves datées sont conservées dans
 [JOURNAL.md](JOURNAL.md) ; le [snapshot SQL vérifié](audits/2026-11-10/supabase_migrations.json)
 confirme les treize migrations et les contrôles d’intégrité.
 
-État vérifié : lots de sécurité et de surveillance publiés, 765 tests Python dont
+État vérifié : lots de sécurité et de surveillance publiés, 773 tests Python dont
 36 PostgreSQL sur base jetable, 31 Node ; CI publiée à vérifier pour chaque candidat.
 Supabase trninja est en
 0013, droits publics fermés et 323 374 bougies inchangées. La préparation de
@@ -42,7 +42,8 @@ soumise à une autorisation explicite de Seb ; demander une roadmap ne l’autor
 | R7 | Exploitation réelle stabilisée, décision finale | Non commencée |
 
 🟨 **R3 — fiabilisation des notifications** *(commencé le 10 novembre 2026)* :
-traiter les échecs d'envoi, puis qualifier la surveillance et son canal réel.
+file durable après SIGKILL et réessais après panne SQL/webhook vérifiés localement ;
+conservation du volume et canal réel encore à qualifier sur la cible.
 
 🟨 **R2 — budget prévu en LIVE** *(commencé le 10 novembre 2026)* : intégrer les
 coûts et empêcher le relèvement automatique du risque pour financer le minimum.
@@ -52,6 +53,10 @@ calculer un scénario frais compris, sans clé ni ordre, avec limites explicites
 
 🟨 **R3 — sonde externe du surveillant** *(commencé le 10 novembre 2026)* :
 détecter sa disparition et les lectures SQL inconnues depuis un processus séparé.
+
+🟨 **R3 — alertes durables et vie continue du moteur** *(commencé le 10 novembre 2026)* :
+conserver les notifications après arrêt brutal, traiter les pannes SQL/webhook et
+exiger une preuve de vie distincte des cycles H4/D1. Qualification cible ouverte.
 
 Responsabilité technique : préparation du code, migrations, tests, déploiement
 PAPER et dossier de preuves. Responsabilité de Seb : validation du mandat de risque,

@@ -266,10 +266,15 @@ STALE après `2 × intervalle + 5` secondes : un surveillant mort n'est jamais v
 
 La notification HTTPS ne suit pas les redirections et expire après cinq secondes.
 Un échec est réessayé à chaque observation, même si l'incident a disparu entre-temps ;
-le message conserve les faits initiaux. La file et la déduplication sont locales au
-processus : une panne avant livraison peut perdre un incident déjà résolu et un
-redémarrage peut renotifier un incident persistant. Un délai ou une réponse perdue
-peut aussi produire un doublon : le destinataire doit les tolérer. Il reste à
+le message conserve les faits initiaux. La file et la déduplication sont conservées
+en SQLite, par source et par mode, dans `state/observer-paper.sqlite3` à la racine
+(ou `--notification-state /volume-prive/observer-paper.sqlite3`). Le répertoire
+doit être persistant, privé, surveillé en capacité et sauvegardé ; ne pas effacer
+la file au redémarrage. Un processus concurrent ou un fichier corrompu échoue
+explicitement. Chaque récidive reçoit un `event_id` stable : la réponse HTTPS
+acquitte l'événement, une réponse perdue peut le renvoyer avec le même identifiant.
+Le destinataire doit dédupliquer ces identifiants. Une panne SQL produit une alerte
+locale durable et une tentative de reconnexion, sans modifier d'ordre. Il reste à
 qualifier le canal réel et installer une sonde
 externe de disponibilité du surveillant. Aucun service, clé ou alerte réelle n'a
 été créé par cette livraison.
@@ -290,7 +295,11 @@ cd backend
 `--interval` doit correspondre à `OBSERVER_INTERVAL_SECONDS` du surveillant ; la
 fraîcheur maximale est `2 × intervalle + 5` secondes. Code 0 : observation du
 surveillant courante et complète ; 1 : alerte ou état inconnu ; 2 : configuration
-invalide. La sonde répète les notifications à chaque échec, sans déduplication.
+invalide. La sonde conserve ses alertes dans `state/watchdog-paper.sqlite3`
+(`--notification-state` configurable), avec les mêmes garanties et contraintes
+de stockage que le surveillant. Une notification échouée reste réessayable même
+après résolution ; tant qu'elle attend, le code de sortie reste 1. Une récidive
+est une nouvelle notification, un incident inchangé déjà livré est dédupliqué.
 Elle vérifie que le surveillant est configuré avec `--expect-runtime`, mais son
 observation ne prouve pas que le moteur est vivant à chaque seconde : le contrôle
 du moteur repose encore sur la cadence des cycles. `--allow-idle` est réservé au

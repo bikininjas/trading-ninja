@@ -43,7 +43,8 @@ def verify_observer_key(exchange):
 
 
 async def observe_protection(
-    repo, exchange, mode, *, now=None, expect_runtime=False, timeframe="4h", universe=()
+    repo, exchange, mode, *, now=None, expect_runtime=False, timeframe="4h", universe=(),
+    on_observation=None,
 ):
     now = now or datetime.now(timezone.utc)
     positions = await repo.open_positions(mode)
@@ -165,13 +166,18 @@ async def observe_protection(
         "runtime_expected": expect_runtime,
         "issues": len(issues),
     }
+    result = {"observation": observed, "issues": issues}
+    if on_observation is not None:
+        # Avant l'écriture distante : un arrêt juste après le commit SQL ne
+        # doit pas perdre une notification si l'incident se résout au redémarrage.
+        on_observation(result)
     applied = await repo.record_protection(mode, observed, issues)
     if issues and applied is not False:
         # HALT is a database state, never a cancel/sell. Stops remain untouched.
         await repo.force_halt(
             mode, "surveillance : " + ", ".join(i["key"] for i in issues)[:200]
         )
-    return {"observation": observed, "issues": issues}
+    return result
 
 
 async def notify_incident(url, payload, *, transport=None):
