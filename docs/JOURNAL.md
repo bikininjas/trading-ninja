@@ -6,14 +6,23 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
-## 2026-11-10 — Lot 5 : compte rendu des liquidations durables (en cours)
+## 2026-11-10 — Lot 6 : interruptions de processus vérifiées
+
+Contrats sur PostgreSQL jetable, avec un interpréteur enfant distinct tué
+après persistance d’un reçu. Aucun client exchange ni ordre réel.
+PREPARED/ACKNOWLEDGED/FILLED survivent ; verrou exclusif libéré à la mort,
+HALT persistant pendant le verrou et reprise refusée tant que le reçu reste ouvert.
+Suite complète : **744 passed en 17,74 s**, dont 35 PostgreSQL ; golden inchangé.
+CI GitHub du lot 4 réussie (run 42771455250), lot 5 encore en cours à cet instant.
+
+## 2026-11-10 — Lot 5 : compte rendu des liquidations durables — master 50b4304
 
 Relecture complémentaire du chemin panic : conserver les reçus retournés
 à l’opérateur et les pertes comptabilisées, sans valoriser un reliquat comme zéro.
 Vérification : suite complète 740 passed, puis contrat SQL de frais non suivis
 avec idempotence et tests panic/golden : 14 passed (741 tests collectés au total).
 
-## 2026-11-10 — Lot 4 : autorisation atomique et qualification continue (en cours)
+## 2026-11-10 — Lot 4 : autorisation atomique et qualification continue — master ed0a750
 
 Autorisation durable d’achat sérialisée avec la permission d’entrée et l’état ;
 révision enregistrée avant envoi. Quota inconnu jamais vert, URL Ollama normalisée,
@@ -25,7 +34,7 @@ repli sur un trade public récent contrôlé ; une pause ne remplace plus un HAL
 Le runtime de livraison est qualifié sur Python 3.13.17, disponible publiquement
 via uv ; l’ancien interpréteur de travail 3.15.2 et le Python système sont conservés.
 
-## 2026-11-10 — Lot 3 : exécutions durables et coordination (en cours)
+## 2026-11-10 — Lot 3 : exécutions durables et coordination — master f2a2785
 
 Portage sélectif du journal d’ordres, rapprochement et verrou commun depuis les
 correctifs locaux, avec nouvelle migration 0013 ; capital et observations conservés.
@@ -37,7 +46,7 @@ cumulative et unicité des fills, cas timeout et pagination. Suite générale 73
 passed puis contrats complémentaires durables vérifiés (732 tests collectés). Aucune migration
 appliquée sur Supabase ; l’autorisation explicite reste en attente.
 
-## 2026-11-09 — Lot 2 : compte courant, données et recherche (en cours)
+## 2026-11-09 — Lot 2 : compte courant, données et recherche — master 8cf3b92
 
 Compte exchange resynchronisé avant chaque évaluation finale, clôture attendue
 obligatoire, timestamp ticker contrôlé lorsqu’il est fourni, raison HALT préservée,

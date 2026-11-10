@@ -26,7 +26,7 @@ soumise à une autorisation explicite de Seb ; demander une roadmap ne l’autor
 
 | Étape | Résultat à obtenir | État actuel |
 |---|---|---|
-| R0 | Une version candidate unique, intégrée et reproductible | Portage de sécurité intégré ; CI et environnement qualifié en cours de livraison |
+| R0 | Une version candidate unique, intégrée et reproductible | Portage de sécurité intégré ; environnement qualifié et première CI réussie ; vérifier la CI de chaque candidat |
 | R1 | Isolation PAPER et accès SQL fermés | Isolation PAPER corrigée et testée ; fermeture SQL cible en attente d’autorisation |
 | R2 | Exécution, risque et simulations fiables | Correctifs et contrats locaux livrés ; matrice complète multi-processus à qualifier |
 | R3 | Déploiement PAPER supervisé et récupérable | À faire : cible en 0009, exploitation non qualifiée |

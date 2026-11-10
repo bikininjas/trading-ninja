@@ -12,7 +12,9 @@ le comportement corrigé. La qualification du réel reste celle de [GO_LIVE.md](
 | 3 | A03/D01 journal durable et identifiants avant envoi, UNKNOWN bloquant, reprise et verrou financier commun, fills cumulatifs/idempotents, protection du reliquat et IDs de stops, A07 sonde validate-only | Suite 731 puis contrat durable supplémentaire, 732 collectés ; master `f2a2785`, SHA distant vérifié |
 | 4 | A06 autorisation durable atomique avec permission et état, révision conservée ; fenêtre H1 et continuité vérifiées avant entrée, prix sans horodatage refusé ou fondé sur un trade public daté de moins de 5 secondes, quota inconnu explicite, dépendances figées et CI | 738 Python dont 31 SQL, 31 Node, navigateur ; master `ed0a750`, SHA distant vérifié |
 
-| 5 | Rapport panic durable conservé, pertes consécutives non réinitialisées, snapshot cash interdit avec reliquat, frais du fill non suivi conservés | 740 Python puis 14 contrats ciblés dont un SQL ajouté : 741 collectés ; publication en cours |
+| 5 | Rapport panic durable conservé, pertes consécutives non réinitialisées, snapshot cash interdit avec reliquat, frais du fill non suivi conservés | 740 Python puis 14 contrats ciblés dont un SQL ajouté : 741 collectés ; master `50b4304`, SHA distant vérifié |
+
+| 6 | Arrêt brutal réel d’un processus sur PREPARED/ACKNOWLEDGED/FILLED, exclusion concurrente, HALT immédiat et reprise bloquée, reçus durables après reconnexion | 744 Python dont 35 PostgreSQL passés, avec 3 contrats d’arrêt brutal réel |
 
 La CI cible Python 3.13.17, disponible via uv, sur un environnement installé depuis
 `requirements.lock`. Le Python système et l’ancien interpréteur de travail ne sont
@@ -31,8 +33,9 @@ d’autorisation explicite de modifier Supabase. Cette autorisation a été dema
 La cible demeure distincte de la base locale de test. Les migrations 0010/0011,
 puis 0012/0013, nécessitent une sauvegarde/restauration et un déploiement contrôlé.
 
-La présence de la CI dans le dépôt ne prouve pas un run GitHub réussi : vérifier
-le résultat du workflow et les protections de branche séparément. De même, les
+La CI GitHub du lot 4 a réussi : [run 42771455250](https://github.com/bikininjas/trading-ninja/actions/runs/42771455250),
+Python/SQL/Node/index/navigateur sur `ed0a750`. Chaque nouveau commit doit
+repasser le workflow ; les protections de branche restent à qualifier séparément. De même, les
 pannes simulées ne remplacent pas la recette opérateur sur la cible, les tests
 multi-processus de toute la matrice d’interruption, l’installation du surveillant,
 le canal d’alerte réel, la rétention et la validation économique.

@@ -3,18 +3,18 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `9463f0d76dca2081`
+Empreinte des sources : `0acf2635997f036c`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
-| Modules Python | 131 |
-| Lignes Python | 31738 |
+| Modules Python | 132 |
+| Lignes Python | 31817 |
 | Classes | 144 |
-| Fonctions et méthodes | 1010 |
-| Cas de test collectés par pytest | 741 |
-| Fonctions de test (comptage statique) | 595 |
+| Fonctions et méthodes | 1011 |
+| Cas de test collectés par pytest | 744 |
+| Fonctions de test (comptage statique) | 596 |
 | Migrations SQL | 13 |
 | Scripts shell | 3 |
 
@@ -122,6 +122,7 @@ Empreinte des sources : `9463f0d76dca2081`
 | `backend/tests/test_db_config.py` | 75 | Tests de la résolution de connexion base (aucun accès réseau). |
 | `backend/tests/test_entry_rule.py` | 314 | Tests de la règle d'entrée déterministe — pure, sans réseau ni base. |
 | `backend/tests/test_execution_factory.py` | 49 | Tests du choix de broker : papier par défaut, live seulement sur demande. |
+| `backend/tests/test_execution_process_postgres.py` | 79 | Arrêt brutal réel : verrou interprocessus et reçus SQL, sans exchange. |
 | `backend/tests/test_execution_safety.py` | 286 | Pannes après acceptation, pagination et protections : aucun renvoi aveugle. |
 | `backend/tests/test_exit_guard.py` | 71 | Tests du garde-fou de sortie — le LLM solde, il ne shorte jamais. |
 | `backend/tests/test_exit_rule.py` | 67 | Tests du Chandelier Exit : niveau, cliquet et sortie à la clôture. |
@@ -1619,6 +1620,12 @@ le code, pas une copie de celui-ci.
 - `def test_testnet_is_refused_because_kraken_has_no_testnet_in_ccxt()` (l.42)
 - `def test_live_factory_refuses_missing_durable_repository()` (l.47)
 
+### `backend/tests/test_execution_process_postgres.py`
+
+*Arrêt brutal réel : verrou interprocessus et reçus SQL, sans exchange.*
+
+- `async def test_process_loss_preserves_receipt_and_releases_financial_lock(postgres_test_url, boundary)` (l.36)
+
 ### `backend/tests/test_execution_safety.py`
 
 *Pannes après acceptation, pagination et protections : aucun renvoi aveugle.*
@@ -2434,6 +2441,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_db_config.py` | 10 |
 | `backend/tests/test_entry_rule.py` | 35 |
 | `backend/tests/test_execution_factory.py` | 4 |
+| `backend/tests/test_execution_process_postgres.py` | 3 |
 | `backend/tests/test_execution_safety.py` | 13 |
 | `backend/tests/test_exit_guard.py` | 8 |
 | `backend/tests/test_exit_rule.py` | 10 |
@@ -2465,7 +2473,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_shadow.py` | 5 |
 | `backend/tests/test_sweep.py` | 13 |
 | `backend/tests/test_swing_backtest.py` | 7 |
-| **Total** | **741** |
+| **Total** | **744** |
 
 ## 5. Schéma SQL
 

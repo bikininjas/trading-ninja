@@ -16,15 +16,20 @@ Le schéma cible est encore en 0009. Voir
 
 ## Corrections pré go live — 10 novembre 2026
 
-- 🟨 **Lots 1–4 : sécurité et qualification de la version candidate.**
-  Lots 1–3 publiés sur master avec SHA distant vérifié ; lot 4 validé localement
-  (738 Python, 31 Node, navigateur) en cours de publication et de contrôle CI.
+- ✅ **Lots 1–4 : sécurité et qualification de la version candidate.**
+  Lots 1–4 publiés sur master avec SHA distant vérifié ; lot 4 validé
+  (738 Python, 31 Node, navigateur), CI GitHub réussie (run 42771455250).
   État détaillé : [CORRECTIONS_PRE_GO_LIVE.md](CORRECTIONS_PRE_GO_LIVE.md).
   La cible SQL, l’exploitation et la qualification économique restent distinctes.
 
-- 🟨 **Lot 5 : compte rendu des liquidations durables** *(2026-11-10)*.
-  Vérifier les fills retournés à l’opérateur, les pertes consécutives et l’absence
-  de faux snapshot de portefeuille vide après une liquidation partielle.
+- ✅ **Lot 5 : compte rendu des liquidations durables** *(2026-11-10)*.
+  Fills retournés à l’opérateur et pertes consécutives conservés, absence
+  de faux snapshot de portefeuille vide après liquidation partielle testée ; master 50b4304.
+
+- ✅ **Lot 6 : interruption réelle de processus sur PostgreSQL jetable** *(2026-11-10)*.
+  Durabilité PREPARED/ACKNOWLEDGED/FILLED, verrou commun et blocage de reprise
+  après arrêt brutal vérifiés, sans exchange. Suite complète : 744 Python dont
+  35 contrats SQL. La matrice intégrale de pannes reste à qualifier en R2.
 
 ## Vue d'ensemble
 
