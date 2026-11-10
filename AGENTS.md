@@ -31,7 +31,7 @@ prix et stop sont toujours calculés par le code.
   `0011_insights_and_controls.sql`. Les treize sont appliquées sur Supabase trninja
   et leurs empreintes vérifiées le 10 novembre 2026. Preuves et limites de sauvegarde :
   `docs/JOURNAL.md`.
-- 803 tests Python sont collectés, dont 41 contrats PostgreSQL locaux opt-in ;
+- 824 tests Python sont collectés, dont 43 contrats PostgreSQL locaux opt-in ;
   31 tests Node et un contrôle navigateur complètent les preuves.
 - Le statut reste **NO-GO** pour le réel. Les corrections intégrées et leurs
   preuves sont dans `docs/JOURNAL.md` ; le plan de passage est
@@ -193,6 +193,13 @@ La CI exécute les contrats complets sur un PostgreSQL jetable, jamais sur Supab
   existe.
 
 ## 8. Prochaine action
+
+La cible retenue par Seb est son WSL domestique, actuellement inaccessible.
+`deploy/` fournit le lanceur, les unités et l'installation PAPER à préparer avant
+son go. Seb a retiré le 10 novembre le dump complet initial des prérequis bloquants
+puisque positions, ordres, intentions et ledger financier sont vides. L'outillage
+de sauvegarde reste optionnel ; ne pas présenter sa recette locale comme une
+restauration de Supabase. Décisions D-084 à D-086, procédure `deploy/README.md`.
 
 Lire la roadmap et le dernier journal avant d'agir. Les mesures économiques restent
 bloquantes pour l'argent réel. Les briefs I-01 à I-10 ont leur version D-073 ; accumuler les preuves économiques

@@ -1,0 +1,20 @@
+[Unit]
+Description=Sonde indépendante Trading Ninja PAPER
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=trading-ninja
+Group=trading-ninja
+WorkingDirectory=/opt/trading-ninja/current/backend
+ExecStart=/opt/trading-ninja/current/backend/.venv/bin/python scripts/paper_component.py watchdog --env /etc/trading-ninja/watchdog.env
+TimeoutStartSec=20
+UMask=0077
+StateDirectory=trading-ninja
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

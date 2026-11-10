@@ -301,6 +301,7 @@ def test_empty_permissions_fail_closed():
 
 def test_build_exchange_sets_the_two_non_negotiable_options():
     exchange = build_exchange(api_key="pub", secret="c2VjcmV0")
+    assert exchange.session.trust_env is True
     assert exchange.id == "kraken"
     assert exchange.enableRateLimit is True
     assert exchange.options["adjustForTimeDifference"] is True

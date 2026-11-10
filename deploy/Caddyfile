@@ -1,0 +1,12 @@
+{
+    admin off
+    auto_https disable_redirects
+}
+
+# Accès par réseau privé/tunnel, avec le nom correspondant au certificat.
+# Installer la CA interne uniquement sur les postes opérateur autorisés.
+https://{$TN_PRIVATE_HOST}:8443 {
+    bind 127.0.0.1
+    tls internal
+    reverse_proxy 127.0.0.1:8081
+}

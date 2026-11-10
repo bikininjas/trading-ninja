@@ -7,11 +7,13 @@ les améliorations restantes. Les preuves datées sont conservées dans
 [JOURNAL.md](JOURNAL.md) ; le [snapshot SQL vérifié](audits/2026-11-10/supabase_migrations.json)
 confirme les treize migrations et les contrôles d’intégrité.
 
-État vérifié : lots de sécurité et de surveillance, 803 tests Python dont
-41 PostgreSQL sur base jetable, 31 Node ; CI publiée à vérifier pour chaque candidat.
+État vérifié : lots de sécurité, surveillance et préparation d'exploitation,
+824 tests Python dont 43 PostgreSQL sur base jetable, 31 Node ; CI à vérifier
+pour chaque candidat.
 Supabase trninja est en
-0013, droits publics fermés et 323 374 bougies inchangées. La préparation de
-sauvegarde était ciblée ; une sauvegarde complète et sa restauration restent en R3.
+0013, droits publics fermés et 323 374 bougies. Seb a retiré le 10 novembre la
+sauvegarde complète des prérequis bloquants du démarrage initial, sans ordre ni
+position. Le WSL domestique est la cible retenue ; son accès reste indisponible.
 
 Une étape commence avec un statut daté et une entrée dans JOURNAL.md. Elle n’est
 validée qu’après une vérification réelle. Les décisions techniques sont dans
@@ -35,7 +37,7 @@ soumise à une autorisation explicite de Seb ; demander une roadmap ne l’autor
 | R0 | Une version candidate unique, intégrée et reproductible | Portage de sécurité intégré ; environnement qualifié et première CI réussie ; vérifier la CI de chaque candidat |
 | R1 | Isolation PAPER et accès SQL fermés | Isolation PAPER corrigée et testée ; droits SQL cible fermés et vérifiés le 10 novembre |
 | R2 | Exécution, risque et simulations fiables | Correctifs et contrats locaux livrés ; matrice complète multi-processus à qualifier |
-| R3 | Déploiement PAPER supervisé et récupérable | Schéma cible en 0013 ; sauvegarde complète, services et exploitation à qualifier |
+| R3 | Déploiement PAPER supervisé et récupérable | Cible WSL retenue ; services, accès et exploitation à qualifier ; dump complet initial non bloquant selon décision de Seb |
 | R4 | Politique économique qualifiée et taille d’ordre finançable | Bloqué : preuve hors calibration insuffisante |
 | R5 | Recette PAPER de la version candidate sur la cible | À faire après R0–R4 |
 | R6 | Canary réel explicitement autorisé et réconcilié | Non autorisé à ce stade |
@@ -65,6 +67,13 @@ bout restent à qualifier sur la cible ; R3 n'est pas validée.
 empêcher un état sain après résolution si l'alerte du surveillant attend encore
 sa livraison. Indicateur partagé et acquittement conditionnel vérifiés localement ;
 le canal réel et le déploiement restent à qualifier.
+
+🟨 **R3/R4 — préparation opérationnelle complète** *(commencé le 10 novembre 2026)* :
+produire un déploiement PAPER installable, une sauvegarde/restauration exécutable
+et un protocole économique figé ; inventorier les dépendances et mesures réelles.
+Le bundle et le protocole sont dans `deploy/` ; la recette locale de sauvegarde
+optionnelle a réussi. Aucun service WSL n'est installé. Le compte contient 9,37 EUR,
+frais taker privés 0,80 %/côté, et les trois paires restent refusées au diagnostic.
 
 Responsabilité technique : préparation du code, migrations, tests, déploiement
 PAPER et dossier de preuves. Responsabilité de Seb : validation du mandat de risque,
@@ -154,8 +163,11 @@ SQL multi-connexions, golden et navigateur réussis, avec revue du diff financie
 
 **Travail**
 
-- Sauvegarder la base et tester sa restauration sur une base séparée. Rejouer les
-  migrations manquantes et nouvelles sur cette copie avant application cible.
+- Conserver version, schéma, empreintes et paramètres expurgés de départ. Pour
+  l'état initial sans ordre ni position, la sauvegarde complète est optionnelle
+  et ne bloque pas le démarrage (décision de Seb du 10 novembre). L'outil de
+  sauvegarde/restauration reste disponible pour l'exploitation ; rejouer toute
+  migration nouvelle sur une base séparée avant application cible.
 - Déployer la même version pour moteur, API, dashboard et surveillant ; identités
   et configuration appliquée visibles. Réconcilier les positions historiques.
 - Installer les services avec redémarrage contrôlé. Avant chaque reprise, rapprocher
@@ -170,7 +182,7 @@ SQL multi-connexions, golden et navigateur réussis, avec revue du diff financie
 - Écrire les procédures de stop absent, résultat inconnu, base/Ollama/réseau en panne,
   rotation de clé et retour à une version compatible du schéma.
 
-**Passage** : checksums cible conformes et restauration réussie ; accès privés et
+**Passage** : checksums cible conformes et récupération qualifiée ; accès privés et
 TOTP exercés ; redémarrages et pannes testés. Cible d’alerte proposée à qualifier :
 incident critique détecté et notifié en **60 secondes maximum**, avec horodatages
 source/réception. Surveillant ou moteur indisponible = état inconnu/alerte, jamais vert.
@@ -269,7 +281,8 @@ ou augmentation de budget pendant cette qualification.
 - rapprochement quotidien sans écart inexpliqué ; respect du mandat et du budget ;
 - coûts observés compatibles avec le protocole économique ; aucun signal nouveau
   invalidant cette qualification, sinon retour à R4 ;
-- sauvegarde/restauration, alertes et procédures d’urgence ont été exercées ;
+- récupération, alertes et procédures d’urgence ont été exercées ; la sauvegarde
+  complète de la base initiale n'est pas une porte bloquante ;
 - Seb approuve la fiche finale : commit, schéma, compte, budget, plafonds, procédures,
   responsable des alertes et date de revue suivante.
 

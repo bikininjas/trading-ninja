@@ -3,6 +3,10 @@
 Moteur d'exécution déterministe. Le LLM propose, la Risk Gateway dispose :
 aucun ordre ne part sans franchir un pare-feu mathématique fail-closed.
 
+Pour la cible WSL retenue : [installation PAPER](../deploy/README.md) et
+[protocole de qualification](../deploy/QUALIFICATION.md). Le dump complet initial
+est optionnel selon la décision de Seb du 10 novembre ; cela ne valide pas le réel.
+
 ## Observation et recherche
 
 Les dix briefs sont implémentés en première version : voir
@@ -14,7 +18,7 @@ Les migrations 0001–0013 sont appliquées sur trninja, vérifiées le 10 novem
 Sur une autre base, vérifier les migrations avant de démarrer l’instrumentation.
 
 Les tests n’utilisent aucune clé du shell et interdisent les connexions externes.
-La suite normale collecte 803 tests : 762 passent hors base, 41 contrats SQL sont
+La suite normale collecte 824 tests : 781 passent hors base, 43 contrats SQL sont
 ignorés sans base jetable. Pour tout vérifier, démarrer PostgreSQL 17 local avec
 les rôles `anon`/`authenticated`, appliquer les treize migrations et utiliser :
 
@@ -55,7 +59,7 @@ Le profil papier `progressif` et le comparatif de budgets sont décrits dans
 virtuels ; il ne modifie pas les réglages locaux existants.
 
 ```bash
-.venv/bin/python -m pytest                     # 803 tests collectés ; 41 PostgreSQL opt-in, voir ci-dessous
+.venv/bin/python -m pytest                     # 824 tests collectés ; 43 PostgreSQL opt-in, voir ci-dessous
 .venv/bin/python -m app.main --once            # un cycle papier complet (données réelles)
 .venv/bin/python -m app.main --serve           # une évaluation par bougie H4 clôturée
 .venv/bin/python -m app.main --status          # état + 3 dernières lignes par table

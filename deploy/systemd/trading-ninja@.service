@@ -1,0 +1,32 @@
+[Unit]
+Description=Trading Ninja PAPER %i
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=trading-ninja
+Group=trading-ninja
+WorkingDirectory=/opt/trading-ninja/current/backend
+ExecStart=/opt/trading-ninja/current/backend/.venv/bin/python scripts/paper_component.py %i --env /etc/trading-ninja/%i.env
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+KillMode=control-group
+UMask=0077
+StateDirectory=trading-ninja
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

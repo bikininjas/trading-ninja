@@ -5,6 +5,7 @@ import argparse
 import asyncio
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -161,7 +162,8 @@ def main(argv=None):
     p = commands.add_parser("watch")
     p.add_argument("--serve", action="store_true")
     p.add_argument("--expect-runtime", action="store_true")
-    p.add_argument("--webhook")
+    p.add_argument("--webhook", default=os.environ.get("OBSERVER_WEBHOOK_URL"),
+                   help="défaut : OBSERVER_WEBHOOK_URL, pour garder le secret hors argv")
     p.add_argument("--notification-state", help="file SQLite sur volume persistant privé")
     args = parser.parse_args(argv)
     try:

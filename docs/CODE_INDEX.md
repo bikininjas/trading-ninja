@@ -3,18 +3,18 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `3f152dc2b3b8b414`
+Empreinte des sources : `94c28da7a9b25943`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
-| Modules Python | 140 |
-| Lignes Python | 33255 |
+| Modules Python | 144 |
+| Lignes Python | 33711 |
 | Classes | 147 |
-| Fonctions et méthodes | 1059 |
-| Cas de test collectés par pytest | 803 |
-| Fonctions de test (comptage statique) | 635 |
+| Fonctions et méthodes | 1080 |
+| Cas de test collectés par pytest | 824 |
+| Fonctions de test (comptage statique) | 643 |
 | Migrations SQL | 13 |
 | Scripts shell | 3 |
 
@@ -56,7 +56,7 @@ Empreinte des sources : `3f152dc2b3b8b414`
 | `backend/app/engine/risk_gate.py` | 833 | Risk Gateway — pare-feu transactionnel déterministe (fail-closed). |
 | `backend/app/engine/sweep.py` | 74 | Profit Sweeper — calcul pur, sans I/O. |
 | `backend/app/exchange/__init__.py` | 1 | Package des passerelles exchange. Aucune I/O à l'import. |
-| `backend/app/exchange/kraken.py` | 356 | Passerelle Kraken spot — préparation de l'étape 1.6. |
+| `backend/app/exchange/kraken.py` | 360 | Passerelle Kraken spot — préparation de l'étape 1.6. |
 | `backend/app/execution/__init__.py` | 1 | app/execution |
 | `backend/app/execution/factory.py` | 48 | Choix du broker selon le mode — un seul endroit, pour ne pas se tromper. |
 | `backend/app/execution/journal.py` | 20 | Une intention persistée avant envoi ; aucune répétition après un doute. |
@@ -95,16 +95,18 @@ Empreinte des sources : `3f152dc2b3b8b414`
 | `backend/scripts/check_exchange.py` | 280 | Sonde **lecture seule** de la clé Binance — étape 1.1 de la feuille de route. |
 | `backend/scripts/check_kraken.py` | 345 | Inspection Kraken spot — lecture seule. |
 | `backend/scripts/compare_budgets.py` | 84 | Comparer les budgets sur un historique figé, sans réseau, LLM ni ordre. |
+| `backend/scripts/database_backup.py` | 187 | Sauvegarde logique complète et restauration sur un cluster local neuf uniquement. |
 | `backend/scripts/db_migrate.py` | 289 | Application des migrations SQL sur la base cible. |
 | `backend/scripts/demo_guardrails.py` | 79 | Démonstration lisible du pare-feu : ce qu'il refuse, et pourquoi. |
 | `backend/scripts/eval_llm_swing.py` | 269 | Évalue le LLM sur les signaux swing D1, sans ordre ni écriture en base. |
 | `backend/scripts/hash_password.py` | 35 | Génère un hash de mot de passe administrateur (scrypt). |
 | `backend/scripts/ingest_history.py` | 471 | Ingestion de l'historique OHLCVT multi-années de Kraken. |
-| `backend/scripts/insights.py` | 183 | Observation et recherche : aucun chemin d'ordre ni d'armement live. |
+| `backend/scripts/insights.py` | 185 | Observation et recherche : aucun chemin d'ordre ni d'armement live. |
 | `backend/scripts/kill_switch.py` | 122 | Kill-switch autonome — solde la position et halte le bot, backend arrêté ou non. |
 | `backend/scripts/lab_rotation.py` | 294 | Laboratoire de rotation momentum D1 — aucun ordre, aucune écriture. |
 | `backend/scripts/lessons.py` | 168 | Mémoire de leçons — relecture des résultats, affichage, purge. |
 | `backend/scripts/live_probe.py` | 157 | Sonde Kraken AddOrder en validation seulement (aucun ordre créé). |
+| `backend/scripts/paper_component.py` | 149 | Lance un composant PAPER depuis un fichier privé, avec mode et clés verrouillés. |
 | `backend/scripts/probe_backtest.py` | 92 | Sonde : combien de décisions LLM un backtest coûterait-il sur BTC/EUR ? |
 | `backend/scripts/reconcile.py` | 123 | Audit de réconciliation — lecture seule, aucun ordre, aucune écriture. |
 | `backend/scripts/shadow_report.py` | 93 | Rapport des shadow trades — les achats que le bot n'a pas pris. |
@@ -124,6 +126,7 @@ Empreinte des sources : `3f152dc2b3b8b414`
 | `backend/tests/test_capital_postgres.py` | 162 | Contrat PostgreSQL réel : opt-in, exclusivement base locale jetable migrée. |
 | `backend/tests/test_check_exchange.py` | 90 | Tests du verdict de la sonde exchange — la logique qui protège la clé. |
 | `backend/tests/test_check_kraken.py` | 66 | Préflight public : pas de clé et refus des données OHLC périmées. |
+| `backend/tests/test_database_backup.py` | 49 | La restauration optionnelle refuse une cible réelle et vérifie les données. |
 | `backend/tests/test_db_config.py` | 75 | Tests de la résolution de connexion base (aucun accès réseau). |
 | `backend/tests/test_entry_rule.py` | 314 | Tests de la règle d'entrée déterministe — pure, sans réseau ni base. |
 | `backend/tests/test_execution_factory.py` | 49 | Tests du choix de broker : papier par défaut, live seulement sur demande. |
@@ -137,7 +140,7 @@ Empreinte des sources : `3f152dc2b3b8b414`
 | `backend/tests/test_insights.py` | 868 | Contrats des dix briefs : calculs purs, frontières de rejeu et runtime réel. |
 | `backend/tests/test_insights_api.py` | 243 | Parcours administratifs privés : observation, révisions et aucune exécution. |
 | `backend/tests/test_insights_postgres.py` | 382 | Preuves SQL des contrôles, paquets, incidents et révisions ; cible locale stricte. |
-| `backend/tests/test_kraken_adapter.py` | 307 | Tests de la passerelle Kraken, hors réseau. |
+| `backend/tests/test_kraken_adapter.py` | 308 | Tests de la passerelle Kraken, hors réseau. |
 | `backend/tests/test_kraken_archive.py` | 145 | Lecture ZIP par plages HTTP : le mécanisme qui évite 9,5 Go de téléchargement. |
 | `backend/tests/test_lessons.py` | 172 | Tests de la mémoire de leçons — purs, sans réseau ni base. |
 | `backend/tests/test_live_execution.py` | 657 | Tests de l'exécuteur réel — aucun réseau, aucune clé, aucun ordre réel. |
@@ -149,6 +152,7 @@ Empreinte des sources : `3f152dc2b3b8b414`
 | `backend/tests/test_notifications.py` | 294 | Preuves de reprise : disque, arrêt brutal, récidive et réponse perdue. |
 | `backend/tests/test_orchestrator.py` | 791 | Tests de bout en bout de l'orchestrateur, avec des doubles. |
 | `backend/tests/test_paper.py` | 78 | Tests de l'exécution papier : frais, slippage, gaps, priorité du stop. |
+| `backend/tests/test_paper_component.py` | 64 | Le service PAPER ne peut hériter d'un armement réel ni reprendre une intention inconnue. |
 | `backend/tests/test_pre_live_fixes.py` | 199 | Contre-exemples pré live convertis en contrats à respecter. |
 | `backend/tests/test_progressif.py` | 190 | Le petit budget ne doit ni forcer un achat ni masquer ses coûts. |
 | `backend/tests/test_reconciliation.py` | 268 | Tests de la réconciliation base ↔ exchange, sans réseau ni base réelle. |
@@ -667,15 +671,15 @@ le code, pas une copie de celui-ci.
 - `def _tokens(permission: str) -> frozenset[str]` (l.88) — Découpe un libellé en jetons comparables.
 - `def verify_key_permissions(exchange: Any) -> KeyAudit` (l.115) — Lit `GetApiKeyInfo` et refuse tout ce qui n'est pas explicitement autorisé.
 - `def build_exchange(*, api_key: str='', secret: str='', enable_rate_limit: bool=True) -> Any` (l.193) — Instancie CCXT pour Kraken.
-- `def _decimal(value: Any) -> Decimal` (l.210)
-- `def resolve_taker_fee(exchange: Any, symbol: str, fallback: Decimal) -> Decimal` (l.214) — Tarif taker **du compte** pour ce marché, ou le repli si l'API privée échoue.
-- `def market_info(exchange: Any, symbol: str, *, taker_fee: Decimal | None=None, maker_fee: Decimal | None=None) -> KrakenMarketInfo` (l.232) — Traduit un marché CCXT en contraintes utilisables par `evaluate()`.
-- `def to_exchange_amount(exchange: Any, symbol: str, amount: Decimal) -> str` (l.267) — Formate une quantité au pas de l'exchange, sans jamais dépasser l'entrée.
-- `def to_exchange_price(exchange: Any, symbol: str, price: Decimal) -> str` (l.283) — Formate un prix au tick de l'exchange. Utilisé pour l'entrée ou le TP.
-- `def to_exchange_stop_price(exchange: Any, symbol: str, stop_price: Decimal) -> str` (l.292) — Formate le stop sans jamais le rapprocher de l'entrée.
-- `def bracket_params(stop_price: str) -> dict[str, Any]` (l.313) — Paramètre `close` de Kraken : stop-loss au marché attaché à l'ordre d'entrée.
-- `def build_bracket_entry(exchange: Any, decision: RiskDecision, symbol: str) -> dict[str, Any]` (l.324) — Arguments prêts pour `exchange.create_order(**args)`.
-- `def is_stop_loss_order(order)` (l.352)
+- `def _decimal(value: Any) -> Decimal` (l.214)
+- `def resolve_taker_fee(exchange: Any, symbol: str, fallback: Decimal) -> Decimal` (l.218) — Tarif taker **du compte** pour ce marché, ou le repli si l'API privée échoue.
+- `def market_info(exchange: Any, symbol: str, *, taker_fee: Decimal | None=None, maker_fee: Decimal | None=None) -> KrakenMarketInfo` (l.236) — Traduit un marché CCXT en contraintes utilisables par `evaluate()`.
+- `def to_exchange_amount(exchange: Any, symbol: str, amount: Decimal) -> str` (l.271) — Formate une quantité au pas de l'exchange, sans jamais dépasser l'entrée.
+- `def to_exchange_price(exchange: Any, symbol: str, price: Decimal) -> str` (l.287) — Formate un prix au tick de l'exchange. Utilisé pour l'entrée ou le TP.
+- `def to_exchange_stop_price(exchange: Any, symbol: str, stop_price: Decimal) -> str` (l.296) — Formate le stop sans jamais le rapprocher de l'entrée.
+- `def bracket_params(stop_price: str) -> dict[str, Any]` (l.317) — Paramètre `close` de Kraken : stop-loss au marché attaché à l'ordre d'entrée.
+- `def build_bracket_entry(exchange: Any, decision: RiskDecision, symbol: str) -> dict[str, Any]` (l.328) — Arguments prêts pour `exchange.create_order(**args)`.
+- `def is_stop_loss_order(order)` (l.356)
 
 ### `backend/app/execution/factory.py`
 
@@ -1233,6 +1237,20 @@ le code, pas une copie de celui-ci.
 - `async def compare(golden: Path, budgets: list[Decimal], profiles: list[str]) -> list[dict]` (l.23)
 - `def main() -> int` (l.61)
 
+### `backend/scripts/database_backup.py`
+
+*Sauvegarde logique complète et restauration sur un cluster local neuf uniquement.*
+
+- `def quote_identifier(value)` (l.25)
+- `def pg_environment(config)` (l.29)
+- `def restore_guard(config)` (l.38)
+- `async def client(name, args, config, *, pg_bin=None)` (l.44)
+- `async def inventory(conn)` (l.60)
+- `def sha256(path)` (l.89)
+- `async def create(config, directory, *, pg_bin=None)` (l.97)
+- `async def restore(config, directory, *, pg_bin=None)` (l.131)
+- `def main(argv=None)` (l.162)
+
 ### `backend/scripts/db_migrate.py`
 
 *Application des migrations SQL sur la base cible.*
@@ -1291,10 +1309,10 @@ le code, pas une copie de celui-ci.
 
 *Observation et recherche : aucun chemin d'ordre ni d'armement live.*
 
-- `def read_json(path)` (l.16)
-- `async def watch(config, args)` (l.23)
-- `async def run(args)` (l.95)
-- `def main(argv=None)` (l.145)
+- `def read_json(path)` (l.17)
+- `async def watch(config, args)` (l.24)
+- `async def run(args)` (l.96)
+- `def main(argv=None)` (l.146)
 
 ### `backend/scripts/kill_switch.py`
 
@@ -1334,6 +1352,15 @@ le code, pas une copie de celui-ci.
 - `def _invalid_amount(exchange, symbol: str, price: Decimal) -> Decimal | None` (l.29) — Plus petite quantité strictement sous les deux minimums du marché.
 - `def _run(symbol: str | None) -> int` (l.60)
 - `def main() -> int` (l.135)
+
+### `backend/scripts/paper_component.py`
+
+*Lance un composant PAPER depuis un fichier privé, avec mode et clés verrouillés.*
+
+- `def launch_spec(component, values, inherited=None)` (l.29)
+- `async def engine_state_check(conn)` (l.72)
+- `async def probe(component, env)` (l.83)
+- `def main(argv=None)` (l.122)
 
 ### `backend/scripts/probe_backtest.py`
 
@@ -1610,6 +1637,14 @@ le code, pas une copie de celui-ci.
   - `def fetch_ticker(self, symbol)` (l.35)
 - `def test_public_live_risk_never_loads_credentials(monkeypatch, capsys)` (l.39)
 - `def test_diagnostic_refuses_stale_and_discontinuous_candles()` (l.57)
+
+### `backend/tests/test_database_backup.py`
+
+*La restauration optionnelle refuse une cible réelle et vérifie les données.*
+
+- `def test_restore_refuses_remote_or_non_disposable_database(host, database, user)` (l.17)
+- `def test_password_is_an_environment_value_not_a_connection_argument(monkeypatch)` (l.23)
+- `async def test_inventory_fingerprints_actual_decimal_rows(postgres_test_url)` (l.35)
 
 ### `backend/tests/test_db_config.py`
 
@@ -2225,6 +2260,16 @@ le code, pas une copie de celui-ci.
 - `def test_when_both_levels_are_touched_the_stop_wins()` (l.70)
 - `def test_no_trigger_inside_the_range()` (l.77)
 
+### `backend/tests/test_paper_component.py`
+
+*Le service PAPER ne peut hériter d'un armement réel ni reprendre une intention inconnue.*
+
+- `def test_all_services_force_paper_and_remove_inherited_trading_credentials(component)` (l.11)
+- `def test_remote_sql_tls_cannot_be_disabled_or_overridden(query)` (l.25)
+- `async def test_restart_requires_known_state_without_unresolved_intent(row)` (l.37)
+- `def test_missing_or_public_configuration_refuses_without_executing(tmp_path)` (l.47)
+- `async def test_real_sql_preflight_checks_all_migration_checksums(postgres_test_url, monkeypatch)` (l.59)
+
 ### `backend/tests/test_pre_live_fixes.py`
 
 *Contre-exemples pré live convertis en contrats à respecter.*
@@ -2558,6 +2603,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_capital_postgres.py` | 6 |
 | `backend/tests/test_check_exchange.py` | 9 |
 | `backend/tests/test_check_kraken.py` | 2 |
+| `backend/tests/test_database_backup.py` | 5 |
 | `backend/tests/test_db_config.py` | 10 |
 | `backend/tests/test_entry_rule.py` | 35 |
 | `backend/tests/test_execution_factory.py` | 4 |
@@ -2583,6 +2629,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_notifications.py` | 10 |
 | `backend/tests/test_orchestrator.py` | 26 |
 | `backend/tests/test_paper.py` | 9 |
+| `backend/tests/test_paper_component.py` | 16 |
 | `backend/tests/test_pre_live_fixes.py` | 10 |
 | `backend/tests/test_progressif.py` | 14 |
 | `backend/tests/test_reconciliation.py` | 15 |
@@ -2596,7 +2643,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_sweep.py` | 13 |
 | `backend/tests/test_swing_backtest.py` | 7 |
 | `backend/tests/test_watchdog.py` | 12 |
-| **Total** | **803** |
+| **Total** | **824** |
 
 ## 5. Schéma SQL
 

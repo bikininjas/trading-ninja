@@ -1,0 +1,11 @@
+[Unit]
+Description=Contrôle de la surveillance Trading Ninja toutes les dix secondes
+
+[Timer]
+OnBootSec=10
+OnUnitActiveSec=10
+AccuracySec=1
+Unit=trading-ninja-watchdog.service
+
+[Install]
+WantedBy=timers.target

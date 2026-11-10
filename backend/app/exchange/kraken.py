@@ -197,7 +197,7 @@ def build_exchange(*, api_key: str = "", secret: str = "", enable_rate_limit: bo
     d'appels avec décroissance. `adjustForTimeDifference` corrige l'horloge, il ne
     résout pas les nonces (voir `docs/KRAKEN.md`).
     """
-    return ccxt.kraken(
+    exchange = ccxt.kraken(
         {
             "apiKey": api_key,
             "secret": secret,
@@ -205,6 +205,10 @@ def build_exchange(*, api_key: str = "", secret: str = "", enable_rate_limit: bo
             "options": {"adjustForTimeDifference": True},
         }
     )
+    # Respecter le proxy et la chaîne de certificats fournis par l'hôte.
+    # Requests conserve la vérification TLS et NO_PROXY pour les accès locaux.
+    exchange.session.trust_env = True
+    return exchange
 
 
 def _decimal(value: Any) -> Decimal:

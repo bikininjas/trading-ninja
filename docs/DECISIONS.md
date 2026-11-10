@@ -1934,3 +1934,51 @@ Une réponse tardive ne blanchit pas une observation plus récente. L'indicateur
 absent ou invalide donne UNKNOWN ; vrai donne ALERT même si l'incident est résolu.
 La sonde, l'API et le dashboard voient ainsi les alertes du surveillant en attente,
 en plus de celles de la sonde. Une file vide ne qualifie pas un canal jamais exercé.
+
+---
+
+## D-084 — WSL retenu et dump initial non bloquant (2026-11-10)
+
+Seb retient son WSL domestique, actuellement inaccessible, et donnera le go après
+ajout de la connexion SQL sécurisée. Il demande de retirer la sauvegarde complète
+des actions obligatoires parce que l'état de trading est vide. Vérification SQL :
+zéro position, ordre, intention, sortie en attente, compte/événement de capital,
+sweep et snapshot d'équité. Restent les bougies, réglages et sept signaux.
+
+Le dump complet initial n'est donc plus une porte bloquante de la roadmap.
+L'outillage optionnel ne réintroduit pas cette obligation. Les migrations restent
+versionnées et testées séparément ; les preuves de récupération financière,
+d'exploitation et d'économie ne sont pas réputées acquises par cette décision.
+
+---
+
+## D-085 — Bundle PAPER désarmé et installation WSL contrôlée (2026-11-10)
+
+Un lanceur commun impose PAPER et vide les clés exchange même si les fichiers
+privés ou l'environnement demandent LIVE. API et dashboard restent sur loopback,
+cookie Secure imposé, webhooks hors argv. Le moteur refuse au démarrage les
+empreintes SQL divergentes, les intentions non rapprochées et un modèle absent.
+Les unités gardent la file sur disque, redémarrent les observateurs sur erreur
+et imposent `Restart=no` au moteur.
+
+L'installateur archive HEAD propre, prépare une release et les dépendances
+verrouillées, refuse services actifs et écrasement de configuration, puis installe
+les unités sans les démarrer. La cible WSL, ses arrêts Windows, son TLS/TOTP et le
+contrôle externe de disponibilité restent à exercer après accès et go de Seb.
+Le client Kraken respecte le proxy/CA de l'hôte avec vérification TLS maintenue.
+
+---
+
+## D-086 — Sauvegarde logique optionnelle et restauration sans écrasement (2026-11-10)
+
+Un dump PostgreSQL natif partage le snapshot de son inventaire ; rôles sans leurs
+mots de passe, schémas, données, propriétaires et droits sont exportés dans un
+répertoire privé. Une restauration n'est autorisée que sur un cluster local neuf,
+base `trading_ninja_restore`, bootstrap distinct `tn_restore_admin`. Elle compare
+effectifs, empreintes des lignes, droits effectifs, propriétaires, RLS et extensions.
+Les ACL implicites du propriétaire sont normalisées ; aucun rôle libpq hérité ne
+peut détourner la cible. L'outil refuse toute base existante, sans DROP/CLEAN.
+
+La recette sur deux clusters PostgreSQL 17 locaux est une preuve de l'outil ;
+elle ne remplace pas un export de trninja ni la conservation hors machine. Selon
+D-084, cet export initial n'est plus un prérequis bloquant.

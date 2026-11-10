@@ -6,6 +6,87 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Bundle WSL, constats de compte et restauration optionnelle vérifiés
+
+Livraison de `deploy/` : cinq configurations privées séparées, lanceur imposant
+PAPER et vidant les clés exchange, unités systemd avec file persistante, timer de
+sonde, `Restart=no` moteur, Caddy loopback/TLS et installateur de release figée.
+L'installation refuse services actifs, checkout modifié et configuration existante
+différente ; elle ne démarre ni n'active aucun service. Les probes vérifient SQL,
+empreintes, intentions et identité de modèle avant travail moteur. Le client CCXT
+respecte maintenant le proxy et la chaîne de certificats de l'hôte.
+
+Lecture privée Kraken vers 14:17 UTC : 9,37 EUR libres/total, aucun autre actif,
+aucun ordre ouvert. Les frais ont été confirmés directement par `fetch_trading_fee` :
+taker 0,80 %, maker 0,40 % par côté sur BTC/ETH/SOL. Pas de retrait permis,
+restriction IP non annoncée. La faisabilité publique, avec 9,37 EUR hypothétiques
+actifs, prudent 0,5 % et 5 pb/côté, refuse les trois paires au filtre de gain net.
+Le risque prévu au minimum ressort à 1,96 / 2,35 / 2,62 % : aucune hausse de mandat
+ou de capital n'est déduite de la lecture du solde. Preuve expurgée :
+`docs/audits/2026-11-10/operational-readiness.json`.
+
+Six séries REST publiques de 719 bougies clôturées sont figées localement dans
+`state/readiness/recent-markets.json`, SHA-256
+`2641411185fafef4f9ea8a847add249d81c2ad5df05545fcafcf9f48d25b0a84`.
+Dernières ouvertures : 10 novembre 13:00 UTC en H1 et 08:00 UTC en H4. Elles
+n'ont pas été écrites sur Supabase ; son historique cible reste à compléter.
+Le protocole livré distingue exploration connue, rejeu mécanique, validation
+prospective du LLM, coûts défavorables et faisabilité du capital réellement autorisé.
+
+`database_backup.py create` puis `restore-test` ont réellement réussi avec les
+clients PostgreSQL 17 natifs via deux conteneurs distincts : **50 relations**,
+schéma, données, rôles, propriétaires, droits effectifs, RLS et extensions comparés.
+Archive locale : `backups/local-qualification-20261110-04`, rapport
+`restore-verification.json`. Les ACL implicites du propriétaire ont été normalisées
+après une première comparaison rejetée ; la restauration n'est jamais déclarée
+réussie sur un inventaire divergent. Cette preuve concerne uniquement les données
+locales de recette, pas les données Supabase. Les clients natifs ne sont pas
+installés dans le système cloud (sudo absent) ; les vrais clients PG17 des conteneurs
+ont servi à la recette. La sauvegarde reste optionnelle selon la décision de Seb.
+
+Vérification du lot : suite Python 3.13.17, **824 tests dont 43 SQL réussis** ;
+golden identique, toujours -34,8828 EUR ; contrôle global vert (781 hors base,
+43 ignorés, 31 Node, 13 migrations locales, drawdowns et index). Analyse statique
+systemd en mode utilisateur sur chemins adaptés réussie, sans service installé.
+`install-wsl-paper.sh --check` refuse correctement cet hôte : Ollama, Caddy et
+systemd actif absents. L'installateur root et les probes sur le WSL n'ont pas été
+exécutés. Aucun ordre réel, armement, modification de capital ou écriture Supabase.
+
+---
+
+## 2026-11-10 — Cible WSL et suppression du prérequis de dump initial
+
+Seb choisit son WSL domestique, indisponible actuellement, et ajoutera la connexion
+SQL sécurisée avant de donner le go d'exécution sur cette cible. Il demande de
+retirer la sauvegarde complète des actions obligatoires parce que l'état de trading
+est vide. Le dump complet initial n'est donc plus une porte bloquante du passage ;
+la roadmap est modifiée selon cette décision, sans prétendre que la restauration
+de Supabase a été réalisée. La base conserve historique de marché et réglages.
+
+Le travail indépendant continue sur les fichiers de déploiement, les mesures en
+lecture seule et l'outillage optionnel. Aucun accès au WSL, service cible installé
+ou autorisation d'ordre réel n'est déduit de cette décision.
+
+---
+
+## 2026-11-10 — Préparation opérationnelle demandée, début du chantier
+
+Seb demande de réaliser tout le nécessaire pour le passage au réel. La préparation
+est autorisée ; aucun ordre réel ni armement n'est effectué dans ce chantier.
+`master` récupéré sur `bd5dc7e`, propre. L'hôte accessible est un conteneur Debian 13
+temporaire : PID 1 `tail`, systemd offline, aucun Ollama ni service applicatif.
+Les secrets SQL, les clés OBSERVER et le webhook ne sont pas présents dans cet
+environnement ; une cible persistante et la connexion SQL sécurisée ont été demandées.
+
+La lecture Supabase confirme 78 608 051 octets, zéro ordre, zéro position ouverte,
+zéro cycle et un historique arrêté au 4 novembre. La clé Kraken a été vérifiée
+en lecture seule : droits de trading, pas de retrait, aucune restriction IP annoncée.
+Le client CCXT doit respecter le proxy fourni : sans `trust_env`, sa lecture publique
+échoue ici ; avec, GetApiKeyInfo répond. Début des fichiers d'exploitation et de
+la qualification des accès, sans modification de la base cible.
+
+---
+
 ## 2026-11-10 — Livraisons en attente : troisième lot R3 vérifié localement
 
 La relecture finale relève un cas restant : la sonde connaît ses propres alertes
