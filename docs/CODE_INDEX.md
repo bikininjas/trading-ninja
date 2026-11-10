@@ -3,18 +3,18 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `94c28da7a9b25943`
+Empreinte des sources : `a5edda48882576d3`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
-| Modules Python | 144 |
-| Lignes Python | 33711 |
+| Modules Python | 145 |
+| Lignes Python | 33859 |
 | Classes | 147 |
-| Fonctions et méthodes | 1080 |
-| Cas de test collectés par pytest | 824 |
-| Fonctions de test (comptage statique) | 643 |
+| Fonctions et méthodes | 1087 |
+| Cas de test collectés par pytest | 835 |
+| Fonctions de test (comptage statique) | 648 |
 | Migrations SQL | 13 |
 | Scripts shell | 3 |
 
@@ -24,7 +24,7 @@ Empreinte des sources : `94c28da7a9b25943`
 |---|---|---|
 | `backend/app/__init__.py` | 1 |  |
 | `backend/app/api/__init__.py` | 1 | API d'administration (lecture, pause, panic-sell). |
-| `backend/app/api/insights.py` | 397 | API privée des observations ; aucune route analytique n'envoie d'ordre. |
+| `backend/app/api/insights.py` | 399 | API privée des observations ; aucune route analytique n'envoie d'ordre. |
 | `backend/app/api/main.py` | 674 | API d'administration — observation, pause, reprise, panic-sell. |
 | `backend/app/api/security.py` | 227 | Authentification de l'API d'administration. |
 | `backend/app/api/service.py` | 122 | Vue « administration » : lecture de l'état et actions de contrôle. |
@@ -68,13 +68,13 @@ Empreinte des sources : `94c28da7a9b25943`
 | `backend/app/insights/costs.py` | 87 | Coût de carnet observé : aucune espérance inventée et aucun sizing ici. |
 | `backend/app/insights/diagnostics.py` | 202 | Analyse descriptive, prix observés à la clôture et couverture explicite. |
 | `backend/app/insights/experiments.py` | 640 | Portefeuilles indépendants sur le véritable runtime, données entièrement locales. |
-| `backend/app/insights/health.py` | 58 | Verdict commun API/sonde : une preuve inconnue ne vaut jamais santé. |
+| `backend/app/insights/health.py` | 90 | Verdict commun API/sonde : une preuve inconnue ne vaut jamais santé. |
 | `backend/app/insights/notifications.py` | 93 | File locale durable : commit avant envoi, acquittement après réponse HTTPS. |
 | `backend/app/insights/policy.py` | 79 | Règles stratégiques immuables ; les limites de sécurité restent courantes. |
 | `backend/app/insights/ranking.py` | 42 | Classement observable ; sélection activable uniquement en papier. |
 | `backend/app/insights/replay.py` | 366 | Enregistre les frontières I/O et rejoue le vrai orchestrateur sans réseau ni base. |
-| `backend/app/insights/store.py` | 501 | Persistance des observations privées ; aucune instruction d'ordre exchange. |
-| `backend/app/insights/watch.py` | 204 | Surveillant de lecture séparé ; ses seules commandes sont des demandes de HALT. |
+| `backend/app/insights/store.py` | 505 | Persistance des observations privées ; aucune instruction d'ordre exchange. |
+| `backend/app/insights/watch.py` | 184 | Surveillant de lecture séparé ; ses seules commandes sont des demandes de HALT. |
 | `backend/app/llm/__init__.py` | 1 | Client LLM local. Aucune I/O à l'import. |
 | `backend/app/llm/client.py` | 568 | Client LLM local (Ollama) — auditeur de confluences, jamais exécutant. |
 | `backend/app/llm/lessons.py` | 190 | Mémoire de leçons — apprendre des résultats, pas du bruit de marché. |
@@ -86,7 +86,7 @@ Empreinte des sources : `94c28da7a9b25943`
 | `backend/app/runtime/__init__.py` | 1 | app/runtime |
 | `backend/app/runtime/execution_recovery.py` | 133 | Rapproche les reçus durables sans renvoyer les ordres retrouvés. |
 | `backend/app/runtime/heartbeat.py` | 66 | Preuve de vie du processus moteur, indépendante de sa cadence de décision. |
-| `backend/app/runtime/orchestrator.py` | 1436 | Boucle d'exécution : un cycle = une décision, jamais deux. |
+| `backend/app/runtime/orchestrator.py` | 1447 | Boucle d'exécution : un cycle = une décision, jamais deux. |
 | `backend/app/runtime/reconciliation.py` | 419 | Réconciliation au démarrage — la base et l'exchange doivent décrire le même état. |
 | `backend/app/runtime/recovery.py` | 332 | Liquidation d'urgence — le seul chemin qui ferme une position sans pare-feu. |
 | `backend/app/runtime/scheduler.py` | 62 | Cadence d'évaluation : une décision par bougie clôturée, pas par minute. |
@@ -113,7 +113,7 @@ Empreinte des sources : `94c28da7a9b25943`
 | `backend/scripts/short_lab.py` | 70 | Mesure le mandat short sur le golden, sans réseau ni ordre. |
 | `backend/scripts/totp_setup.py` | 51 | Génère un secret TOTP, son QR code et l'URI de provisionnement. |
 | `backend/scripts/verify_drawdowns.py` | 136 | Vérifie les drawdowns sur un jeu de données figé, dans une transaction annulée. |
-| `backend/scripts/watchdog.py` | 107 | Sonde séparée du surveillant : lecture SQL et notification, jamais d'ordre. |
+| `backend/scripts/watchdog.py` | 110 | Sonde séparée du surveillant : lecture SQL et notification, jamais d'ordre. |
 | `backend/tests/__init__.py` | 1 |  |
 | `backend/tests/conftest.py` | 74 | Les tests unitaires ne doivent jamais contacter un service externe. |
 | `backend/tests/test_affordability.py` | 182 | Tests de la faisabilité d'un ordre avec un petit capital. |
@@ -126,6 +126,7 @@ Empreinte des sources : `94c28da7a9b25943`
 | `backend/tests/test_capital_postgres.py` | 162 | Contrat PostgreSQL réel : opt-in, exclusivement base locale jetable migrée. |
 | `backend/tests/test_check_exchange.py` | 90 | Tests du verdict de la sonde exchange — la logique qui protège la clé. |
 | `backend/tests/test_check_kraken.py` | 66 | Préflight public : pas de clé et refus des données OHLC périmées. |
+| `backend/tests/test_cycle_health.py` | 88 | Un heartbeat vivant ne masque ni un cycle bloqué, ni son annulation. |
 | `backend/tests/test_database_backup.py` | 49 | La restauration optionnelle refuse une cible réelle et vérifie les données. |
 | `backend/tests/test_db_config.py` | 75 | Tests de la résolution de connexion base (aucun accès réseau). |
 | `backend/tests/test_entry_rule.py` | 314 | Tests de la règle d'entrée déterministe — pure, sans réseau ni base. |
@@ -138,7 +139,7 @@ Empreinte des sources : `94c28da7a9b25943`
 | `backend/tests/test_heartbeat.py` | 301 | Vie continue du moteur : veille, panne SQL, sortie et arrêt brutal. |
 | `backend/tests/test_history.py` | 255 | Historique OHLCVT : analyse pure du CSV Kraken, trous, agrégation, cohérence. |
 | `backend/tests/test_insights.py` | 868 | Contrats des dix briefs : calculs purs, frontières de rejeu et runtime réel. |
-| `backend/tests/test_insights_api.py` | 243 | Parcours administratifs privés : observation, révisions et aucune exécution. |
+| `backend/tests/test_insights_api.py` | 261 | Parcours administratifs privés : observation, révisions et aucune exécution. |
 | `backend/tests/test_insights_postgres.py` | 382 | Preuves SQL des contrôles, paquets, incidents et révisions ; cible locale stricte. |
 | `backend/tests/test_kraken_adapter.py` | 308 | Tests de la passerelle Kraken, hors réseau. |
 | `backend/tests/test_kraken_archive.py` | 145 | Lecture ZIP par plages HTTP : le mécanisme qui évite 9,5 Go de téléchargement. |
@@ -149,7 +150,7 @@ Empreinte des sources : `94c28da7a9b25943`
 | `backend/tests/test_llm_eval.py` | 89 | Métriques de l'évaluation LLM : rétention des gagnants, filtration des perdants. |
 | `backend/tests/test_machine.py` | 52 | Tests de la machine à états : le graphe est une contrainte, pas une convention. |
 | `backend/tests/test_mean_reversion.py` | 133 | Tests du laboratoire Mean Reversion — aucun réseau, aucun ordre. |
-| `backend/tests/test_notifications.py` | 294 | Preuves de reprise : disque, arrêt brutal, récidive et réponse perdue. |
+| `backend/tests/test_notifications.py` | 298 | Preuves de reprise : disque, arrêt brutal, récidive et réponse perdue. |
 | `backend/tests/test_orchestrator.py` | 791 | Tests de bout en bout de l'orchestrateur, avec des doubles. |
 | `backend/tests/test_paper.py` | 78 | Tests de l'exécution papier : frais, slippage, gaps, priorité du stop. |
 | `backend/tests/test_paper_component.py` | 64 | Le service PAPER ne peut hériter d'un armement réel ni reprendre une intention inconnue. |
@@ -165,7 +166,7 @@ Empreinte des sources : `94c28da7a9b25943`
 | `backend/tests/test_shadow.py` | 76 | Tests du simulateur de shadow trades — purs, sans réseau ni base. |
 | `backend/tests/test_sweep.py` | 71 | Tests du Profit Sweeper : calcul pur, seuil, absence de ligne sur perte. |
 | `backend/tests/test_swing_backtest.py` | 176 | Tests du rejeu swing Daily : entrée, stop structurel, breakeven, sortie. |
-| `backend/tests/test_watchdog.py` | 104 | Une surveillance morte ou illisible ne peut jamais être annoncée saine. |
+| `backend/tests/test_watchdog.py` | 110 | Une surveillance morte ou illisible ne peut jamais être annoncée saine. |
 | `scripts/backtest_watch.sh` | 27 | Veille de backtest — conçue pour un cron silencieux. |
 | `scripts/check.sh` | 206 | Vérification complète de l'état du dépôt en une commande. |
 | `scripts/manage.sh` | 307 | ============================================================================= |
@@ -859,8 +860,10 @@ le code, pas une copie de celui-ci.
 
 *Verdict commun API/sonde : une preuve inconnue ne vaut jamais santé.*
 
-- `def heartbeat_health(at, *, now)` (l.9)
-- `def classify(record, *, now, max_age_seconds, require_runtime=True)` (l.22)
+- `def cycle_deadline(started_at, status, timeframe)` (l.11)
+- `def cycle_health(started_at, status, *, now, timeframe)` (l.21)
+- `def heartbeat_health(at, *, now)` (l.37)
+- `def classify(record, *, now, max_age_seconds, require_runtime=True)` (l.50)
 
 ### `backend/app/insights/notifications.py`
 
@@ -945,10 +948,10 @@ le code, pas une copie de celui-ci.
   - `async def experiments(self, mode, limit=20)` (l.385)
   - `async def calibration_input(self, mode, since, until)` (l.395)
   - `async def protection_health(self, mode)` (l.408)
-  - `async def record_protection(self, mode, observation, issues)` (l.425)
-  - `async def acknowledge_incident(self, mode, incident_id, who='admin')` (l.472)
-  - `async def protection_notification_state(self, mode, observed_at, pending)` (l.480)
-  - `async def consume_observation_commands(self, mode)` (l.487)
+  - `async def record_protection(self, mode, observation, issues)` (l.429)
+  - `async def acknowledge_incident(self, mode, incident_id, who='admin')` (l.476)
+  - `async def protection_notification_state(self, mode, observed_at, pending)` (l.484)
+  - `async def consume_observation_commands(self, mode)` (l.491)
 - `def obj(value)` (l.9)
 - `def row(value)` (l.13)
 
@@ -958,7 +961,7 @@ le code, pas une copie de celui-ci.
 
 - `def verify_observer_key(exchange)` (l.14)
 - `async def observe_protection(repo, exchange, mode, *, now=None, expect_runtime=False, timeframe='4h', universe=(), on_observation=None)` (l.46)
-- `async def notify_incident(url, payload, *, transport=None)` (l.195)
+- `async def notify_incident(url, payload, *, transport=None)` (l.175)
 
 ### `backend/app/llm/client.py`
 
@@ -1101,31 +1104,31 @@ le code, pas une copie de celui-ci.
 
 *Boucle d'exécution : un cycle = une décision, jamais deux.*
 
-- **class CycleReport** (l.66)
-  - `def lines(self) -> list[str]` (l.81)
-- **class Orchestrator** (l.97)
-  - `def __init__(self, settings: Settings, repo: PostgresRepository, exchange: Any, signal_client: SignalClient, broker: Any, *, now: Any=None, settings_loader: Any=None, insights: bool | None=None, id_factory=None, perf_clock=None)` (l.98)
-  - `async def _maybe_await(value: Any) -> Any` (l.131) — Le broker papier est synchrone, le broker réel est asynchrone.
-  - `async def _entry_fee(self, position: Any) -> Decimal` (l.141) — Frais d'entrée réellement enregistrés, sinon estimation du broker.
-  - `def _account_state(self, account: AccountSnapshot, open_symbols: tuple[str, ...]=()) -> AccountState` (l.155)
-  - `def _client_id(self, symbol: str, purpose: str) -> str` (l.167)
-  - `async def _starting_equity(self) -> Decimal` (l.170)
-  - `async def _current_account(self)` (l.184)
-  - `async def _refresh_settings(self) -> tuple[bool, str | None]` (l.196) — Relit les réglages en base et les applique si le payload a changé.
-  - `async def _log_signal(self, symbol: str, signal: LLMSignal, report: CycleReport) -> tuple[uuid.UUID, datetime]` (l.273) — Persiste toute décision du modèle, y compris HOLD, SELL et HALT.
-  - `async def _record_shadow(self, *, kind: str, symbol: str, signal: LLMSignal, signal_id: uuid.UUID, evaluation_id: uuid.UUID | None, decision: Any | None, snapshot: Any, account_state: AccountState, constraints: Any) -> None` (l.307) — Enregistre un achat non pris et son plan contrefactuel.
-  - `async def _force_halt(self, machine: StateMachine, report: CycleReport, reason: str) -> None` (l.358) — Arrêt demandé par le modèle : même chemin que le bouton rouge, sans 2FA.
-  - `async def _event(self, stage, *, symbol=None, at=None, terminal=False, body=None)` (l.380)
-  - `async def _entry_enabled(self)` (l.401)
-  - `async def run_once(self) -> CycleReport` (l.407)
-  - `async def _run_once(self) -> CycleReport` (l.504)
-  - `async def _monitor(self, machine: StateMachine, position: PositionRow, account: AccountSnapshot, report: CycleReport) -> None` (l.614)
-  - `async def _move_stop(self, position: PositionRow, new_stop: Decimal, report: CycleReport, *, live_state: Any, label: str) -> Decimal` (l.881) — Déplace le stop local, et le stop distant en live, sans jamais le baisser.
-  - `async def _close_trade(self, machine: StateMachine, position: PositionRow, account: AccountSnapshot, exit_price: Decimal, reason: str, report: CycleReport, *, purpose: str, halt: bool=False, fill: Any=None) -> None` (l.918) — Séquence unique de clôture : stop, TP, SELL LLM et HALT LLM.
-  - `async def _book_close(self, machine, position, account, reason, report, *, purpose, halt, fill, live_cash)` (l.971)
-  - `async def _evaluate_cycle(self, machine: StateMachine, account: AccountSnapshot, report: CycleReport) -> None` (l.1062)
-  - `async def _enter(self, machine: StateMachine, state: SymbolState, decision: Any, signal_id: uuid.UUID, evaluation_id: uuid.UUID, account: AccountSnapshot, report: CycleReport, *, signal_created_at: datetime) -> None` (l.1249)
-- `def position_initial_notional(position: PositionRow) -> Decimal` (l.1434) — Notionnel initial d'une position relue depuis la base.
+- **class CycleReport** (l.67)
+  - `def lines(self) -> list[str]` (l.82)
+- **class Orchestrator** (l.98)
+  - `def __init__(self, settings: Settings, repo: PostgresRepository, exchange: Any, signal_client: SignalClient, broker: Any, *, now: Any=None, settings_loader: Any=None, insights: bool | None=None, id_factory=None, perf_clock=None)` (l.99)
+  - `async def _maybe_await(value: Any) -> Any` (l.132) — Le broker papier est synchrone, le broker réel est asynchrone.
+  - `async def _entry_fee(self, position: Any) -> Decimal` (l.142) — Frais d'entrée réellement enregistrés, sinon estimation du broker.
+  - `def _account_state(self, account: AccountSnapshot, open_symbols: tuple[str, ...]=()) -> AccountState` (l.156)
+  - `def _client_id(self, symbol: str, purpose: str) -> str` (l.168)
+  - `async def _starting_equity(self) -> Decimal` (l.171)
+  - `async def _current_account(self)` (l.185)
+  - `async def _refresh_settings(self) -> tuple[bool, str | None]` (l.197) — Relit les réglages en base et les applique si le payload a changé.
+  - `async def _log_signal(self, symbol: str, signal: LLMSignal, report: CycleReport) -> tuple[uuid.UUID, datetime]` (l.274) — Persiste toute décision du modèle, y compris HOLD, SELL et HALT.
+  - `async def _record_shadow(self, *, kind: str, symbol: str, signal: LLMSignal, signal_id: uuid.UUID, evaluation_id: uuid.UUID | None, decision: Any | None, snapshot: Any, account_state: AccountState, constraints: Any) -> None` (l.308) — Enregistre un achat non pris et son plan contrefactuel.
+  - `async def _force_halt(self, machine: StateMachine, report: CycleReport, reason: str) -> None` (l.359) — Arrêt demandé par le modèle : même chemin que le bouton rouge, sans 2FA.
+  - `async def _event(self, stage, *, symbol=None, at=None, terminal=False, body=None)` (l.381)
+  - `async def _entry_enabled(self)` (l.402)
+  - `async def run_once(self) -> CycleReport` (l.408)
+  - `async def _run_once(self) -> CycleReport` (l.515)
+  - `async def _monitor(self, machine: StateMachine, position: PositionRow, account: AccountSnapshot, report: CycleReport) -> None` (l.625)
+  - `async def _move_stop(self, position: PositionRow, new_stop: Decimal, report: CycleReport, *, live_state: Any, label: str) -> Decimal` (l.892) — Déplace le stop local, et le stop distant en live, sans jamais le baisser.
+  - `async def _close_trade(self, machine: StateMachine, position: PositionRow, account: AccountSnapshot, exit_price: Decimal, reason: str, report: CycleReport, *, purpose: str, halt: bool=False, fill: Any=None) -> None` (l.929) — Séquence unique de clôture : stop, TP, SELL LLM et HALT LLM.
+  - `async def _book_close(self, machine, position, account, reason, report, *, purpose, halt, fill, live_cash)` (l.982)
+  - `async def _evaluate_cycle(self, machine: StateMachine, account: AccountSnapshot, report: CycleReport) -> None` (l.1073)
+  - `async def _enter(self, machine: StateMachine, state: SymbolState, decision: Any, signal_id: uuid.UUID, evaluation_id: uuid.UUID, account: AccountSnapshot, report: CycleReport, *, signal_created_at: datetime) -> None` (l.1260)
+- `def position_initial_notional(position: PositionRow) -> Decimal` (l.1445) — Notionnel initial d'une position relue depuis la base.
 
 ### `backend/app/runtime/reconciliation.py`
 
@@ -1409,8 +1412,8 @@ le code, pas une copie de celui-ci.
 *Sonde séparée du surveillant : lecture SQL et notification, jamais d'ordre.*
 
 - `async def read_observation(config, mode)` (l.30)
-- `async def check(mode, *, interval, webhook, read=read_observation, notify=notify_incident, now=None, env=None, require_runtime=True, notification_state=None)` (l.45)
-- `def main(argv=None)` (l.81)
+- `async def check(mode, *, interval, webhook, read=read_observation, notify=notify_incident, now=None, env=None, require_runtime=True, notification_state=None)` (l.48)
+- `def main(argv=None)` (l.84)
 
 ### `backend/tests/conftest.py`
 
@@ -1637,6 +1640,15 @@ le code, pas une copie de celui-ci.
   - `def fetch_ticker(self, symbol)` (l.35)
 - `def test_public_live_risk_never_loads_credentials(monkeypatch, capsys)` (l.39)
 - `def test_diagnostic_refuses_stale_and_discontinuous_candles()` (l.57)
+
+### `backend/tests/test_cycle_health.py`
+
+*Un heartbeat vivant ne masque ni un cycle bloqué, ni son annulation.*
+
+- `def test_cycle_progress_is_required_even_with_current_observer_and_heartbeat(started, status, reason)` (l.26)
+- `def test_thirty_second_budget_is_inclusive_and_respects_daily_schedule()` (l.33)
+- `async def test_cancelled_cycle_is_recorded_failed_and_uncertainty_is_preserved(submitted)` (l.40)
+- `async def test_probe_reads_stalled_cycle_directly_instead_of_trusting_old_healthy_body(postgres_test_url)` (l.67)
 
 ### `backend/tests/test_database_backup.py`
 
@@ -1905,9 +1917,10 @@ le code, pas une copie de celui-ci.
 - `def test_diagnostic_ids_and_time_windows_are_bounded(api)` (l.140)
 - `def test_old_protection_observation_never_looks_fresh(api)` (l.165)
 - `def test_recent_observation_is_not_green_without_all_proofs(api, problem)` (l.179)
-- `def test_api_and_probe_share_the_same_healthy_verdict(api)` (l.206)
-- `def test_legacy_policy_adoption_requires_fresh_totp_and_expected_fingerprint(api)` (l.216)
-- `def test_invalid_experiment_never_starts_a_financial_action(api)` (l.236)
+- `def test_api_and_probe_share_the_same_healthy_verdict(api)` (l.208)
+- `def test_api_expires_healthy_running_cycle_at_its_progress_deadline(api)` (l.220)
+- `def test_legacy_policy_adoption_requires_fresh_totp_and_expected_fingerprint(api)` (l.234)
+- `def test_invalid_experiment_never_starts_a_financial_action(api)` (l.254)
 
 ### `backend/tests/test_insights_postgres.py`
 
@@ -2153,10 +2166,10 @@ le code, pas une copie de celui-ci.
 - `def test_queue_excludes_concurrent_process_and_wrong_mode(tmp_path)` (l.101)
 - `def test_corrupt_spool_is_not_silently_reinitialized(tmp_path)` (l.111)
 - `async def test_watchdog_retries_database_outage_after_restart_and_recovery(tmp_path)` (l.122)
-- `async def test_observer_database_connect_failure_is_durable_and_alerts(tmp_path, monkeypatch)` (l.154)
-- `async def test_incident_is_durable_before_remote_persistence_fails(tmp_path)` (l.184)
-- `async def test_observer_pending_delivery_remains_visible_after_incident_resolves(tmp_path, monkeypatch)` (l.210)
-- `async def test_late_webhook_response_cannot_clear_newer_observation(postgres_test_url)` (l.273)
+- `async def test_observer_database_connect_failure_is_durable_and_alerts(tmp_path, monkeypatch)` (l.156)
+- `async def test_incident_is_durable_before_remote_persistence_fails(tmp_path)` (l.186)
+- `async def test_observer_pending_delivery_remains_visible_after_incident_resolves(tmp_path, monkeypatch)` (l.212)
+- `async def test_late_webhook_response_cannot_clear_newer_observation(postgres_test_url)` (l.277)
 
 ### `backend/tests/test_orchestrator.py`
 
@@ -2577,13 +2590,13 @@ le code, pas une copie de celui-ci.
 
 *Une surveillance morte ou illisible ne peut jamais être annoncée saine.*
 
-- `def observation(body=HEALTHY, at=NOW)` (l.14)
-- `def test_missing_stale_or_invalid_information_is_not_healthy(record, reason)` (l.27)
-- `def test_incomplete_or_critical_observation_is_an_alert()` (l.32)
-- `async def test_database_outage_notifies_without_leaking_exception_text(tmp_path)` (l.43)
-- `async def test_failed_notification_keeps_an_unhealthy_exit_state(tmp_path)` (l.63)
-- `def test_live_cannot_disable_runtime_monitoring(monkeypatch)` (l.77)
-- `async def test_watchdog_reads_a_real_observation_from_disposable_postgres(postgres_test_url)` (l.85)
+- `def observation(body=HEALTHY, at=NOW)` (l.15)
+- `def test_missing_stale_or_invalid_information_is_not_healthy(record, reason)` (l.29)
+- `def test_incomplete_or_critical_observation_is_an_alert()` (l.34)
+- `async def test_database_outage_notifies_without_leaking_exception_text(tmp_path)` (l.45)
+- `async def test_failed_notification_keeps_an_unhealthy_exit_state(tmp_path)` (l.65)
+- `def test_live_cannot_disable_runtime_monitoring(monkeypatch)` (l.79)
+- `async def test_watchdog_reads_a_real_observation_from_disposable_postgres(postgres_test_url)` (l.87)
 
 ## 4. Tests
 
@@ -2603,6 +2616,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_capital_postgres.py` | 6 |
 | `backend/tests/test_check_exchange.py` | 9 |
 | `backend/tests/test_check_kraken.py` | 2 |
+| `backend/tests/test_cycle_health.py` | 10 |
 | `backend/tests/test_database_backup.py` | 5 |
 | `backend/tests/test_db_config.py` | 10 |
 | `backend/tests/test_entry_rule.py` | 35 |
@@ -2615,7 +2629,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_heartbeat.py` | 18 |
 | `backend/tests/test_history.py` | 22 |
 | `backend/tests/test_insights.py` | 27 |
-| `backend/tests/test_insights_api.py` | 18 |
+| `backend/tests/test_insights_api.py` | 19 |
 | `backend/tests/test_insights_postgres.py` | 26 |
 | `backend/tests/test_kraken_adapter.py` | 25 |
 | `backend/tests/test_kraken_archive.py` | 11 |
@@ -2643,7 +2657,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_sweep.py` | 13 |
 | `backend/tests/test_swing_backtest.py` | 7 |
 | `backend/tests/test_watchdog.py` | 12 |
-| **Total** | **824** |
+| **Total** | **835** |
 
 ## 5. Schéma SQL
 

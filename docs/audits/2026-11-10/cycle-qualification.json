@@ -1,0 +1,13 @@
+{
+  "status": "ALERT",
+  "reason": "RUNTIME_STALLED",
+  "elapsed_seconds": 30.775,
+  "heartbeat_still_alive": true,
+  "notification_calls": 1,
+  "notification_transport": "injected local function, not real webhook",
+  "target": "disposable local PostgreSQL 17, not home WSL",
+  "probe_poll_seconds": 1,
+  "heartbeat_interval_seconds": 1,
+  "scenario": "Async worker stalled; heartbeat alive; healthy observer body refreshed deliberately",
+  "production_probe_poll_seconds": 10
+}

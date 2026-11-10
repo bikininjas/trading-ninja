@@ -23,6 +23,7 @@ Invariants tenus ici :
 from __future__ import annotations
 
 import json
+import asyncio
 import time
 import uuid
 from dataclasses import dataclass, field, replace
@@ -470,6 +471,16 @@ class Orchestrator:
             async with self._repo.cycle_lock(self._mode):
                 report = await self._run_once()
             return report
+        except asyncio.CancelledError as exc:
+            error = exc
+            try:
+                await self._event(
+                    "EXECUTION_UNCERTAIN" if self._submission else "CYCLE_CANCELLED",
+                    terminal=True, body={"error_type": "CancelledError"},
+                )
+            except Exception:
+                pass  # L'échec de télémétrie ne doit pas effacer l'annulation.
+            raise
         except Exception as exc:
             error = exc
             await self._event(

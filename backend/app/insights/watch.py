@@ -1,14 +1,14 @@
 """Surveillant de lecture séparé ; ses seules commandes sont des demandes de HALT."""
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from decimal import Decimal as D
 from urllib.parse import urlsplit
 import httpx
 
 from app.execution.live import LiveBroker
 from app.insights.codec import public
-from app.insights.health import heartbeat_health
+from app.insights.health import heartbeat_health, cycle_health
 
 
 def verify_observer_key(exchange):
@@ -143,38 +143,18 @@ async def observe_protection(
         if runtime["status"] != "OK":
             complete = False
             issue(runtime["reason"], "preuve de vie continue du moteur inconnue")
-        if not cycles:
-            issue("RUNTIME_MISSING", "aucune preuve de cycle")
-        else:
-            cycle = cycles[0]
-            if cycle["status"] not in {"RUNNING", "COMPLETE"}:
-                complete = False
-                issue("RUNTIME_INCOMPLETE", "dernier cycle échoué ou incomplet")
-            if cycle["status"] == "RUNNING" and now - cycle["started_at"] > timedelta(
-                minutes=10
-            ):
-                issue("RUNTIME_STALLED", "cycle commencé sans fin depuis dix minutes")
-            if cycle["status"] != "RUNNING":
-                from app.runtime.scheduler import (
-                    next_candle_close,
-                    decision_delay_seconds,
-                )
-
-                due = next_candle_close(cycle["started_at"], timeframe) + timedelta(
-                    seconds=decision_delay_seconds(timeframe) + 600
-                )
-                if now > due:
-                    issue(
-                        "RUNTIME_LATE",
-                        "échéance de décision dépassée",
-                        expected_before=due,
-                    )
+        cycle = cycles[0] if cycles else {}
+        progress = cycle_health(cycle.get("started_at"), cycle.get("status"), now=now, timeframe=timeframe)
+        if progress["status"] != "OK":
+            complete = False
+            issue(progress["reason"], "progression du moteur absente, incomplète ou hors budget de trente secondes")
     observed = {
         "observed_at": now,
         "complete": complete,
         "mode": mode,
         "positions": observations,
         "runtime_expected": expect_runtime,
+        "runtime_timeframe": timeframe,
         "runtime": runtime,
         "issues": len(issues),
     }

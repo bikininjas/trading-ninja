@@ -18,6 +18,7 @@ async def main():
  async with async_playwright() as p:
   browser=await p.chromium.launch(executable_path=shutil.which('chromium'),args=['--no-sandbox'])
   page=await browser.new_page(viewport={'width':1440,'height':1000})
+  await page.clock.install()
   errors=[]
   controls={'enabled':True,'revision':0}
   sent=[]
@@ -73,9 +74,10 @@ async def main():
   protection.update(status='ALERT',reason='OBSERVER_NOTIFICATION_PENDING')
   await page.locator('#insights-refresh').click()
   await page.wait_for_function("document.querySelector('#protection-results').textContent.includes('alerte du surveillant en attente de livraison')")
-  protection.update(status='OK',reason='OBSERVER_CURRENT',valid_until=(datetime.now(timezone.utc)+timedelta(seconds=1)).isoformat())
+  protection.update(status='OK',reason='OBSERVER_CURRENT',valid_until=(datetime.now(timezone.utc)+timedelta(seconds=10)).isoformat())
   await page.locator('#insights-refresh').click()
   await page.wait_for_function("document.querySelector('#protection-results').textContent.includes('Surveillance à jour')")
+  await page.clock.fast_forward(11000)
   await page.wait_for_function("document.querySelector('#protection-results').textContent.includes('preuve de surveillance expirée')")
   protection['valid_until']=(datetime.now(timezone.utc)+timedelta(seconds=30)).isoformat()
   await page.locator('#insights-refresh').click()

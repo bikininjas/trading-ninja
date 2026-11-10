@@ -6,6 +6,47 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Progression du cycle et annulation : lot vérifié
+
+Après publication du bundle `aa8255a`, fermeture du point R3 restant : un event loop
+vivant peut héberger un cycle asynchrone qui ne progresse plus. La sonde va relire
+directement le dernier cycle avec un budget explicite, indépendant de H4/D1. La
+capture doit aussi conserver `CancelledError` comme échec, sans faux COMPLETE.
+La qualification de ce budget sur le WSL et du canal réel reste à effectuer.
+
+**D-087 livrée.** Budget de cycle trente secondes et budget après échéance H4/D1
+de trente secondes, distincts du heartbeat. Le surveillant ouvre un incident/HALT,
+la sonde relit directement le dernier cycle et l'API expire son verdict à la plus
+proche des trois échéances. La fraîcheur du surveillant est de deux intervalles,
+soit trente secondes pour le bundle, timer de sonde toutes les dix secondes.
+Une annulation conserve FAILED et EXECUTION_UNCERTAIN après soumission commencée.
+Aucune vente, annulation d'ordre ou modification de risque n'est ajoutée.
+
+Mesure réelle sur PostgreSQL 17 local : une coroutine reste bloquée pendant que
+son heartbeat et une observation artificiellement saine continuent. La sonde
+détecte RUNTIME_STALLED en **30,775 secondes**. Ce test utilise un polling et un
+heartbeat d'une seconde, une notification injectée localement et aucun moteur
+de trading : il ne prouve pas les délais du WSL, du timer de production ou du
+webhook réel. Preuve : `docs/audits/2026-11-10/cycle-qualification.json`.
+
+Python 3.13.17 : **835 tests réussis dont 44 PostgreSQL**, golden identique
+(-34,8828 EUR), contrôle global vert (791 hors base, 44 ignorés, 31 Node, migrations,
+drawdowns et index). Le nouveau contrat SQL vérifie le cycle directement malgré
+un ancien corps d'observation sain ; les annulations avant/après soumission sont
+couvertes. Un premier test navigateur a expiré en attendant un état sain dans une
+fenêtre d'une seconde ; l'expiration utilise maintenant l'horloge pilotée du
+navigateur. Le bouton de rafraîchissement est désactivé pendant une lecture pour
+éviter un clic ignoré. Recette Chromium desktop/mobile passée après correction.
+
+La CI du bundle `aa8255a` est verte :
+[42839370035](https://github.com/bikininjas/trading-ninja/actions/runs/42839370035).
+Le WSL reste inaccessible et le go d'installation est attendu. Aucune modification
+Supabase, aucun ordre réel. Le dump initial reste optionnel conformément à Seb ;
+le constat économique défavorable et les preuves d'exploitation manquantes restent
+des limites explicites, sans statut prêt déduit des tests.
+
+---
+
 ## 2026-11-10 — Bundle WSL, constats de compte et restauration optionnelle vérifiés
 
 Livraison de `deploy/` : cinq configurations privées séparées, lanceur imposant

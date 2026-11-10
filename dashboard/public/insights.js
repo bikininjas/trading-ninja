@@ -41,6 +41,7 @@
   async function refresh() {
     if (refreshing) return;
     refreshing = true;
+    if ($('insights-refresh')) $('insights-refresh').disabled = true;
     try {
       const data = await api('/api/insights/overview');
       control = data.entries;
@@ -84,7 +85,10 @@
     } catch (error) {
       if (lastProtection) renderProtection({ ...lastProtection, status: 'UNKNOWN', reason: 'OBSERVATION_UNAVAILABLE' });
       status(`Observations indisponibles : ${error.message}`);
-    } finally { refreshing = false; }
+    } finally {
+      refreshing = false;
+      if ($('insights-refresh')) $('insights-refresh').disabled = false;
+    }
   }
   async function policies() {
     const data = await api('/api/insights/policy'); const box = clear('position-policies');
@@ -112,6 +116,8 @@
       INCOMPLETE_OBSERVATION: 'observation incomplète', ACTIVE_INCIDENT: 'incident ouvert',
       OBSERVER_NOTIFICATION_PENDING: 'alerte du surveillant en attente de livraison',
       OBSERVER_NOTIFICATION_UNKNOWN: 'état de livraison des alertes inconnu',
+      RUNTIME_STALLED: 'cycle au-delà du budget de trente secondes', RUNTIME_LATE: 'cycle programmé en retard',
+      RUNTIME_INCOMPLETE: 'dernier cycle échoué ou incomplet', RUNTIME_MISSING: 'aucune preuve de cycle',
       OBSERVATION_UNAVAILABLE: 'actualisation impossible', PROOF_EXPIRED: 'preuve de surveillance expirée' };
     line(box, `${health}${data.status !== 'OK' ? ` · ${reasons[data.reason] || 'preuve insuffisante'}` : ''}${data.latest ? ` · observation ${data.latest.observed_at}` : ''}`);
     if (data.status === 'OK') protectionExpiry = setTimeout(() => renderProtection({ ...data, status: 'UNKNOWN', reason: 'PROOF_EXPIRED' }), remaining + 1);

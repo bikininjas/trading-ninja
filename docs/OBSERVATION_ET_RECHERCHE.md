@@ -263,7 +263,7 @@ Le surveillant ne vend, n'annule et ne remplace aucun ordre. Sa seule commande e
 HALT en base, consommée par le propriétaire du moteur ; le blocage est aussi posé
 immédiatement pour empêcher une nouvelle entrée. Un HALT humain/surveillance sans
 échéance n'est pas remplacé par le cooldown d'un HALT LLM. La fraîcheur devient
-STALE après `2 × intervalle + 5` secondes : un surveillant mort n'est jamais vert.
+STALE après `2 × intervalle` secondes : un surveillant mort n'est jamais vert.
 
 La notification HTTPS ne suit pas les redirections et expire après cinq secondes.
 Un échec est réessayé à chaque observation, même si l'incident a disparu entre-temps ;
@@ -304,10 +304,13 @@ fraîche du surveillant ne masque pas la mort du moteur. Le dashboard expire son
 sans effacer les derniers faits affichés. Aucun rafraîchissement ne rajeunit la
 preuve. Les horloges des services doivent être synchronisées.
 
-Ce heartbeat prouve l'avancement de l'event loop, pas la progression de toute
-opération asynchrone : le contrôle d'un cycle RUNNING conserve son délai historique
-de dix minutes. Les dépassements de cycle, la charge, la contention SQL et les
-délais bout en bout restent à qualifier sur la cible. Un cron `--once` ne fournit
+Le heartbeat prouve l'avancement de l'event loop. La progression est contrôlée
+séparément : trente secondes maximum pour un cycle RUNNING, ou trente secondes
+après l'échéance normale H4/D1 sans nouveau cycle complet. La sonde relit directement
+le dernier cycle, même si le surveillant avait annoncé zéro incident. Un cycle
+annulé conserve un statut FAILED, avec incertitude d'exécution si une soumission
+avait commencé. La charge, la contention SQL et les délais bout en bout restent
+à qualifier sur la cible. Un cron `--once` ne fournit
 pas une présence continue : utiliser le moteur `--serve` pour cette supervision.
 Déployer la même version partout, démarrer le moteur puis le surveillant après
 un premier cycle vérifié ; ne pas masquer un démarrage impossible par une période
@@ -319,7 +322,7 @@ verte artificielle. Un HALT de surveillance exige toujours une reprise contrôl�
 elle est absente, périmée, incomplète, invalide, contient un incident ou si la base
 est illisible. Il n'envoie aucune commande financière. Sur une autre machine ou un
 autre service, injecter `WATCHDOG_WEBHOOK_URL` dans l'environnement sécurisé et
-planifier par exemple toutes les 15 secondes :
+planifier par exemple toutes les dix secondes, comme le timer livré :
 
 ```bash
 cd backend
@@ -327,14 +330,17 @@ cd backend
 ```
 
 `--interval` doit correspondre à `OBSERVER_INTERVAL_SECONDS` du surveillant ; la
-fraîcheur maximale est `2 × intervalle + 5` secondes. Code 0 : observation du
+fraîcheur maximale est `2 × intervalle` secondes. L'intervalle en argument décrit
+le surveillant, pas la cadence d'appel de la sonde. Code 0 : observation du
 surveillant courante et complète ; 1 : alerte ou état inconnu ; 2 : configuration
 invalide. La sonde conserve ses alertes dans `state/watchdog-paper.sqlite3`
 (`--notification-state` configurable), avec les mêmes garanties et contraintes
 de stockage que le surveillant. Une notification échouée reste réessayable même
 après résolution ; tant qu'elle attend, le code de sortie reste 1. Une récidive
 est une nouvelle notification, un incident inchangé déjà livré est dédupliqué.
-Elle exige `--expect-runtime` et une lecture directe récente du heartbeat moteur.
+Elle exige `--expect-runtime`, une lecture directe récente du heartbeat et un
+dernier cycle connu avec progression dans son budget. L'API expire aussi son état
+sain au plus tôt de ces trois échéances ; un rafraîchissement ne les repousse pas.
 `--allow-idle` est réservé au
 PAPER. L'absence d'appel de la sonde elle-même exige un contrôle externe distinct.
 Le webhook, le planning, les délais et l'indépendance des services doivent être

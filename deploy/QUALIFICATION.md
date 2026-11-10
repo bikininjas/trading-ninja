@@ -78,9 +78,10 @@ explicite suivie d'une nouvelle qualification, sans relâchement automatique.
 Sur le WSL accessible, après go de Seb : installer le bundle, renseigner la
 connexion SQL et les secrets admin, exercer TLS/TOTP, les deux webhooks et un
 contrôle externe qui reste actif lorsque Windows/WSL s'arrête. Qualifier l'inférence
-réelle, les reprises et les délais d'alerte. Le heartbeat ne prouve pas l'avancement
-d'une attente asynchrone ; le délai historique de cycle bloqué de dix minutes reste
-un point à fermer pour une garantie stricte à 60 secondes.
+réelle, les reprises et les délais d'alerte. Le heartbeat et la progression sont
+contrôlés séparément : budget de cycle de trente secondes, relu directement par
+la sonde. Sa valeur et les délais bout en bout doivent être exercés sur le WSL,
+avec ses cycles normaux et les frais/latences réels, avant R3.
 
 R5 conserve 14 jours et 20 cycles sur une version stable. Ces durées ne peuvent
 pas être remplacées par les tests de code. Le réel reste bloqué par les preuves

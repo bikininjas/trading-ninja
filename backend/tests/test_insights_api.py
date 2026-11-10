@@ -179,7 +179,8 @@ def test_old_protection_observation_never_looks_fresh(api):
 def test_recent_observation_is_not_green_without_all_proofs(api, problem):
     client, ledger, settings, headers = api
     now = datetime.now(timezone.utc)
-    body = {"complete": True, "issues": 0, "runtime_expected": True, "notification_pending": False}
+    body = {"complete": True, "issues": 0, "runtime_expected": True,
+            "notification_pending": False, "runtime_timeframe": "4h"}
     heartbeat = now
     if problem == "dead_runtime":
         heartbeat -= timedelta(seconds=31)
@@ -198,7 +199,8 @@ def test_recent_observation_is_not_green_without_all_proofs(api, problem):
     elif problem == "notification_unknown":
         del body["notification_pending"]
     ledger.protection = {"latest": {"observed_at": now, "body": body},
-                         "incidents": [], "runtime_heartbeat_at": heartbeat}
+                         "incidents": [], "runtime_heartbeat_at": heartbeat,
+                         "runtime_cycle_started_at": now, "runtime_cycle_status": "COMPLETE"}
     result = client.get("/api/insights/protection", headers=headers).json()
     assert result["status"] != "OK" and result["freshness"] != "FRESH"
 
@@ -207,10 +209,26 @@ def test_api_and_probe_share_the_same_healthy_verdict(api):
     client, ledger, settings, headers = api
     now = datetime.now(timezone.utc)
     ledger.protection = {"latest": {"observed_at": now,
-                                     "body": {"complete": True, "issues": 0, "runtime_expected": True, "notification_pending": False}},
-                         "incidents": [], "runtime_heartbeat_at": now}
+                                     "body": {"complete": True, "issues": 0, "runtime_expected": True,
+                                              "notification_pending": False, "runtime_timeframe": "4h"}},
+                         "incidents": [], "runtime_heartbeat_at": now,
+                         "runtime_cycle_started_at": now, "runtime_cycle_status": "COMPLETE"}
     result = client.get("/api/insights/protection", headers=headers).json()
     assert result["status"] == "OK" and result["freshness"] == "FRESH"
+
+
+def test_api_expires_healthy_running_cycle_at_its_progress_deadline(api):
+    client, ledger, settings, headers = api
+    now = datetime.now(timezone.utc)
+    ledger.protection = {"latest": {"observed_at": now,
+                                     "body": {"complete": True, "issues": 0, "runtime_expected": True,
+                                              "notification_pending": False, "runtime_timeframe": "4h"}},
+                         "incidents": [], "runtime_heartbeat_at": now,
+                         "runtime_cycle_started_at": now - timedelta(seconds=20), "runtime_cycle_status": "RUNNING"}
+    result = client.get("/api/insights/protection", headers=headers).json()
+    assert result["status"] == "OK"
+    deadline = datetime.fromisoformat(result["valid_until"])
+    assert deadline == now + timedelta(seconds=10)
 
 
 def test_legacy_policy_adoption_requires_fresh_totp_and_expected_fingerprint(api):

@@ -7,12 +7,14 @@ import pytest
 from scripts.watchdog import check, classify, main
 
 NOW = datetime(2026, 11, 10, 12, tzinfo=timezone.utc)
-HEALTHY = {"complete": True, "issues": 0, "runtime_expected": True, "notification_pending": False}
+HEALTHY = {"complete": True, "issues": 0, "runtime_expected": True,
+           "notification_pending": False, "runtime_timeframe": "4h"}
 DB_ENV = {"DATABASE_URL": "postgresql://postgres:test@127.0.0.1/test?sslmode=disable"}
 
 
 def observation(body=HEALTHY, at=NOW):
-    return {"observed_at": at, "body": body, "runtime_heartbeat_at": NOW}
+    return {"observed_at": at, "body": body, "runtime_heartbeat_at": NOW,
+            "runtime_cycle_started_at": NOW, "runtime_cycle_status": "COMPLETE"}
 
 
 @pytest.mark.parametrize(("record", "reason"), [
@@ -85,20 +87,24 @@ def test_live_cannot_disable_runtime_monitoring(monkeypatch):
 async def test_watchdog_reads_a_real_observation_from_disposable_postgres(postgres_test_url):
     import asyncpg
     import json
+    import uuid
 
     from app.core.db import from_env
     from scripts.watchdog import read_observation
 
     conn = await asyncpg.connect(postgres_test_url)
+    cycle_id = uuid.uuid4()
     try:
         await conn.execute(
             "INSERT INTO protection_observations(mode, observed_at, body) "
             "VALUES('TESTNET', $1, $2::jsonb)", NOW, json.dumps(HEALTHY)
         )
         await conn.execute("UPDATE bot_state SET last_heartbeat_at=$1 WHERE mode='TESTNET'", NOW)
+        await conn.execute("INSERT INTO decision_cycles(id,mode,started_at,status,manifest) VALUES($1,'TESTNET',$2,'COMPLETE','{}')", cycle_id, NOW)
         row = await read_observation(from_env({"DATABASE_URL": postgres_test_url}), "TESTNET")
         assert classify(row, now=NOW, max_age_seconds=35)["status"] == "OK"
     finally:
         await conn.execute("DELETE FROM protection_observations WHERE mode='TESTNET'")
         await conn.execute("UPDATE bot_state SET last_heartbeat_at=NULL WHERE mode='TESTNET'")
+        await conn.execute("DELETE FROM decision_cycles WHERE id=$1", cycle_id)
         await conn.close()

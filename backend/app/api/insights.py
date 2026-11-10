@@ -15,7 +15,7 @@ from app.insights.replay import replay_cycle, Unreplayable, ReplayDivergence
 from app.insights.experiments import run_experiment, validate_experiment
 from app.insights.calibration import confidence_report
 from app.insights.policy import position_policy, settings_impact
-from app.insights.health import classify
+from app.insights.health import classify, cycle_deadline
 from app.runtime.heartbeat import MAX_AGE_SECONDS
 
 
@@ -60,16 +60,18 @@ def router(config, loader, session, get_repo, totp):
     def protection_freshness(data):
         latest = data.get("latest")
         health = classify(
-            {**latest, "runtime_heartbeat_at": data.get("runtime_heartbeat_at")} if latest else None,
+            {**latest, **{key: data.get(key) for key in
+                         ("runtime_heartbeat_at", "runtime_cycle_started_at", "runtime_cycle_status")}} if latest else None,
             now=datetime.now(timezone.utc),
-            max_age_seconds=2 * config.observer_interval_seconds + 5,
+            max_age_seconds=2 * config.observer_interval_seconds,
         )
         return {
             **data,
             **health,
             "valid_until": min(
-                latest["observed_at"] + timedelta(seconds=2 * config.observer_interval_seconds + 5),
+                latest["observed_at"] + timedelta(seconds=2 * config.observer_interval_seconds),
                 data["runtime_heartbeat_at"] + timedelta(seconds=MAX_AGE_SECONDS),
+                cycle_deadline(data["runtime_cycle_started_at"], data["runtime_cycle_status"], latest["body"]["runtime_timeframe"]),
             ) if health["status"] == "OK" else None,
             "freshness": "FRESH" if health["status"] == "OK" else "STALE"
             if health["reason"] == "OBSERVER_STALE" else "UNKNOWN",

@@ -8,7 +8,7 @@ les améliorations restantes. Les preuves datées sont conservées dans
 confirme les treize migrations et les contrôles d’intégrité.
 
 État vérifié : lots de sécurité, surveillance et préparation d'exploitation,
-824 tests Python dont 43 PostgreSQL sur base jetable, 31 Node ; CI à vérifier
+835 tests Python dont 44 PostgreSQL sur base jetable, 31 Node ; CI à vérifier
 pour chaque candidat.
 Supabase trninja est en
 0013, droits publics fermés et 323 374 bougies. Seb a retiré le 10 novembre la
@@ -60,8 +60,9 @@ détecter sa disparition et les lectures SQL inconnues depuis un processus sépa
 conserver les notifications après arrêt brutal, traiter les pannes SQL/webhook et
 exiger une preuve de vie distincte des cycles H4/D1. Files durables et heartbeat
 vérifiés localement ; API/sonde partagent le verdict, le navigateur expire sa
-preuve. Le délai historique de cycle bloqué (dix minutes) et les délais bout en
-bout restent à qualifier sur la cible ; R3 n'est pas validée.
+preuve. Le cycle est désormais contrôlé séparément avec un budget de trente
+secondes ; ce budget et les délais bout en bout restent à qualifier sur la cible.
+R3 n'est pas validée.
 
 🟨 **R3 — visibilité des livraisons en attente** *(commencé le 10 novembre 2026)* :
 empêcher un état sain après résolution si l'alerte du surveillant attend encore
@@ -74,6 +75,10 @@ et un protocole économique figé ; inventorier les dépendances et mesures rée
 Le bundle et le protocole sont dans `deploy/` ; la recette locale de sauvegarde
 optionnelle a réussi. Aucun service WSL n'est installé. Le compte contient 9,37 EUR,
 frais taker privés 0,80 %/côté, et les trois paires restent refusées au diagnostic.
+
+🟨 **R3 — délai de progression du cycle** *(commencé le 10 novembre 2026)* :
+contrôle direct malgré un heartbeat actif, budget de trente secondes, échec
+conservé pour les cycles annulés. Recette du WSL et du canal encore ouverte.
 
 Responsabilité technique : préparation du code, migrations, tests, déploiement
 PAPER et dossier de preuves. Responsabilité de Seb : validation du mandat de risque,

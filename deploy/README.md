@@ -45,7 +45,7 @@ privé doivent être configurés séparément avec le fichier livré avant la re
    0600 et propriétaire `trading-ninja`. Renseigner les valeurs dans le stockage
    sécurisé, jamais dans Git ni dans une commande. Le dashboard ne reçoit aucun
    accès SQL. La sonde reçoit une identité SQL de lecture distincte permettant
-   `bot_state`, `protection_observations` et `schema_migrations` ; le surveillant
+   `bot_state`, `protection_observations`, `decision_cycles` et `schema_migrations` ; le surveillant
    reçoit les seuls droits nécessaires à ses observations et HALT. La création
    des rôles/droits cible doit être préparée et contrôlée après sauvegarde.
 5. Générer les secrets admin avec les outils existants `hash_password.py` et
@@ -100,9 +100,13 @@ Le cookie Secure est imposé, donc une connexion HTTP directe ne qualifie pas le
 6. Après chaque panne, examiner intentions, positions et état avant reprise.
    Un HALT ne se lève pas automatiquement et aucun stop n'est retiré pour tester.
 
-La recette de cycle bloqué conserve une limite connue de dix minutes pour une
-attente asynchrone qui laisse tourner l'event loop : cette limite n'est pas validée
-par le heartbeat. Une qualification stricte à 60 secondes doit la traiter avant R3.
+Un cycle RUNNING qui dépasse trente secondes, ou une décision absente trente
+secondes après son échéance normale, passe en alerte même si le heartbeat est
+vivant. La sonde relit directement les cycles ; elle ne dépend pas du verdict
+précédent du surveillant. Mesurer les cycles normaux et les pannes sur WSL avant
+qualification : un cycle légitime trop long impose de traiter la latence, sans
+présenter automatiquement ce dépassement comme sain. Aucun ordre n'est annulé
+pour fabriquer cette preuve ; le HALT bloque les nouvelles autorisations.
 
 ## Version, retour arrière et preuves
 

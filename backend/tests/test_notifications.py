@@ -127,7 +127,9 @@ async def test_watchdog_retries_database_outage_after_restart_and_recovery(tmp_p
 
     async def healthy_read(config, mode):
         return {"observed_at": NOW, "runtime_heartbeat_at": NOW,
-                "body": {"complete": True, "issues": 0, "runtime_expected": True, "notification_pending": False}}
+                "runtime_cycle_started_at": NOW, "runtime_cycle_status": "COMPLETE",
+                "body": {"complete": True, "issues": 0, "runtime_expected": True,
+                         "notification_pending": False, "runtime_timeframe": "4h"}}
 
     calls = []
 
@@ -223,7 +225,7 @@ async def test_observer_pending_delivery_remains_visible_after_incident_resolves
             return datetime.now(timezone.utc) - timedelta(seconds=0 if self.alive else 31)
 
         async def recent_cycles(self, *args):
-            return [{"status": "COMPLETE", "started_at": datetime.now(timezone.utc) - timedelta(hours=1)}]
+            return [{"status": "COMPLETE", "started_at": datetime.now(timezone.utc)}]
 
         async def record_protection(self, mode, observation, issues):
             self.latest = {"observed_at": observation["observed_at"], "body": deepcopy(observation)}
@@ -258,12 +260,14 @@ async def test_observer_pending_delivery_remains_visible_after_incident_resolves
     assert (await watch(settings, args))["status"] == "ALERT"
     store.alive = True
     assert (await watch(settings, args))["status"] == "ALERT"
-    record = {**store.latest, "runtime_heartbeat_at": datetime.now(timezone.utc)}
+    record = {**store.latest, "runtime_heartbeat_at": datetime.now(timezone.utc),
+              "runtime_cycle_started_at": datetime.now(timezone.utc), "runtime_cycle_status": "COMPLETE"}
     assert record["body"]["issues"] == 0
     assert classify(record, now=datetime.now(timezone.utc), max_age_seconds=35)["reason"] == "OBSERVER_NOTIFICATION_PENDING"
     monkeypatch.setattr(watch_module, "notify_incident", send)
     assert (await watch(settings, args))["status"] == "OBSERVED"
-    record = {**store.latest, "runtime_heartbeat_at": datetime.now(timezone.utc)}
+    record = {**store.latest, "runtime_heartbeat_at": datetime.now(timezone.utc),
+              "runtime_cycle_started_at": datetime.now(timezone.utc), "runtime_cycle_status": "COMPLETE"}
     assert classify(record, now=datetime.now(timezone.utc), max_age_seconds=35)["status"] == "OK"
     assert calls[0]["pending_incidents"] == calls[2]["pending_incidents"]
 

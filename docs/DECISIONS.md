@@ -1982,3 +1982,22 @@ peut détourner la cible. L'outil refuse toute base existante, sans DROP/CLEAN.
 La recette sur deux clusters PostgreSQL 17 locaux est une preuve de l'outil ;
 elle ne remplace pas un export de trninja ni la conservation hors machine. Selon
 D-084, cet export initial n'est plus un prérequis bloquant.
+
+---
+
+## D-087 — Budget de progression distinct du heartbeat (2026-11-10)
+
+Un cycle RUNNING dispose de trente secondes ; une prochaine décision est attendue
+au plus tard trente secondes après son horaire H4/D1 normal. Un dépassement ouvre
+une alerte et un HALT sans annuler d'ordre. La sonde et l'API relisent directement
+les cycles : une observation fraîche et un heartbeat vivant ne suffisent plus.
+La fraîcheur du surveillant expire après deux intervalles, sans les cinq secondes
+de grâce historiques ; le timer du bundle appelle la sonde toutes les dix secondes.
+
+Le navigateur expire la preuve au plus tôt des échéances de surveillant,
+heartbeat et progression. Un cycle annulé est enregistré FAILED ; une soumission
+commencée conserve EXECUTION_UNCERTAIN. Aucune annulation d'ordre ni reprise
+automatique n'est ajoutée. Les cycles normaux du WSL doivent tenir ce budget ou
+leur latence doit être traitée avant qualification ; le budget n'est pas élargi
+automatiquement après un échec. Les délais source/réception du canal réel restent
+à mesurer. Le test local avec notification injectée ne valide pas ce canal.

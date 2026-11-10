@@ -419,8 +419,12 @@ class InsightsStore:
                 mode,
             )
         ]
+        cycles = await self.recent_cycles(mode, 1)
+        cycle = cycles[0] if cycles else {}
         return {"latest": latest, "incidents": incidents,
-                "runtime_heartbeat_at": await self.runtime_heartbeat(mode)}
+                "runtime_heartbeat_at": await self.runtime_heartbeat(mode),
+                "runtime_cycle_started_at": cycle.get("started_at"),
+                "runtime_cycle_status": cycle.get("status")}
 
     async def record_protection(self, mode, observation, issues):
         async with self._conn.transaction():

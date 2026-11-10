@@ -33,8 +33,11 @@ async def read_observation(config, mode):
     conn = await asyncpg.connect(**kwargs)
     try:
         return await conn.fetchrow(
-            "SELECT p.observed_at,p.body,b.last_heartbeat_at AS runtime_heartbeat_at "
+            "SELECT p.observed_at,p.body,b.last_heartbeat_at AS runtime_heartbeat_at, "
+            "c.started_at AS runtime_cycle_started_at,c.status AS runtime_cycle_status "
             "FROM protection_observations p LEFT JOIN bot_state b ON b.mode=p.mode "
+            "LEFT JOIN LATERAL (SELECT started_at,status FROM decision_cycles "
+            "WHERE mode=p.mode ORDER BY started_at DESC,id LIMIT 1) c ON true "
             "WHERE p.mode=$1::execution_mode",
             mode,
         )
@@ -50,7 +53,7 @@ async def check(mode, *, interval, webhook, read=read_observation,
         config = from_env(env if env is not None else load_env())
         record = await read(config, mode)
         checked_at = now or datetime.now(timezone.utc)
-        report = classify(record, now=checked_at, max_age_seconds=2 * interval + 5,
+        report = classify(record, now=checked_at, max_age_seconds=2 * interval,
                           require_runtime=require_runtime)
     except Exception as exc:
         report = {"status": "UNKNOWN", "reason": "DATABASE_UNAVAILABLE",
