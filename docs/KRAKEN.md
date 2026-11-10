@@ -22,6 +22,13 @@ novembre 2026 conservées dans le journal ne valent pas qualification de la clé
 L’adaptateur conserve les montants en chaînes/Decimal ; un arrondi ne peut pas
 augmenter la quantité validée ni abaisser le stop validé.
 
+En LIVE, le calcul de taille inclut toujours les frais et le glissement prévus,
+même si `COST_AWARE=false` est présent dans la configuration. Le glissement
+prévisionnel vient de `PAPER_SLIPPAGE_BPS` ; il doit être qualifié sur la cible.
+Le minimum exchange ne relève pas le risque par trade, et le plafond absolu de
+position s'applique aussi au profil petit compte. Le risque estimé ne garantit
+pas la perte réelle en cas de gap, de liquidité insuffisante ou d'exécution dégradée.
+
 ## Permissions et clés
 
 `verify_key_permissions()` lit `GetApiKeyInfo` au démarrage LIVE. Retrait autorisé,

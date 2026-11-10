@@ -94,6 +94,25 @@ def test_live_mode_accepted_only_when_fully_configured(tmp_path: Path):
     )
     assert s.is_live
     assert s.is_sandbox is False
+    assert s.risk.cost_aware is True
+
+
+def test_live_cannot_disable_costs_or_raise_small_account_risk(tmp_path: Path):
+    s = load_settings(
+        env_file=tmp_path / "absent.env",
+        overrides={
+            "TRADING_MODE": "live",
+            "EXCHANGE_SANDBOX_MODE": "false",
+            "I_UNDERSTAND_REAL_MONEY": "true",
+            "EXCHANGE_API_KEY": "test-key",
+            "EXCHANGE_SECRET": "test-secret",
+            "RISK_PROFILE": "swing",
+            "COST_AWARE": "false",
+            "SMALL_ACCOUNT_MAX_RISK_PCT": "0.05",
+        },
+    )
+    assert s.risk.cost_aware is True
+    assert s.risk.small_account_max_risk_pct == s.risk.risk_per_trade_pct == Decimal("0.005")
 
 
 def test_bad_values_fail_loudly(tmp_path: Path):

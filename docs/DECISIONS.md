@@ -1848,3 +1848,17 @@ réponse HTTPS réussie. Le prochain cycle retente même si l'incident a disparu
 message conserve l'observation initiale. Une réponse perdue peut provoquer un
 doublon et un arrêt du processus peut perdre une notification non livrée. Une
 surveillance externe et un canal qualifié restent nécessaires avant R3.
+
+---
+
+## D-078 — Risque prévu LIVE et minimum d'ordre (2026-11-10)
+
+En LIVE, le coût d'entrée et de sortie estimé fait toujours partie du budget
+de risque, même si une ancienne configuration désactive `COST_AWARE`. Le plafond
+de risque petit compte ne peut dépasser le risque par trade configuré : un minimum
+d'ordre incompatible est refusé. Le plafond absolu de position s'applique aussi
+avec l'allocation petit compte, en PAPER comme en LIVE.
+
+La configuration reste chargeable pour gérer une position existante et les
+urgences. Ce budget est prévisionnel : les gaps et exécutions dégradées peuvent
+le dépasser. Les frais, le glissement et le mandat cible restent à qualifier.

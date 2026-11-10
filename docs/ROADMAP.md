@@ -43,6 +43,9 @@ soumise à une autorisation explicite de Seb ; demander une roadmap ne l’autor
 🟨 **R3 — fiabilisation des notifications** *(commencé le 10 novembre 2026)* :
 traiter les échecs d'envoi, puis qualifier la surveillance et son canal réel.
 
+🟨 **R2 — budget prévu en LIVE** *(commencé le 10 novembre 2026)* : intégrer les
+coûts et empêcher le relèvement automatique du risque pour financer le minimum.
+
 Responsabilité technique : préparation du code, migrations, tests, déploiement
 PAPER et dossier de preuves. Responsabilité de Seb : validation du mandat de risque,
 compte/budget, accès opérateur et décisions d’activation ou de poursuite. Les secrets

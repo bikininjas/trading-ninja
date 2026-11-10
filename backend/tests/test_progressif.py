@@ -58,6 +58,24 @@ def test_small_budget_does_not_raise_risk_to_meet_exchange_minimum():
     assert d.amount is None
 
 
+def test_live_swing_does_not_raise_risk_to_fund_an_exchange_minimum():
+    from tests.test_risk_gate import swing_market
+    from app.engine.risk_gate import ExchangeConstraints
+
+    live = load_settings(use_environment=False, overrides={
+        "TRADING_MODE": "live", "EXCHANGE_SANDBOX_MODE": "false",
+        "I_UNDERSTAND_REAL_MONEY": "true", "EXCHANGE_API_KEY": "key",
+        "EXCHANGE_SECRET": "secret", "RISK_PROFILE": "swing",
+        "EXCHANGE_ID": "kraken", "MIN_NET_REWARD_TO_RISK": "0.01",
+    }).risk
+    limits = ExchangeConstraints(amount_step=D("0.001"), min_amount=D("0.001"),
+                                 min_notional=D("15"), price_tick=D("0.01"))
+    decision = run(m=swing_market(), a=account(equity_quote=D(20), free_quote=D(20)),
+                   c=limits, cfg=live)
+    assert not decision.approved
+    assert "plafond petit compte" in decision.rejection_details
+
+
 def stop_at(close, current=D(95), **changes):
     return advance_profit_stop(entry_price=D(100), initial_distance=D(5),
                                current_stop=current, close=D(close), price_tick=D('.1'),

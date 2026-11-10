@@ -399,8 +399,19 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
         raise RuntimeError("TAKER_FEE_PCT doit être fini et dans ]0, 5 %]")
     if not slip_bps.is_finite() or not Decimal(0) <= slip_bps < Decimal(1000):
         raise RuntimeError("PAPER_SLIPPAGE_BPS doit être fini et dans [0, 1000[")
+    configured_cost_aware = _env_bool(
+        merged, "COST_AWARE", preset.get("COST_AWARE", "false")
+    )
+    risk_per_trade_pct = Decimal(p("RISK_PER_TRADE_PCT"))
+    small_account_max_risk_pct = Decimal(
+        merged.get("SMALL_ACCOUNT_MAX_RISK_PCT", "0.05")
+    )
+    # En réel, le minimum exchange ne peut jamais relever le risque autorisé.
+    # Charger la configuration reste possible pour gérer une position existante.
+    if mode == "live":
+        small_account_max_risk_pct = min(small_account_max_risk_pct, risk_per_trade_pct)
     risk = RiskConfig(
-        cost_aware=_env_bool(merged, "COST_AWARE", preset.get("COST_AWARE", "false")),
+        cost_aware=mode == "live" or configured_cost_aware,
         execution_fee_pct=fee,
         execution_slippage_pct=slip_bps / Decimal(10000),
         opportunity_r_multiple=Decimal(merged.get("OPPORTUNITY_R_MULTIPLE", "4")),
@@ -409,7 +420,7 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
             merged, "PROFIT_TRAILING_ENABLED", preset.get("PROFIT_TRAILING_ENABLED", "false")),
         profit_trailing_start_r=Decimal(merged.get("PROFIT_TRAILING_START_R", "2")),
         profit_trailing_distance_r=Decimal(merged.get("PROFIT_TRAILING_DISTANCE_R", "1")),
-        risk_per_trade_pct=Decimal(p("RISK_PER_TRADE_PCT")),
+        risk_per_trade_pct=risk_per_trade_pct,
         max_notional_pct=Decimal(p("MAX_NOTIONAL_PCT")),
         max_position_notional_quote=Decimal(merged.get("MAX_POSITION_NOTIONAL_QUOTE", "2000")),
         fee_buffer_pct=Decimal(
@@ -428,9 +439,7 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
         small_account_threshold_quote=Decimal(
             merged.get("SMALL_ACCOUNT_THRESHOLD_QUOTE", "50")
         ),
-        small_account_max_risk_pct=Decimal(
-            merged.get("SMALL_ACCOUNT_MAX_RISK_PCT", "0.05")
-        ),
+        small_account_max_risk_pct=small_account_max_risk_pct,
         min_atr_pct_of_price=Decimal(merged.get("MIN_ATR_PCT_OF_PRICE", "0.0015")),
         max_atr_pct_of_price=Decimal(merged.get("MAX_ATR_PCT_OF_PRICE", "0.08")),
         min_confidence=Decimal(p("MIN_CONFIDENCE")),

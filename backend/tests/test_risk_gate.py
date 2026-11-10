@@ -518,6 +518,22 @@ def test_small_account_floor_reaches_the_exchange_minimum():
     assert d.effective_risk_pct == Decimal("0.03")
 
 
+def test_small_account_allocation_never_bypasses_absolute_position_limit():
+    small = account(equity_quote=Decimal("20"), free_quote=Decimal("20"))
+    tight = ExchangeConstraints(
+        amount_step=Decimal("0.001"), min_amount=Decimal("0.001"),
+        min_notional=Decimal("15"), price_tick=Decimal("0.01"),
+    )
+    cfg = RiskConfig(
+        risk_per_trade_pct=Decimal("0.05"), stop_mode=StopMode.STRUCTURAL_D1,
+        max_notional_pct=Decimal("1"), small_account_full_allocation=True,
+        max_position_notional_quote=Decimal("12"),
+    )
+    decision = run(m=swing_market(), a=small, c=tight, cfg=cfg)
+    assert not decision.approved
+    assert decision.rejection_code is RejectionCode.EXCHANGE_MIN_NOTIONAL_FAILED
+
+
 def test_small_account_floor_refuses_when_above_the_cap():
     tiny = account(equity_quote=Decimal("12"), free_quote=Decimal("12"))
     cfg = RiskConfig(

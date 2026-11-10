@@ -764,7 +764,7 @@ def _evaluate(
             and account.equity_quote < config.small_account_threshold_quote):
         # Petit compte : le minimum notionnel de l'exchange est le vrai plancher.
         # Le stop borne la perte, pas la taille ; 100 % est explicitement demandé.
-        exposure_cap = account.equity_quote
+        exposure_cap = min(account.equity_quote, config.max_position_notional_quote)
     else:
         exposure_cap = min(
             account.equity_quote * min(config.max_notional_pct, Decimal("0.50")),

@@ -6,6 +6,20 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Budget prévu LIVE et plafond absolu de position
+
+Le dimensionnement LIVE inclut les coûts prévus et ne relève plus le risque pour
+atteindre le minimum exchange. Le plafond absolu de position s'applique aussi au
+petit compte. Le chargement de la configuration reste possible pour gérer les
+positions existantes et les urgences. Les frais et pertes restent des estimations.
+
+Python 3.13.17 et PostgreSQL 17 jetable : migrations 0001–0013 et vérification
+réussies ; suite complète **749 tests réussis**, dont les 35 contrats PostgreSQL.
+Le golden de régression a été rejoué sans modification. Aucun accès à Supabase ni
+ordre réel n'a été nécessaire pour cette vérification. Décision : D-078.
+
+---
+
 ## 2026-11-10 — Fiabilisation des alertes : début du lot R3
 
 Le surveillant réessaie une notification échouée à chaque observation, même si

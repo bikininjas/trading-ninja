@@ -3,18 +3,18 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `100c72e029edb8fa`
+Empreinte des sources : `2bde2ab441b4d943`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
 | Modules Python | 132 |
-| Lignes Python | 31900 |
+| Lignes Python | 31962 |
 | Classes | 145 |
-| Fonctions et méthodes | 1013 |
-| Cas de test collectés par pytest | 746 |
-| Fonctions de test (comptage statique) | 598 |
+| Fonctions et méthodes | 1016 |
+| Cas de test collectés par pytest | 749 |
+| Fonctions de test (comptage statique) | 601 |
 | Migrations SQL | 13 |
 | Scripts shell | 3 |
 
@@ -42,7 +42,7 @@ Empreinte des sources : `100c72e029edb8fa`
 | `backend/app/core/coordination.py` | 92 | Verrou transactionnel interprocessus, indépendant des transactions du ledger. |
 | `backend/app/core/db.py` | 166 | Résolution de la connexion PostgreSQL (Supabase). |
 | `backend/app/core/env.py` | 57 | Lecture des fichiers d'environnement, sans dépendance externe. |
-| `backend/app/core/settings.py` | 611 | Configuration centralisée — chargée depuis l'environnement, sans dépendance externe. |
+| `backend/app/core/settings.py` | 620 | Configuration centralisée — chargée depuis l'environnement, sans dépendance externe. |
 | `backend/app/db/__init__.py` | 1 | app/db |
 | `backend/app/db/repository.py` | 1198 | Persistance PostgreSQL — état, signaux, décisions, positions, ordres. |
 | `backend/app/engine/__init__.py` | 1 |  |
@@ -143,14 +143,14 @@ Empreinte des sources : `100c72e029edb8fa`
 | `backend/tests/test_orchestrator.py` | 791 | Tests de bout en bout de l'orchestrateur, avec des doubles. |
 | `backend/tests/test_paper.py` | 78 | Tests de l'exécution papier : frais, slippage, gaps, priorité du stop. |
 | `backend/tests/test_pre_live_fixes.py` | 199 | Contre-exemples pré live convertis en contrats à respecter. |
-| `backend/tests/test_progressif.py` | 172 | Le petit budget ne doit ni forcer un achat ni masquer ses coûts. |
+| `backend/tests/test_progressif.py` | 190 | Le petit budget ne doit ni forcer un achat ni masquer ses coûts. |
 | `backend/tests/test_reconciliation.py` | 268 | Tests de la réconciliation base ↔ exchange, sans réseau ni base réelle. |
 | `backend/tests/test_recovery.py` | 285 | Tests du kill-switch : liquidation, annulation des ordres, halte forcée. |
-| `backend/tests/test_risk_gate.py` | 582 | Tests du pare-feu transactionnel. |
+| `backend/tests/test_risk_gate.py` | 598 | Tests du pare-feu transactionnel. |
 | `backend/tests/test_rotation.py` | 250 | Tests du laboratoire de rotation — aucun réseau, aucun ordre. |
 | `backend/tests/test_scheduler.py` | 83 | Tests de la cadence : prochaine clôture de bougie, alignée sur l'époque Unix. |
 | `backend/tests/test_schema_contract.py` | 173 | Contrat entre le schéma SQL et le code Python. |
-| `backend/tests/test_settings.py` | 389 | Tests du chargement de configuration : presets, écrasements, verrous d'armement. |
+| `backend/tests/test_settings.py` | 408 | Tests du chargement de configuration : presets, écrasements, verrous d'armement. |
 | `backend/tests/test_shadow.py` | 76 | Tests du simulateur de shadow trades — purs, sans réseau ni base. |
 | `backend/tests/test_sweep.py` | 71 | Tests du Profit Sweeper : calcul pur, seuil, absence de ligne sur perte. |
 | `backend/tests/test_swing_backtest.py` | 176 | Tests du rejeu swing Daily : entrée, stop structurel, breakeven, sortie. |
@@ -2151,16 +2151,17 @@ le code, pas une copie de celui-ci.
 - `def test_budget_includes_both_fees_and_slippage()` (l.37)
 - `def test_costs_can_reject_a_gross_reward_that_looks_profitable()` (l.49)
 - `def test_small_budget_does_not_raise_risk_to_meet_exchange_minimum()` (l.55)
-- `def stop_at(close, current=D(95), **changes)` (l.61)
-- `def test_trailing_waits_for_a_net_gain_and_never_moves_down()` (l.67)
-- `def test_large_winner_is_not_capped_by_a_take_profit()` (l.74)
-- `def test_trailing_floor_really_covers_fees_after_rounding()` (l.79)
-- `def test_new_stop_is_not_applied_to_the_candle_used_to_compute_it()` (l.86)
-- `def test_drawdown_includes_a_temporary_loss_before_recovery()` (l.97)
-- `def test_frozen_settings_ignore_local_environment(monkeypatch)` (l.108)
-- `async def test_budget_comparison_reports_the_mechanical_ledger()` (l.117)
-- `async def test_runtime_raises_the_same_stop_as_the_replay(monkeypatch)` (l.127)
-- `async def test_runtime_revalidates_sizing_at_the_price_used_for_paper_fill(monkeypatch)` (l.156)
+- `def test_live_swing_does_not_raise_risk_to_fund_an_exchange_minimum()` (l.61)
+- `def stop_at(close, current=D(95), **changes)` (l.79)
+- `def test_trailing_waits_for_a_net_gain_and_never_moves_down()` (l.85)
+- `def test_large_winner_is_not_capped_by_a_take_profit()` (l.92)
+- `def test_trailing_floor_really_covers_fees_after_rounding()` (l.97)
+- `def test_new_stop_is_not_applied_to_the_candle_used_to_compute_it()` (l.104)
+- `def test_drawdown_includes_a_temporary_loss_before_recovery()` (l.115)
+- `def test_frozen_settings_ignore_local_environment(monkeypatch)` (l.126)
+- `async def test_budget_comparison_reports_the_mechanical_ledger()` (l.135)
+- `async def test_runtime_raises_the_same_stop_as_the_replay(monkeypatch)` (l.145)
+- `async def test_runtime_revalidates_sizing_at_the_price_used_for_paper_fill(monkeypatch)` (l.174)
 
 ### `backend/tests/test_reconciliation.py`
 
@@ -2276,13 +2277,14 @@ le code, pas une copie de celui-ci.
 - `def test_structural_stop_without_swing_low_is_refused()` (l.466)
 - `def test_small_account_full_allocation_requires_the_flag()` (l.472)
 - `def test_small_account_floor_reaches_the_exchange_minimum()` (l.501)
-- `def test_small_account_floor_refuses_when_above_the_cap()` (l.521)
-- `def test_free_balance_below_min_notional_blocks_new_entry()` (l.547)
-- `def test_swing_exit_mode_defaults_to_ema20()` (l.559)
-- `def test_swing_exit_mode_can_be_chandelier()` (l.563)
-- `def test_unknown_swing_exit_mode_is_refused()` (l.568)
-- `def test_chandelier_period_must_stay_in_bounds(period)` (l.574)
-- `def test_chandelier_multiple_must_be_positive_and_finite(multiple)` (l.580)
+- `def test_small_account_allocation_never_bypasses_absolute_position_limit()` (l.521)
+- `def test_small_account_floor_refuses_when_above_the_cap()` (l.537)
+- `def test_free_balance_below_min_notional_blocks_new_entry()` (l.563)
+- `def test_swing_exit_mode_defaults_to_ema20()` (l.575)
+- `def test_swing_exit_mode_can_be_chandelier()` (l.579)
+- `def test_unknown_swing_exit_mode_is_refused()` (l.584)
+- `def test_chandelier_period_must_stay_in_bounds(period)` (l.590)
+- `def test_chandelier_multiple_must_be_positive_and_finite(multiple)` (l.596)
 
 ### `backend/tests/test_rotation.py`
 
@@ -2353,35 +2355,36 @@ le code, pas une copie de celui-ci.
 - `def test_swing_mode_refuses_a_non_daily_decision_timeframe(tmp_path: Path)` (l.49)
 - `def test_live_mode_requires_two_deliberate_gestures(tmp_path: Path)` (l.60)
 - `def test_live_mode_accepted_only_when_fully_configured(tmp_path: Path)` (l.84)
-- `def test_bad_values_fail_loudly(tmp_path: Path)` (l.99)
-- `def test_dotenv_file_is_read(tmp_path: Path)` (l.108)
-- `def test_binance_key_aliases_are_accepted(tmp_path: Path)` (l.116)
-- `def test_explicit_exchange_names_win_over_aliases(tmp_path: Path)` (l.127)
-- `def test_secrets_never_appear_in_repr(tmp_path: Path)` (l.141)
-- `def test_paper_and_testnet_refuse_a_disabled_sandbox(tmp_path: Path, mode)` (l.159)
-- `def test_execution_mode_follows_the_declared_mode(tmp_path: Path)` (l.167)
-- `def test_kraken_key_aliases_are_accepted(tmp_path: Path)` (l.181)
-- `def test_kraken_does_not_borrow_binance_keys(tmp_path: Path)` (l.195)
-- `def test_explicit_exchange_key_still_wins_on_kraken(tmp_path: Path)` (l.210)
-- `def test_fee_buffer_default_matches_the_exchange_taker_fee(tmp_path: Path)` (l.222)
-- `def test_taker_fee_defaults_to_the_current_kraken_tier(tmp_path: Path)` (l.234)
-- `def test_an_absurd_taker_fee_is_refused(tmp_path: Path)` (l.247)
-- `def test_quote_currency_is_derived_from_the_symbol(tmp_path: Path)` (l.255)
-- `def test_declared_symbols_keep_the_primary_symbol_first(tmp_path: Path)` (l.263)
-- `def test_unknown_exchange_is_refused(tmp_path: Path)` (l.275)
-- `def test_micro_profile_loads_for_small_accounts(tmp_path: Path)` (l.285)
-- `def test_daily_breaker_leaves_room_for_more_than_one_loss(tmp_path: Path, profile: str)` (l.294)
-- `def test_invalid_sweep_ratio_is_refused_at_startup(tmp_path: Path)` (l.301)
-- `def test_negative_sweep_minimum_is_refused(tmp_path: Path)` (l.306)
-- `def test_negative_paper_slippage_is_refused(tmp_path: Path)` (l.314)
-- `def test_entry_mode_defaults_to_the_historical_setup(tmp_path: Path)` (l.319)
-- `def test_entry_mode_can_be_switched_by_environment(tmp_path: Path)` (l.324)
-- `def test_unknown_entry_mode_is_refused_at_startup(tmp_path: Path)` (l.331)
-- `def test_swing_exit_defaults_to_ema20(tmp_path: Path)` (l.341)
-- `def test_swing_exit_mode_accepts_chandelier_case_insensitively(tmp_path: Path)` (l.348)
-- `def test_swing_chandelier_parameters_are_configurable(tmp_path: Path)` (l.356)
-- `def test_unknown_swing_exit_mode_is_refused_at_startup(tmp_path: Path)` (l.369)
-- `def test_kill_switch_keys_are_a_separate_optional_pair(tmp_path: Path)` (l.377)
+- `def test_live_cannot_disable_costs_or_raise_small_account_risk(tmp_path: Path)` (l.100)
+- `def test_bad_values_fail_loudly(tmp_path: Path)` (l.118)
+- `def test_dotenv_file_is_read(tmp_path: Path)` (l.127)
+- `def test_binance_key_aliases_are_accepted(tmp_path: Path)` (l.135)
+- `def test_explicit_exchange_names_win_over_aliases(tmp_path: Path)` (l.146)
+- `def test_secrets_never_appear_in_repr(tmp_path: Path)` (l.160)
+- `def test_paper_and_testnet_refuse_a_disabled_sandbox(tmp_path: Path, mode)` (l.178)
+- `def test_execution_mode_follows_the_declared_mode(tmp_path: Path)` (l.186)
+- `def test_kraken_key_aliases_are_accepted(tmp_path: Path)` (l.200)
+- `def test_kraken_does_not_borrow_binance_keys(tmp_path: Path)` (l.214)
+- `def test_explicit_exchange_key_still_wins_on_kraken(tmp_path: Path)` (l.229)
+- `def test_fee_buffer_default_matches_the_exchange_taker_fee(tmp_path: Path)` (l.241)
+- `def test_taker_fee_defaults_to_the_current_kraken_tier(tmp_path: Path)` (l.253)
+- `def test_an_absurd_taker_fee_is_refused(tmp_path: Path)` (l.266)
+- `def test_quote_currency_is_derived_from_the_symbol(tmp_path: Path)` (l.274)
+- `def test_declared_symbols_keep_the_primary_symbol_first(tmp_path: Path)` (l.282)
+- `def test_unknown_exchange_is_refused(tmp_path: Path)` (l.294)
+- `def test_micro_profile_loads_for_small_accounts(tmp_path: Path)` (l.304)
+- `def test_daily_breaker_leaves_room_for_more_than_one_loss(tmp_path: Path, profile: str)` (l.313)
+- `def test_invalid_sweep_ratio_is_refused_at_startup(tmp_path: Path)` (l.320)
+- `def test_negative_sweep_minimum_is_refused(tmp_path: Path)` (l.325)
+- `def test_negative_paper_slippage_is_refused(tmp_path: Path)` (l.333)
+- `def test_entry_mode_defaults_to_the_historical_setup(tmp_path: Path)` (l.338)
+- `def test_entry_mode_can_be_switched_by_environment(tmp_path: Path)` (l.343)
+- `def test_unknown_entry_mode_is_refused_at_startup(tmp_path: Path)` (l.350)
+- `def test_swing_exit_defaults_to_ema20(tmp_path: Path)` (l.360)
+- `def test_swing_exit_mode_accepts_chandelier_case_insensitively(tmp_path: Path)` (l.367)
+- `def test_swing_chandelier_parameters_are_configurable(tmp_path: Path)` (l.375)
+- `def test_unknown_swing_exit_mode_is_refused_at_startup(tmp_path: Path)` (l.388)
+- `def test_kill_switch_keys_are_a_separate_optional_pair(tmp_path: Path)` (l.396)
 
 ### `backend/tests/test_shadow.py`
 
@@ -2468,18 +2471,18 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_orchestrator.py` | 26 |
 | `backend/tests/test_paper.py` | 9 |
 | `backend/tests/test_pre_live_fixes.py` | 10 |
-| `backend/tests/test_progressif.py` | 13 |
+| `backend/tests/test_progressif.py` | 14 |
 | `backend/tests/test_reconciliation.py` | 15 |
 | `backend/tests/test_recovery.py` | 10 |
-| `backend/tests/test_risk_gate.py` | 147 |
+| `backend/tests/test_risk_gate.py` | 148 |
 | `backend/tests/test_rotation.py` | 12 |
 | `backend/tests/test_scheduler.py` | 13 |
 | `backend/tests/test_schema_contract.py` | 18 |
-| `backend/tests/test_settings.py` | 42 |
+| `backend/tests/test_settings.py` | 43 |
 | `backend/tests/test_shadow.py` | 5 |
 | `backend/tests/test_sweep.py` | 13 |
 | `backend/tests/test_swing_backtest.py` | 7 |
-| **Total** | **746** |
+| **Total** | **749** |
 
 ## 5. Schéma SQL
 
