@@ -100,11 +100,15 @@ class PostgresRepository(InsightsStore):
         if self._conn.is_in_transaction():
             raise StateTransitionError("requête exchange refusée : le reçu doit être validé avant l'envoi")
         client_id = "tn" + uuid.uuid4().hex[:16]
-        await self._conn.execute(
-            "INSERT INTO execution_requests(client_id,mode,symbol,request,state) "
-            "VALUES($1,$2::execution_mode,$3,$4::jsonb,'PREPARED')",
-            client_id, mode, symbol, json.dumps(request, default=str),
-        )
+        async with self._conn.transaction():
+            if request.get('side')=='buy' and request.get('type')=='market':
+                permission=await self._conn.fetchrow("SELECT c.enabled,c.revision,b.state::text FROM entry_controls c JOIN bot_state b ON b.mode=c.mode WHERE c.mode=$1::execution_mode FOR UPDATE OF c,b",mode)
+                if not permission or not permission['enabled'] or permission['state']!='EXECUTING':
+                    raise StateTransitionError('achat non autorisé : entrées suspendues ou état modifié')
+                request={**request,'authorized_revision':permission['revision']}
+            await self._conn.execute(
+                "INSERT INTO execution_requests(client_id,mode,symbol,request,state) VALUES($1,$2::execution_mode,$3,$4::jsonb,'PREPARED')",
+                client_id,mode,symbol,json.dumps(request,default=str))
         return client_id
 
 
@@ -845,8 +849,10 @@ class PostgresRepository(InsightsStore):
         """Pause administrative : le bot cesse d'évaluer jusqu'à reprise explicite."""
         async with self._conn.transaction():
             previous = await self._conn.fetchval(
-                "SELECT state::text FROM bot_state WHERE mode = $1::execution_mode", mode
+                "SELECT state::text FROM bot_state WHERE mode = $1::execution_mode FOR UPDATE", mode
             )
+            if previous not in ('IDLE','COOLDOWN'):
+                raise StateTransitionError('pause refusée : urgence ou opération en cours')
             await self._conn.execute(
                 "UPDATE bot_state SET state = 'LOCKED_CIRCUIT_BREAKER'::system_state, "
                 "since = CLOCK_TIMESTAMP(), locked_at = CLOCK_TIMESTAMP(), "
@@ -1189,9 +1195,3 @@ class PostgresRepository(InsightsStore):
 
     async def clear_exit(self, position_id: uuid.UUID) -> None:
         await self._conn.execute("DELETE FROM pending_exits WHERE position_id=$1", position_id)
-
-
-
-
-
-

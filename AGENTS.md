@@ -30,7 +30,7 @@ prix et stop sont toujours calculés par le code.
   `0011_insights_and_controls.sql`. Leur validation
   locale ne prouve pas leur déploiement sur Supabase ; vérifier la base cible avant
   exploitation. Les défauts ouverts restent dans `AMELIORATIONS_2026-11-09.md`.
-- 732 tests Python sont collectés, dont 29 contrats PostgreSQL locaux opt-in ;
+- 738 tests Python sont collectés, dont 31 contrats PostgreSQL locaux opt-in ;
   31 tests Node et un contrôle navigateur complètent les preuves.
 - La revue suivante de `master` 39db447 conclut **NO-GO** :
   `docs/AUDIT_PRE_GO_LIVE_2026-11-09.md`. Des défauts sont reproduits malgré les
@@ -154,6 +154,13 @@ backend/
   scripts/verify_drawdowns.py  drawdowns sur jeu figé, transaction annulée
   tests/                   tests Python et golden ; décompte dans CODE_INDEX.md
 ```
+
+## Runtime de livraison
+
+Python **3.13.17**, indiqué par `.python-version` et `backend/.python-version`,
+est le runtime de livraison qualifié avec `backend/requirements.lock`. L’ancien
+Python de travail 3.15.2 reste installé ; ne pas modifier le Python système.
+La CI exécute les contrats complets sur un PostgreSQL jetable, jamais sur Supabase.
 
 ## 7. Pièges connus de cet environnement
 

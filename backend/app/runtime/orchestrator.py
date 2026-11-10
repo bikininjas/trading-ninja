@@ -1078,6 +1078,7 @@ class Orchestrator:
                     entry_timeframe=self._settings.exchange.entry_timeframe,
                     with_d1=self._settings.risk.entry_mode is EntryMode.SWING_MACRO_D1,
                     chandelier_period=self._settings.risk.swing_chandelier_period,
+                    validate_windows=True,
                 )
             except FeedError as exc:
                 await self._event("DATA_UNAVAILABLE",symbol=symbol,terminal=True,body={"reason":str(exc)})

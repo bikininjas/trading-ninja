@@ -14,6 +14,14 @@ reproduit des défauts bloquants, dont un appel d’annulation exchange en PAPER
 Le schéma cible est encore en 0009. Voir
 [AUDIT_PRE_GO_LIVE_2026-11-09.md](AUDIT_PRE_GO_LIVE_2026-11-09.md) et ses portes G0–G6.
 
+## Corrections pré go live — 10 novembre 2026
+
+- 🟨 **Lots 1–4 : sécurité et qualification de la version candidate.**
+  Lots 1–3 publiés sur master avec SHA distant vérifié ; lot 4 validé localement
+  (738 Python, 31 Node, navigateur) en cours de publication et de contrôle CI.
+  État détaillé : [CORRECTIONS_PRE_GO_LIVE.md](CORRECTIONS_PRE_GO_LIVE.md).
+  La cible SQL, l’exploitation et la qualification économique restent distinctes.
+
 ## Vue d'ensemble
 
 | Phase | Objectif | Statut | Avancement |

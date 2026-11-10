@@ -321,6 +321,7 @@ async def test_prepared_execution_survives_ledger_transaction_rollback(postgres_
     rid=None
     try:
         await repo.ensure_mode('PAPER')
+        await repo.transition('PAPER','IDLE','EXECUTING','audit intent')
         async with repo.cycle_lock('PAPER'):
             rid=await repo.prepare_request('PAPER','BTC/EUR',{'type':'market','side':'buy','amount':'1'})
             await repo.update_request(rid,'ACKNOWLEDGED',response={'id':'audit-durable-order'})
@@ -334,4 +335,29 @@ async def test_prepared_execution_survives_ledger_transaction_rollback(postgres_
                     await repo.prepare_request('PAPER','BTC/EUR',{'type':'market','side':'buy'})
     finally:
         if rid:await repo._conn.execute('DELETE FROM execution_requests WHERE client_id=$1',rid)
+        await repo._conn.execute("UPDATE bot_state SET state='IDLE' WHERE mode='PAPER'")
         await repo.close()
+
+async def test_suspended_entries_cannot_create_a_durable_buy_authorization(postgres_test_url):
+    from app.core.db import from_env
+    repo=await PostgresRepository.connect(from_env({'DATABASE_URL':postgres_test_url}))
+    try:
+        await repo.ensure_mode('PAPER')
+        control=await repo.entry_control('PAPER')
+        await repo.set_entry_permission('PAPER',False,control['revision'])
+        await repo.transition('PAPER','IDLE','EXECUTING','test authorization')
+        async with repo.cycle_lock('PAPER'):
+            with pytest.raises(StateTransitionError,match='non autorisé'):
+                await repo.prepare_request('PAPER','BTC/EUR',{'type':'market','side':'buy','amount':'1'})
+        assert not await repo.pending_requests('PAPER')
+    finally:
+        await repo._conn.execute("UPDATE bot_state SET state='IDLE' WHERE mode='PAPER'")
+        await repo._conn.execute("UPDATE entry_controls SET enabled=TRUE WHERE mode='PAPER'")
+        await repo.close()
+
+async def test_pause_does_not_overwrite_a_human_emergency(pg):
+    repo,conn=pg
+    await repo.force_halt('PAPER','protection à vérifier')
+    with pytest.raises(StateTransitionError,match='pause refusée'):
+        await repo.force_lock('PAPER','pause')
+    assert await repo.halt_details('PAPER')=='protection à vérifier'

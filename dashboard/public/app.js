@@ -954,8 +954,8 @@
       }
       const dbBadge = $('health-db');
       if (dbBadge) {
-        dbBadge.textContent = `DB ${db.quota_alert_triggered ? 'alerte' : 'ok'}`;
-        dbBadge.dataset.health = db.quota_alert_triggered ? 'danger' : 'ok';
+        dbBadge.textContent = `DB ${db.status !== 'KNOWN' ? 'inconnue' : db.quota_alert_triggered ? 'alerte' : 'ok'}`;
+        dbBadge.dataset.health = db.status !== 'KNOWN' || db.quota_alert_triggered ? 'danger' : 'ok';
       }
     } catch {
       /* télémétrie best-effort */

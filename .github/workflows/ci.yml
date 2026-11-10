@@ -1,0 +1,48 @@
+name: Backend safety and dashboard
+on:
+  push:
+    branches: [master]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_PASSWORD: local-ci-only
+          POSTGRES_DB: trading_ninja_review
+        ports: ['55432:5432']
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DATABASE_URL: postgresql://postgres:local-ci-only@127.0.0.1:55432/trading_ninja_review?sslmode=disable
+      TN_TEST_DATABASE_URL: postgresql://postgres:local-ci-only@127.0.0.1:55432/trading_ninja_review?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: sudo apt-get update && sudo apt-get install -y libffi-dev build-essential
+      - run: uv python install 3.13.17
+      - run: uv venv backend/.venv --python 3.13.17
+      - run: uv pip sync --python backend/.venv/bin/python backend/requirements.lock
+      - name: Prepare disposable database
+        run: |
+          psql "$DATABASE_URL" -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+          cd backend
+          .venv/bin/python scripts/db_migrate.py apply
+          .venv/bin/python scripts/db_migrate.py verify
+      - name: Python and PostgreSQL contracts
+        working-directory: backend
+        run: .venv/bin/python -m pytest -o addopts='' -q --postgres-test-url "$DATABASE_URL"
+      - run: node --test dashboard/test/*.test.js
+      - run: backend/.venv/bin/python scripts/index_codebase.py --check
+      - name: Browser tools
+        run: |
+          uv pip install --python backend/.venv/bin/python playwright==1.62.0
+          backend/.venv/bin/python -m playwright install --with-deps chromium
+      - run: backend/.venv/bin/python scripts/check_dashboard_browser.py /tmp/dashboard-check

@@ -6,6 +6,18 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Lot 4 : autorisation atomique et qualification continue (en cours)
+
+Autorisation durable d’achat sérialisée avec la permission d’entrée et l’état ;
+révision enregistrée avant envoi. Quota inconnu jamais vert, URL Ollama normalisée,
+CI Python/SQL/Node/navigateur et environnement de dépendances épinglé.
+Vérification du lot 4 : 738 tests Python dont 31 PostgreSQL locaux passés,
+31 Node et navigateur bureau/mobile vérifiés. Autorisation SQL atomique testée
+avec permission suspendue ; quota UNKNOWN testé. Prix sans heure source refusé,
+repli sur un trade public récent contrôlé ; une pause ne remplace plus un HALT.
+Le runtime de livraison est qualifié sur Python 3.13.17, disponible publiquement
+via uv ; l’ancien interpréteur de travail 3.15.2 et le Python système sont conservés.
+
 ## 2026-11-10 — Lot 3 : exécutions durables et coordination (en cours)
 
 Portage sélectif du journal d’ordres, rapprochement et verrou commun depuis les

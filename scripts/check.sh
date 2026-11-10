@@ -23,7 +23,7 @@ if [ -x backend/.venv/bin/python ]; then
   PYVER=$(backend/.venv/bin/python -V 2>&1)
   ok "venv projet : $PYVER"
 else
-  ko "backend/.venv absent — lancer : cd backend && uv venv --python 3.15.2 .venv"
+  ko "backend/.venv absent — lancer : uv venv backend/.venv --python "$(cat .python-version)" && uv pip sync --python backend/.venv/bin/python backend/requirements.lock"
 fi
 command -v node >/dev/null && ok "node : $(node -v)" || alerte "node absent du PATH"
 

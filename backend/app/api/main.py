@@ -263,7 +263,7 @@ async def _default_system_health(repo: Any, config: Settings) -> dict:
         import urllib.request
         started = datetime.now(timezone.utc)
         def _probe():
-            with urllib.request.urlopen(ollama_url.rstrip("/") + "/api/tags", timeout=2) as response:
+            with urllib.request.urlopen(ollama_url.rstrip("/").removesuffix("/v1") + "/api/tags", timeout=2) as response:
                 return response.status
         status_code = await asyncio.to_thread(_probe)
         ollama_latency_ms = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
@@ -272,20 +272,14 @@ async def _default_system_health(repo: Any, config: Settings) -> dict:
     except Exception:  # noqa: BLE001
         ollama_status = "DOWN"
 
-    # Quota Supabase / Postgres.
-    storage = {"db_size_bytes": 0, "db_limit_bytes": 524288000,
-               "free_space_bytes": 524288000, "quota_alert_triggered": False}
+    storage={'status':'UNKNOWN','db_size_bytes':None,'db_limit_bytes':524288000,
+             'free_space_bytes':None,'quota_alert_triggered':True}
     try:
-        storage_state = getattr(repo, "storage_state", None)
-        if callable(storage_state):
-            storage = await storage_state()
-    except Exception:  # noqa: BLE001
+        observed=await repo.storage_state()
+        if not isinstance(observed,dict) or observed.get('free_space_bytes') is None:raise ValueError('quota inconnu')
+        storage={**observed,'status':'KNOWN','quota_alert_triggered':int(observed['free_space_bytes'])<100*1024*1024}
+    except Exception:
         pass
-    if not isinstance(storage, dict):
-        storage = {"db_size_bytes": 0, "db_limit_bytes": 524288000,
-                   "free_space_bytes": 524288000, "quota_alert_triggered": False}
-    free = int(storage.get("free_space_bytes", 0) or 0)
-    storage["quota_alert_triggered"] = free < 100 * 1024 * 1024
 
     return {
         "kraken": {
@@ -539,7 +533,7 @@ def create_app(
     async def control_pause(repo=Depends(get_repo), _: dict = Depends(session)) -> dict:
         try:
             return await pause(repo, config)
-        except ControlRefused as exc:
+        except (ControlRefused,StateTransitionError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.post("/api/control/resume")

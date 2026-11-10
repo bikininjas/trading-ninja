@@ -1,6 +1,10 @@
 # Roadmap vers le go live définitif
 
-**Version du 9 novembre 2026. Statut actuel : NO-GO.**
+**Version mise à jour le 10 novembre 2026. Statut actuel : NO-GO pour le réel.**
+
+Les lots de correction sont suivis dans [CORRECTIONS_PRE_GO_LIVE.md](CORRECTIONS_PRE_GO_LIVE.md).
+Le code corrigé ne vaut pas application des migrations sur Supabase, recette
+continue, preuve économique ou autorisation de trading réel.
 
 Ce document devient le plan de référence pour le passage en réel. La
 [roadmap générale](ROADMAP.md) conserve l’historique ; l’[audit technique](AUDIT_PRE_GO_LIVE_2026-11-09.md)
@@ -22,9 +26,9 @@ soumise à une autorisation explicite de Seb ; demander une roadmap ne l’autor
 
 | Étape | Résultat à obtenir | État actuel |
 |---|---|---|
-| R0 | Une version candidate unique, intégrée et reproductible | À faire : master et correctifs locaux divergent |
-| R1 | Isolation PAPER et accès SQL fermés | Bloqué : défaut critique PAPER et privilèges PUBLIC |
-| R2 | Exécution, risque et simulations fiables | Bloqué : scénarios adverses reproduits |
+| R0 | Une version candidate unique, intégrée et reproductible | Portage de sécurité intégré ; CI et environnement qualifié en cours de livraison |
+| R1 | Isolation PAPER et accès SQL fermés | Isolation PAPER corrigée et testée ; fermeture SQL cible en attente d’autorisation |
+| R2 | Exécution, risque et simulations fiables | Correctifs et contrats locaux livrés ; matrice complète multi-processus à qualifier |
 | R3 | Déploiement PAPER supervisé et récupérable | À faire : cible en 0009, exploitation non qualifiée |
 | R4 | Politique économique qualifiée et taille d’ordre finançable | Bloqué : preuve hors calibration insuffisante |
 | R5 | Recette PAPER de la version candidate sur la cible | À faire après R0–R4 |

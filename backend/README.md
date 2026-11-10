@@ -12,7 +12,7 @@ Replay, expériences et analyse de confiance par fichier fonctionnent hors ligne
 Appliquer 0011 sur la base cible avant de démarrer l’instrumentation.
 
 Les tests n’utilisent aucune clé du shell et interdisent les connexions externes.
-La suite normale collecte 732 tests : 703 passent hors base, 29 contrats SQL sont
+La suite normale collecte 738 tests : 707 passent hors base, 31 contrats SQL sont
 ignorés sans base jetable. Pour tout vérifier, démarrer PostgreSQL 17 local avec
 les rôles `anon`/`authenticated`, appliquer les onze migrations et utiliser :
 
@@ -24,6 +24,10 @@ TN_TEST_DATABASE_URL="$TN_REVIEW_DSN" .venv/bin/python -m pytest \
 `TN_REVIEW_DSN` doit viser exclusivement `127.0.0.1`/`localhost`, base
 `trading_ninja_review` jetable. Les tests SQL annulent leurs écritures ; ils ne
 valident pas le schéma Supabase déployé. Le golden est inclus dans la suite.
+
+Runtime de livraison qualifié : **Python 3.13.17**, dépendances complètes dans
+`requirements.lock`. Le tableau ci-dessous conserve les références de l’ancien
+environnement de travail. La CI installe le runtime de livraison depuis zéro.
 
 ## Outillage
 
@@ -42,8 +46,8 @@ Ubuntu 24.04 et `apt` en dépendent. Les versions récentes vivent dans
 
 ```bash
 cd backend
-uv venv --python 3.15.2 .venv        # respecte .python-version
-uv pip install -r requirements.txt -r requirements-dev.txt
+uv venv --python 3.13.17 .venv        # respecte .python-version
+uv pip sync --python .venv/bin/python requirements.lock
 ```
 
 ## Commandes
@@ -53,7 +57,7 @@ Le profil papier `progressif` et le comparatif de budgets sont décrits dans
 virtuels ; il ne modifie pas les réglages locaux existants.
 
 ```bash
-.venv/bin/python -m pytest                     # 732 tests collectés ; 24 PostgreSQL opt-in, voir ci-dessous
+.venv/bin/python -m pytest                     # 738 tests collectés ; 24 PostgreSQL opt-in, voir ci-dessous
 .venv/bin/python -m app.main --once            # un cycle papier complet (données réelles)
 .venv/bin/python -m app.main --serve           # une évaluation par bougie H4 clôturée
 .venv/bin/python -m app.main --status          # état + 3 dernières lignes par table

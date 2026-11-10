@@ -1783,3 +1783,22 @@ l’environnement et refusent les connexions externes.
 ordre réel ni activation de `paper_select`. Pas de conclusion économique, de
 purge automatique ou de promotion. Les défauts live de l’audit restent bloquants.
 Commandes, formats et portée exacte : [OBSERVATION_ET_RECHERCHE.md](OBSERVATION_ET_RECHERCHE.md).
+
+
+---
+
+## D-074 — Intentions durables, autorisation sérialisée et environnement qualifié (2026-11-10)
+
+Les mutations exchange LIVE exigent le même verrou financier et une intention
+PREPARED commitée avant envoi. Une réponse ambiguë reste UNKNOWN et interdit
+la reprise automatique. Les fills cumulatifs sont dédupliqués et le reliquat
+protégé ; le mode PAPER ne peut pas être promu par une surcharge du broker.
+L’autorisation d’achat est sérialisée avec la suspension et l’état du bot :
+une intention déjà autorisée peut finir après suspension, sans nouvelle autorisation.
+
+La livraison utilise Python 3.13.17 et un lock exact, installés dans un venv neuf
+et vérifiés par la suite complète. L’ancien Python de travail reste intact.
+La CI reproduit Python, SQL jetable, Node et navigateur ; sa présence ne prouve
+pas un run distant réussi. Aucune migration distante ni activation réelle
+ne découle de cette décision. Les preuves et publications restent dans
+[CORRECTIONS_PRE_GO_LIVE.md](CORRECTIONS_PRE_GO_LIVE.md).

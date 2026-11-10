@@ -128,3 +128,72 @@ def test_ranking_checks_the_book_age_again_at_selection():
     }
     assert rank_candidates([row], now=NOW)[0]["eligible"]
     assert not rank_candidates([row], now=NOW + timedelta(seconds=6))[0]["eligible"]
+
+
+@pytest.mark.asyncio
+async def test_health_reports_unknown_quota_and_normalizes_ollama_url():
+    from app.api.main import _default_system_health
+
+    class Repo:
+        async def storage_state(self):
+            raise RuntimeError("unavailable")
+
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            pass
+
+    seen = []
+
+    def request(url, **kw):
+        seen.append(url)
+        return Response()
+
+    with (
+        patch(
+            "app.exchange.kraken.build_exchange",
+            side_effect=RuntimeError("unavailable"),
+        ),
+        patch("urllib.request.urlopen", side_effect=request),
+    ):
+        health = await _default_system_health(
+            Repo(), config(LLM_BASE_URL="http://localhost:11434/v1")
+        )
+    assert (
+        health["supabase"]["status"] == "UNKNOWN"
+        and health["supabase"]["free_space_bytes"] is None
+    )
+    assert health["supabase"]["quota_alert_triggered"] is True
+    assert (
+        seen == ["http://localhost:11434/api/tags"]
+        and health["ollama"]["status"] == "UP"
+    )
+
+
+def test_quote_without_source_time_is_rejected():
+    from app.market.feed import last_price,FeedError
+    class Exchange:
+        def fetch_ticker(self,symbol):return {'last':'100'}
+    with pytest.raises(FeedError,match='heure source'):last_price(Exchange(),'BTC/EUR')
+
+
+def test_recent_public_trade_can_supply_missing_ticker_time():
+    from app.market.feed import last_price
+    class Exchange:
+        def fetch_ticker(self,symbol):return {'last':'999','timestamp':None}
+        def fetch_trades(self,symbol,limit=1):return [{'timestamp':10000,'price':'100'}]
+        def milliseconds(self):return 11000
+    assert last_price(Exchange(),'BTC/EUR')==D(100)
+
+
+def test_old_public_trade_cannot_refresh_a_quote():
+    from app.market.feed import last_price,FeedError
+    class Exchange:
+        def fetch_ticker(self,symbol):return {'last':'999'}
+        def fetch_trades(self,symbol,limit=1):return [{'timestamp':10000,'price':'100'}]
+        def milliseconds(self):return 16000
+    with pytest.raises(FeedError,match='périmé'):last_price(Exchange(),'BTC/EUR')

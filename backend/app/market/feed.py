@@ -312,6 +312,7 @@ def build_snapshot(
     with_order_book: bool = True,
     with_d1: bool = False,
     chandelier_period: int = D1_DONCHIAN,
+    validate_windows: bool = False,
 ) -> SymbolState:
     """Construit l'instantané que consomment le pare-feu et le modèle.
 
@@ -340,6 +341,14 @@ def build_snapshot(
             f"({len(entry_candles)} bougies, {EMA_FAST + 1} requises)"
         )
 
+    if validate_windows:
+        for rows,timeframe in ((decision_candles,decision_timeframe),(entry_candles,entry_timeframe)):
+            step=TIMEFRAME_MS[timeframe]
+            expected=int(moment.timestamp()*1000)//step*step
+            if rows[-1][0]+step!=expected:
+                raise FeedError(f'{symbol} : dernière clôture {timeframe} attendue absente')
+            if any(b[0]-a[0]!=step for a,b in zip(rows,rows[1:])):
+                raise FeedError(f'{symbol} : trou dans les indicateurs {timeframe}')
     closes = [c[4] for c in decision_candles]
     price = _decimal(closes[-1])
     ema_200 = ema(closes, EMA_PERIOD)
@@ -399,10 +408,17 @@ def last_price(exchange: Any, symbol: str) -> Decimal:
     """Prix courant, pour la vérification de fraîcheur juste avant `evaluate()`."""
     ticker = exchange.fetch_ticker(symbol)
     stamp=ticker.get('timestamp')
-    if stamp is not None:
-        observed=exchange.milliseconds() if hasattr(exchange,'milliseconds') else int(datetime.now(timezone.utc).timestamp()*1000)
-        if not 0<=observed-int(stamp)<=5000:
-            raise FeedError(f'{symbol} : ticker source périmé ou futur')
+    if stamp is None:
+        fetch=getattr(exchange,'fetch_trades',None)
+        if fetch is None:raise FeedError(f'{symbol} : heure source du prix inconnue')
+        trades=fetch(symbol,limit=1)
+        if not trades or trades[-1].get('timestamp') is None:
+            raise FeedError(f'{symbol} : heure source du prix inconnue')
+        ticker={'timestamp':trades[-1]['timestamp'],'last':trades[-1].get('price')}
+        stamp=ticker['timestamp']
+    observed=exchange.milliseconds() if hasattr(exchange,'milliseconds') else int(datetime.now(timezone.utc).timestamp()*1000)
+    if not 0<=observed-int(stamp)<=5000:
+        raise FeedError(f'{symbol} : ticker source périmé ou futur')
     price = ticker.get("last")
     if price is None:
         raise FeedError(f"{symbol} : prix indisponible")
