@@ -6,6 +6,49 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Historique complété, prudent assoupli et refus économique mesuré
+
+Supabase trninja contient désormais **324 250 bougies**, après ajout réel de
+543 bougies récentes et 333 H1 reconstruites depuis les transactions publiques.
+Les 81 H4 de contrôle concordent en OHLC et volume exact. Export public figé de
+137 767 lignes, empreinte source stable avant/après ; fichiers et protocole
+reproductibles décrits dans `audits/2026-11-10/ECONOMICS.md`. Les 77 bougies encore
+manquantes depuis septembre 2022 sont conservées comme limite ; aucun prix
+synthétique n'est ajouté. Aucune donnée financière créée ou modifiée.
+
+D-088 : à la demande explicite de Seb, candidat à **0,75 % de risque et 30 %
+d'exposition**, contre 0,5 % / 20 %. Surcharges cohérentes dans les trois exemples
+de services et réglage souhaité PAPER Supabase en révision 1, sans révision
+appliquée. LIVE reste à son payload initial vide ; aucun moteur ni ordre lancé.
+Budget total 9,37 EUR inchangé, une position, stops, confiance et drawdowns conservés.
+
+Mesure gelée : deux profils × deux coûts, chacun **1 882 cycles, 358 propositions,
+358 refus RISK_LIMIT_EXCEEDED, zéro achat**, aucune erreur. Cash et buy-and-hold
+finançable restent à 9,37 EUR. Le plafond assoupli de 2,811 EUR reste sous les
+minima observés. Il ne s'agit pas d'une performance sans perte : aucun risque de
+marché n'a été pris. Aucun Ollama, aucune validation indépendante du LLM.
+
+Python 3.13.17 : **851 tests réussis dont 44 PostgreSQL** sur base locale jetable ;
+golden identique (-34,8828 EUR). Contrôle global vert (807 hors base, 44 ignorés,
+31 Node, migrations, drawdowns, secrets et index). La première exécution ciblée
+dans le bac à sable a été arrêtée car son travail asynchrone ne finissait pas ;
+la suite complète hors bac a réussi. La CI du master précédent `a9b0212` est
+verte : [42842083462](https://github.com/bikininjas/trading-ninja/actions/runs/42842083462).
+R4 reste non validée, WSL indisponible, dump initial optionnel.
+
+---
+
+## 2026-11-10 — Données et qualification économique : lot commencé
+
+Seb demande de réaliser tout le reste, avec WSL et opérations dépendantes de son
+go toujours en attente. Début de l'audit de continuité, du complément public de
+l'historique et des mesures économiques reproductibles sans modèle disponible.
+`master` synchronisé sur `a9b0212`. Aucune hausse de capital, activation LIVE ou
+ordre réel n'est inclus. Seb a ensuite autorisé les opérations Supabase et demandé
+un prudent un peu assoupli. Le dump initial reste optionnel.
+
+---
+
 ## 2026-11-10 — Progression du cycle et annulation : lot vérifié
 
 Après publication du bundle `aa8255a`, fermeture du point R3 restant : un event loop

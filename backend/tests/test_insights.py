@@ -417,6 +417,8 @@ async def test_experiments_keep_portfolios_and_capital_independent():
     result = await run_experiment(spec, config())
     one, two = result["variants"]
     assert one["trades"] >= 1
+    assert one['evaluations'] == one['approvals'] + sum(one['rejections'].values())
+    assert one['approvals'] > 0 and one['cycles'] == len(one['curve'])
     assert (
         one["equity_end"] == two["equity_end"]
         and one["net_realized"] == two["net_realized"]

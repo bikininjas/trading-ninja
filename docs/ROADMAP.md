@@ -8,10 +8,10 @@ les améliorations restantes. Les preuves datées sont conservées dans
 confirme les treize migrations et les contrôles d’intégrité.
 
 État vérifié : lots de sécurité, surveillance et préparation d'exploitation,
-835 tests Python dont 44 PostgreSQL sur base jetable, 31 Node ; CI à vérifier
+851 tests Python dont 44 PostgreSQL sur base jetable, 31 Node ; CI à vérifier
 pour chaque candidat.
 Supabase trninja est en
-0013, droits publics fermés et 323 374 bougies. Seb a retiré le 10 novembre la
+0013, droits publics fermés et 324 250 bougies. Seb a retiré le 10 novembre la
 sauvegarde complète des prérequis bloquants du démarrage initial, sans ordre ni
 position. Le WSL domestique est la cible retenue ; son accès reste indisponible.
 
@@ -63,6 +63,16 @@ vérifiés localement ; API/sonde partagent le verdict, le navigateur expire sa
 preuve. Le cycle est désormais contrôlé séparément avec un budget de trente
 secondes ; ce budget et les délais bout en bout restent à qualifier sur la cible.
 R3 n'est pas validée.
+
+🟨 **R4 — couverture et mesure économique reproductible** *(commencé le 10 novembre 2026)* :
+compléter l'historique public sans modifier les données financières, exporter un
+jeu local vérifié et exécuter les scénarios gelés à frais défavorables. Distinguer
+la mécanique de risque de la performance du LLM et conserver les refus.
+876 bougies ajoutées et export de 137 767 lignes vérifié ; 77 bougies anciennes
+restent absentes. La comparaison 2026 du prudent initial et du candidat autorisé
+0,75 % / 30 % refuse tous les achats : 358 refus sur 1 882 cycles par scénario.
+Ce diagnostic mécanique ne valide ni la faisabilité actuelle ni le LLM. Preuves :
+`docs/audits/2026-11-10/ECONOMICS.md`.
 
 🟨 **R3 — visibilité des livraisons en attente** *(commencé le 10 novembre 2026)* :
 empêcher un état sain après résolution si l'alerte du surveillant attend encore

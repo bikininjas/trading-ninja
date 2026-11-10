@@ -1,6 +1,8 @@
 """Portefeuilles indépendants sur le véritable runtime, données entièrement locales."""
 
 from contextlib import asynccontextmanager
+from bisect import bisect_right
+from collections import Counter
 from copy import deepcopy
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -39,6 +41,7 @@ class MemoryLedger:
         self.policies_by_position = {}
         self.capital = None
         self.deferred = D(0)
+        self.evaluations = []
 
     @asynccontextmanager
     async def cycle_lock(self, *a):
@@ -148,6 +151,7 @@ class MemoryLedger:
         return self.signals.get(symbol)
 
     async def insert_evaluation(self, *a, **kw):
+        self.evaluations.append(kw['decision'])
         return uuid.uuid4(), self.now
 
     async def insert_shadow_trade(self, *a, **kw):
@@ -259,6 +263,9 @@ class MemoryLedger:
 class HistoricalExchange:
     def __init__(self, dataset, now):
         self.dataset, self.now = dataset, now
+        self.timestamps = {(symbol, tf): [c[0] for c in rows]
+                           for symbol, item in dataset.items()
+                           for tf, rows in item['candles'].items()}
         self.markets = {}
         for symbol, item in dataset.items():
             m = item["market"]
@@ -286,11 +293,10 @@ class HistoricalExchange:
         return int(self.now.timestamp() * 1000)
 
     def fetch_ohlcv(self, symbol, timeframe, limit=720):
-        return [
-            list(c)
-            for c in self.dataset[symbol]["candles"].get(timeframe, [])
-            if c[0] + TIMEFRAME_MS[timeframe] <= self.milliseconds()
-        ][-limit:]
+        stop = bisect_right(self.timestamps.get((symbol, timeframe), []),
+                            self.milliseconds() - TIMEFRAME_MS[timeframe])
+        return [list(c) for c in self.dataset[symbol]['candles'].get(timeframe, [])
+                [max(0, stop - limit):stop]]
 
     def fetch_ticker(self, symbol):
         timeframe = "1h"
@@ -596,6 +602,12 @@ async def run_experiment(spec, settings=None):
                 "errors": [e for r in reports for e in r.errors],
                 "curve": curve,
                 "missing_signals": client.missing,
+                "cycles": len(reports),
+                "signals": sum(r.signals for r in reports),
+                "evaluations": len(ledger.evaluations),
+                "approvals": sum(d.approved for d in ledger.evaluations),
+                "rejections": dict(Counter(str(d.rejection_code) for d in ledger.evaluations if not d.approved)),
+                "degraded_calls": sum(r.degraded_calls for r in reports),
             }
         )
     baseline = variants[0]

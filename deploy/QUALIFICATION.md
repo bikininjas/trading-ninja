@@ -31,9 +31,21 @@ du capital ne remplace pas une stratégie dont le gain net attendu est qualifié
 ## Candidat PAPER proposé
 
 Les exemples déployables fixent spot long, BTC/ETH/SOL en EUR, H4/H1, profil
-prudent, risque prévu de 0,5 %, une position, frais 0,80 %, glissement 5 pb/côté,
+prudent avec risque prévu de 0,75 % et exposition maximale de 30 %, une position,
+frais 0,80 %, glissement 5 pb/côté,
 classement en observation, sans capital progressif ni promotion. Le capital PAPER
 de 9,37 EUR est virtuel et n'est pas un mandat sur les fonds du compte.
+
+Seb a demandé cet assouplissement le 10 novembre. Le preset prudent original
+reste à 0,5 % / 20 % ; les trois configurations de service portent les mêmes
+surcharges. Le réglage souhaité PAPER de Supabase est en révision 1, sans
+révision appliquée : aucun moteur n'a confirmé son application. LIVE est inchangé.
+La mesure exploratoire gelée (`economic-plan.json` et `economic-results.json`
+dans `docs/audits/2026-11-10/`) compare les deux profils sur 2026, sans modèle :
+1 882 cycles et 358 refus de risque par scénario, zéro trade aux deux niveaux
+de coûts. Le cash et le buy-and-hold finançable restent à 9,37 EUR, chaque jambe
+de ce dernier étant sous les minima. Ce constat ne valide pas le LLM.
+Le plafond courant de 2,811 EUR reste inférieur aux minima observés.
 
 Au premier lancement sur WSL, archiver dans un dossier privé :
 

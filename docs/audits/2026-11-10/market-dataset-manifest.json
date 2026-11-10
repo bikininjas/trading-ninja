@@ -1,0 +1,473 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-11-10T15:44:56.883772+00:00",
+  "source": "Supabase trninja public market candles only",
+  "consistency": {
+    "method": "matching counts and content fingerprint before/after paginated export",
+    "source_check": {
+      "rows": 137767,
+      "fingerprint": "64825cbb55adcc6244dd8930a20f640f"
+    }
+  },
+  "files": [
+    {
+      "file": "part-BTC-EUR-1h-0000.json",
+      "sha256": "0c42ef3cb6c154c7624eea99e1386190bea32f871b29b7d5ec9e0331a7861bc0",
+      "symbol": "BTC/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-BTC-EUR-1h-0001.json",
+      "sha256": "c5e93f7def7190e724c73d52c7fad9f9352e9775d64d819dab61d28bc934ada7",
+      "symbol": "BTC/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-BTC-EUR-1h-0002.json",
+      "sha256": "ed77ff378e5a3bd26d130f58c7915e780ee1dd72d8af692d082def58b5fd86ae",
+      "symbol": "BTC/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-BTC-EUR-1h-0003.json",
+      "sha256": "68d9970bb824c1c1842766a51e3dcfb82296b93b2e0e2ff0252664262a11992e",
+      "symbol": "BTC/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-BTC-EUR-1h-0004.json",
+      "sha256": "4edfbe9961aa8b4f66766805f96cff8a83aaa89e7c06385cf8584aed64dba7dd",
+      "symbol": "BTC/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-BTC-EUR-1h-0005.json",
+      "sha256": "096f0a8b8da14d514f26d956f554a8ce7931bca0cffa04896bb34c44660782f4",
+      "symbol": "BTC/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-BTC-EUR-1h-0006.json",
+      "sha256": "de81c33b3026b2e8b29a784132967b60cf5effed231fdf3e852ddbc01f8a4864",
+      "symbol": "BTC/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-BTC-EUR-1h-0007.json",
+      "sha256": "bde616f359518ca0edef88f132a2ea46d1f6a2de04f6cdb58d421abd1802894b",
+      "symbol": "BTC/EUR",
+      "timeframe": "1h",
+      "rows": 1738
+    },
+    {
+      "file": "part-BTC-EUR-4h-0000.json",
+      "sha256": "0aa176c5513e4f69a074403801833d63af1f73b4ff9b939f92f9f344c2c500e9",
+      "symbol": "BTC/EUR",
+      "timeframe": "4h",
+      "rows": 5000
+    },
+    {
+      "file": "part-BTC-EUR-4h-0001.json",
+      "sha256": "551c47ea33d66df23c1a98df5a522e8e655a966f3b8b6325dae8e6944c86258c",
+      "symbol": "BTC/EUR",
+      "timeframe": "4h",
+      "rows": 4187
+    },
+    {
+      "file": "part-ETH-EUR-1h-0000.json",
+      "sha256": "3237c68c8002052aba0e9025d012e3df501cdc0f0a4c7fa99ec26ce001a15501",
+      "symbol": "ETH/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-ETH-EUR-1h-0001.json",
+      "sha256": "b3d0575fcf69b53084d8873dbcfd400f8cf0006c1d385c0325c96711a3bb0505",
+      "symbol": "ETH/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-ETH-EUR-1h-0002.json",
+      "sha256": "4aafac65631bcc7d48d4873616ba07ccc01d5cc628e7d28b02cc98aa39a73929",
+      "symbol": "ETH/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-ETH-EUR-1h-0003.json",
+      "sha256": "f11c7d48628fe404b5669a0404ecddb564ecfa46d5b882a43d90061004845da9",
+      "symbol": "ETH/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-ETH-EUR-1h-0004.json",
+      "sha256": "dff39169651951db29cb23be56e5d2306c8c1181a11d0263d0c081abd76876c0",
+      "symbol": "ETH/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-ETH-EUR-1h-0005.json",
+      "sha256": "7fb0fea8c350febc25f8df3f974c978cc034be79a46fcc8a4aba87a4e9e2f69c",
+      "symbol": "ETH/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-ETH-EUR-1h-0006.json",
+      "sha256": "1d5eaad7359ec97c550e37faf25119158a93cc986f3f2ca94f28d61445bab083",
+      "symbol": "ETH/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-ETH-EUR-1h-0007.json",
+      "sha256": "b0711bfebedc59a20b8a6cabc9ad363353d9f088bad5d198e11636662be56601",
+      "symbol": "ETH/EUR",
+      "timeframe": "1h",
+      "rows": 1737
+    },
+    {
+      "file": "part-ETH-EUR-4h-0000.json",
+      "sha256": "fc942fbf659c9f122bf092e29440abf01e4a8b46c440248393f2058af939c17c",
+      "symbol": "ETH/EUR",
+      "timeframe": "4h",
+      "rows": 5000
+    },
+    {
+      "file": "part-ETH-EUR-4h-0001.json",
+      "sha256": "ff54d75b05b22acfb9b9996f15be70014ffad9f005546ada532035095779433f",
+      "symbol": "ETH/EUR",
+      "timeframe": "4h",
+      "rows": 4186
+    },
+    {
+      "file": "part-SOL-EUR-1h-0000.json",
+      "sha256": "cddd73212b4c7f5751375f618e9fc6f99c8df103e956580d1bd8cb3ee9ea4297",
+      "symbol": "SOL/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-SOL-EUR-1h-0001.json",
+      "sha256": "e3408069f303b9bc554c6fa85ec0e54d10132b2dc90fa4d29b102f67d8e52eb9",
+      "symbol": "SOL/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-SOL-EUR-1h-0002.json",
+      "sha256": "1733840d8eba374de80d8e94a0ec11e2fb5b854a51aafe19ca29d26325e4b738",
+      "symbol": "SOL/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-SOL-EUR-1h-0003.json",
+      "sha256": "247d6769af8c4d06e8424311a0a04ad6d9a0a71c793aec6b00773108b12d848e",
+      "symbol": "SOL/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-SOL-EUR-1h-0004.json",
+      "sha256": "93888e3ab05486e958a31d9edcac89ed7d8565c1d02dd5b61151ae22dfe16c76",
+      "symbol": "SOL/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-SOL-EUR-1h-0005.json",
+      "sha256": "4ece5b357c779e1f405a7c9a3b21a25362fdd7ccd8c756bad2ec243f1e798242",
+      "symbol": "SOL/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-SOL-EUR-1h-0006.json",
+      "sha256": "ca56a59e402e6956b0bf3fea1150a070b3f3aaa5a34f949a971b7912c8adbaf5",
+      "symbol": "SOL/EUR",
+      "timeframe": "1h",
+      "rows": 5000
+    },
+    {
+      "file": "part-SOL-EUR-1h-0007.json",
+      "sha256": "043ecd0d3ab928e35a3b1dfe631b19894b8dd926ce2ad5630ee0b858457ecc5c",
+      "symbol": "SOL/EUR",
+      "timeframe": "1h",
+      "rows": 1733
+    },
+    {
+      "file": "part-SOL-EUR-4h-0000.json",
+      "sha256": "9b42d4fce7800628f9a05f1dab19bf6df78f415743824133bd398f2ee152295f",
+      "symbol": "SOL/EUR",
+      "timeframe": "4h",
+      "rows": 5000
+    },
+    {
+      "file": "part-SOL-EUR-4h-0001.json",
+      "sha256": "471c3a15fbac17105e8fd904837ba25936983e40bf279ea8289503b93bcbceda",
+      "symbol": "SOL/EUR",
+      "timeframe": "4h",
+      "rows": 4186
+    }
+  ],
+  "markets": {
+    "BTC/EUR": {
+      "amount_step": "1E-8",
+      "min_amount": "0.00006",
+      "min_notional": "0.45",
+      "price_tick": "0.1",
+      "taker_fee": "0.008",
+      "maker_fee": "0.004"
+    },
+    "ETH/EUR": {
+      "amount_step": "1E-8",
+      "min_amount": "0.002",
+      "min_notional": "0.45",
+      "price_tick": "0.01",
+      "taker_fee": "0.008",
+      "maker_fee": "0.004"
+    },
+    "SOL/EUR": {
+      "amount_step": "1E-8",
+      "min_amount": "0.05",
+      "min_notional": "0.45",
+      "price_tick": "0.01",
+      "taker_fee": "0.008",
+      "maker_fee": "0.004"
+    }
+  },
+  "coverage": [
+    {
+      "symbol": "BTC/EUR",
+      "timeframe": "1h",
+      "rows": 36738,
+      "first_ms": 1661990400000,
+      "last_ms": 1794319200000,
+      "gaps": [
+        {
+          "after_ms": 1683486000000,
+          "before_ms": 1683493200000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1704700800000,
+          "before_ms": 1704711600000,
+          "missing": 2
+        },
+        {
+          "after_ms": 1705766400000,
+          "before_ms": 1705784400000,
+          "missing": 4
+        },
+        {
+          "after_ms": 1713063600000,
+          "before_ms": 1713085200000,
+          "missing": 5
+        },
+        {
+          "after_ms": 1737813600000,
+          "before_ms": 1737828000000,
+          "missing": 3
+        },
+        {
+          "after_ms": 1756368000000,
+          "before_ms": 1756375200000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1762009200000,
+          "before_ms": 1762030800000,
+          "missing": 5
+        }
+      ],
+      "missing": 21
+    },
+    {
+      "symbol": "BTC/EUR",
+      "timeframe": "4h",
+      "rows": 9187,
+      "first_ms": 1661990400000,
+      "last_ms": 1794297600000,
+      "gaps": [
+        {
+          "after_ms": 1713052800000,
+          "before_ms": 1713081600000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1761998400000,
+          "before_ms": 1762027200000,
+          "missing": 1
+        }
+      ],
+      "missing": 2
+    },
+    {
+      "symbol": "ETH/EUR",
+      "timeframe": "1h",
+      "rows": 36737,
+      "first_ms": 1661990400000,
+      "last_ms": 1794319200000,
+      "gaps": [
+        {
+          "after_ms": 1683486000000,
+          "before_ms": 1683493200000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1704700800000,
+          "before_ms": 1704711600000,
+          "missing": 2
+        },
+        {
+          "after_ms": 1705762800000,
+          "before_ms": 1705784400000,
+          "missing": 5
+        },
+        {
+          "after_ms": 1713063600000,
+          "before_ms": 1713085200000,
+          "missing": 5
+        },
+        {
+          "after_ms": 1737813600000,
+          "before_ms": 1737828000000,
+          "missing": 3
+        },
+        {
+          "after_ms": 1756368000000,
+          "before_ms": 1756375200000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1762009200000,
+          "before_ms": 1762030800000,
+          "missing": 5
+        }
+      ],
+      "missing": 22
+    },
+    {
+      "symbol": "ETH/EUR",
+      "timeframe": "4h",
+      "rows": 9186,
+      "first_ms": 1661990400000,
+      "last_ms": 1794297600000,
+      "gaps": [
+        {
+          "after_ms": 1705752000000,
+          "before_ms": 1705780800000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1713052800000,
+          "before_ms": 1713081600000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1761998400000,
+          "before_ms": 1762027200000,
+          "missing": 1
+        }
+      ],
+      "missing": 3
+    },
+    {
+      "symbol": "SOL/EUR",
+      "timeframe": "1h",
+      "rows": 36733,
+      "first_ms": 1661990400000,
+      "last_ms": 1794319200000,
+      "gaps": [
+        {
+          "after_ms": 1671940800000,
+          "before_ms": 1671948000000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1683486000000,
+          "before_ms": 1683493200000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1684288800000,
+          "before_ms": 1684296000000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1684634400000,
+          "before_ms": 1684641600000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1704700800000,
+          "before_ms": 1704711600000,
+          "missing": 2
+        },
+        {
+          "after_ms": 1705762800000,
+          "before_ms": 1705784400000,
+          "missing": 5
+        },
+        {
+          "after_ms": 1713060000000,
+          "before_ms": 1713085200000,
+          "missing": 6
+        },
+        {
+          "after_ms": 1737813600000,
+          "before_ms": 1737828000000,
+          "missing": 3
+        },
+        {
+          "after_ms": 1756368000000,
+          "before_ms": 1756375200000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1762009200000,
+          "before_ms": 1762030800000,
+          "missing": 5
+        }
+      ],
+      "missing": 26
+    },
+    {
+      "symbol": "SOL/EUR",
+      "timeframe": "4h",
+      "rows": 9186,
+      "first_ms": 1661990400000,
+      "last_ms": 1794297600000,
+      "gaps": [
+        {
+          "after_ms": 1705752000000,
+          "before_ms": 1705780800000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1713052800000,
+          "before_ms": 1713081600000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1761998400000,
+          "before_ms": 1762027200000,
+          "missing": 1
+        }
+      ],
+      "missing": 3
+    }
+  ],
+  "dataset_digest": "c625858f50091ca284562d7a030829347b25f28449adf98410450299b37d4f85"
+}

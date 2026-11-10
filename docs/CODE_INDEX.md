@@ -3,18 +3,18 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `a5edda48882576d3`
+Empreinte des sources : `a5156f2093f73131`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
-| Modules Python | 145 |
-| Lignes Python | 33859 |
-| Classes | 147 |
-| Fonctions et méthodes | 1087 |
-| Cas de test collectés par pytest | 835 |
-| Fonctions de test (comptage statique) | 648 |
+| Modules Python | 153 |
+| Lignes Python | 34422 |
+| Classes | 148 |
+| Fonctions et méthodes | 1114 |
+| Cas de test collectés par pytest | 851 |
+| Fonctions de test (comptage statique) | 660 |
 | Migrations SQL | 13 |
 | Scripts shell | 3 |
 
@@ -67,7 +67,7 @@ Empreinte des sources : `a5edda48882576d3`
 | `backend/app/insights/codec.py` | 203 | Paquets typés et bornés ; aucune importation décidée par un paquet de rejeu. |
 | `backend/app/insights/costs.py` | 87 | Coût de carnet observé : aucune espérance inventée et aucun sizing ici. |
 | `backend/app/insights/diagnostics.py` | 202 | Analyse descriptive, prix observés à la clôture et couverture explicite. |
-| `backend/app/insights/experiments.py` | 640 | Portefeuilles indépendants sur le véritable runtime, données entièrement locales. |
+| `backend/app/insights/experiments.py` | 652 | Portefeuilles indépendants sur le véritable runtime, données entièrement locales. |
 | `backend/app/insights/health.py` | 90 | Verdict commun API/sonde : une preuve inconnue ne vaut jamais santé. |
 | `backend/app/insights/notifications.py` | 93 | File locale durable : commit avant envoi, acquittement après réponse HTTPS. |
 | `backend/app/insights/policy.py` | 79 | Règles stratégiques immuables ; les limites de sécurité restent courantes. |
@@ -80,9 +80,11 @@ Empreinte des sources : `a5edda48882576d3`
 | `backend/app/llm/lessons.py` | 190 | Mémoire de leçons — apprendre des résultats, pas du bruit de marché. |
 | `backend/app/main.py` | 200 | Point d'entrée du moteur — papier par défaut, live sous verrous explicites. |
 | `backend/app/market/__init__.py` | 1 | Couche marché : flux Kraken et indicateurs. Aucune I/O à l'import. |
+| `backend/app/market/dataset.py` | 88 | Jeu de marché figé : empreintes, Decimal, continuité explicite et aucun réseau. |
 | `backend/app/market/feed.py` | 425 | Flux de marché Kraken et indicateurs — bougies **clôturées** uniquement. |
 | `backend/app/market/history.py` | 479 | Historique de marché persistant — le carburant du backtest multi-années. |
 | `backend/app/market/kraken_archive.py` | 313 | Lecture partielle d'une archive ZIP Kraken par requêtes HTTP Range. |
+| `backend/app/market/trade_history.py` | 54 | Reconstruit des bougies seulement à partir de transactions publiques prouvées. |
 | `backend/app/runtime/__init__.py` | 1 | app/runtime |
 | `backend/app/runtime/execution_recovery.py` | 133 | Rapproche les reçus durables sans renvoyer les ordres retrouvés. |
 | `backend/app/runtime/heartbeat.py` | 66 | Preuve de vie du processus moteur, indépendante de sa cadence de décision. |
@@ -106,9 +108,12 @@ Empreinte des sources : `a5edda48882576d3`
 | `backend/scripts/lab_rotation.py` | 294 | Laboratoire de rotation momentum D1 — aucun ordre, aucune écriture. |
 | `backend/scripts/lessons.py` | 168 | Mémoire de leçons — relecture des résultats, affichage, purge. |
 | `backend/scripts/live_probe.py` | 157 | Sonde Kraken AddOrder en validation seulement (aucun ordre créé). |
+| `backend/scripts/market_dataset.py` | 69 | Export public uniquement, snapshot SQL cohérent ; audit local reproductible. |
 | `backend/scripts/paper_component.py` | 149 | Lance un composant PAPER depuis un fichier privé, avec mode et clés verrouillés. |
 | `backend/scripts/probe_backtest.py` | 92 | Sonde : combien de décisions LLM un backtest coûterait-il sur BTC/EUR ? |
+| `backend/scripts/qualify_economics.py` | 117 | Comparaison exploratoire hors ligne, sans SQL, clé, modèle ou ordre réel. |
 | `backend/scripts/reconcile.py` | 123 | Audit de réconciliation — lecture seule, aucun ordre, aucune écriture. |
+| `backend/scripts/repair_history.py` | 90 | Collecte publique paginée, sans clé ni écriture SQL, pour réparer un trou H1. |
 | `backend/scripts/shadow_report.py` | 93 | Rapport des shadow trades — les achats que le bot n'a pas pris. |
 | `backend/scripts/short_lab.py` | 70 | Mesure le mandat short sur le golden, sans réseau ni ordre. |
 | `backend/scripts/totp_setup.py` | 51 | Génère un secret TOTP, son QR code et l'URI de provisionnement. |
@@ -138,7 +143,7 @@ Empreinte des sources : `a5edda48882576d3`
 | `backend/tests/test_feed.py` | 167 | Tests du flux de marché et des indicateurs, sur bougies synthétiques. |
 | `backend/tests/test_heartbeat.py` | 301 | Vie continue du moteur : veille, panne SQL, sortie et arrêt brutal. |
 | `backend/tests/test_history.py` | 255 | Historique OHLCVT : analyse pure du CSV Kraken, trous, agrégation, cohérence. |
-| `backend/tests/test_insights.py` | 868 | Contrats des dix briefs : calculs purs, frontières de rejeu et runtime réel. |
+| `backend/tests/test_insights.py` | 870 | Contrats des dix briefs : calculs purs, frontières de rejeu et runtime réel. |
 | `backend/tests/test_insights_api.py` | 261 | Parcours administratifs privés : observation, révisions et aucune exécution. |
 | `backend/tests/test_insights_postgres.py` | 382 | Preuves SQL des contrôles, paquets, incidents et révisions ; cible locale stricte. |
 | `backend/tests/test_kraken_adapter.py` | 308 | Tests de la passerelle Kraken, hors réseau. |
@@ -149,6 +154,7 @@ Empreinte des sources : `a5edda48882576d3`
 | `backend/tests/test_llm.py` | 288 | Tests du client LLM : parsing strict, repli, garde-fous déterministes. |
 | `backend/tests/test_llm_eval.py` | 89 | Métriques de l'évaluation LLM : rétention des gagnants, filtration des perdants. |
 | `backend/tests/test_machine.py` | 52 | Tests de la machine à états : le graphe est une contrainte, pas une convention. |
+| `backend/tests/test_market_dataset.py` | 57 |  |
 | `backend/tests/test_mean_reversion.py` | 133 | Tests du laboratoire Mean Reversion — aucun réseau, aucun ordre. |
 | `backend/tests/test_notifications.py` | 298 | Preuves de reprise : disque, arrêt brutal, récidive et réponse perdue. |
 | `backend/tests/test_orchestrator.py` | 791 | Tests de bout en bout de l'orchestrateur, avec des doubles. |
@@ -156,6 +162,7 @@ Empreinte des sources : `a5edda48882576d3`
 | `backend/tests/test_paper_component.py` | 64 | Le service PAPER ne peut hériter d'un armement réel ni reprendre une intention inconnue. |
 | `backend/tests/test_pre_live_fixes.py` | 199 | Contre-exemples pré live convertis en contrats à respecter. |
 | `backend/tests/test_progressif.py` | 190 | Le petit budget ne doit ni forcer un achat ni masquer ses coûts. |
+| `backend/tests/test_qualify_economics.py` | 29 |  |
 | `backend/tests/test_reconciliation.py` | 268 | Tests de la réconciliation base ↔ exchange, sans réseau ni base réelle. |
 | `backend/tests/test_recovery.py` | 285 | Tests du kill-switch : liquidation, annulation des ordres, halte forcée. |
 | `backend/tests/test_risk_gate.py` | 598 | Tests du pare-feu transactionnel. |
@@ -166,6 +173,7 @@ Empreinte des sources : `a5edda48882576d3`
 | `backend/tests/test_shadow.py` | 76 | Tests du simulateur de shadow trades — purs, sans réseau ni base. |
 | `backend/tests/test_sweep.py` | 71 | Tests du Profit Sweeper : calcul pur, seuil, absence de ligne sur perte. |
 | `backend/tests/test_swing_backtest.py` | 176 | Tests du rejeu swing Daily : entrée, stop structurel, breakeven, sortie. |
+| `backend/tests/test_trade_history.py` | 45 |  |
 | `backend/tests/test_watchdog.py` | 110 | Une surveillance morte ou illisible ne peut jamais être annoncée saine. |
 | `scripts/backtest_watch.sh` | 27 | Veille de backtest — conçue pour un cron silencieux. |
 | `scripts/check.sh` | 206 | Vérification complète de l'état du dépôt en une commande. |
@@ -805,56 +813,56 @@ le code, pas une copie de celui-ci.
 
 *Portefeuilles indépendants sur le véritable runtime, données entièrement locales.*
 
-- **class MemoryLedger** (l.21) — Ledger d'expérience isolé, sans connexion SQL et sans transport exchange.
-  - `def __init__(self, equity, now)` (l.24)
-  - `async def cycle_lock(self, *a)` (l.44)
-  - `async def transaction(self)` (l.48)
-  - `async def ensure_mode(self, *a)` (l.56)
-  - `async def state(self, *a)` (l.59)
-  - `async def transition(self, mode, expected, target, reason, code=None, context=None)` (l.62)
-  - `async def force_halt(self, mode, reason, code=None, auto_resume_at=None)` (l.67)
-  - `async def force_resume(self, *a, **k)` (l.72)
-  - `async def halt_details(self, *a)` (l.76)
-  - `async def set_cooldown(self, mode, until)` (l.79)
-  - `async def note_error(self, *a)` (l.82)
-  - `async def runtime_settings(self, *a)` (l.85)
-  - `async def active_lessons(self, *a)` (l.88)
-  - `async def open_position(self, *a)` (l.91)
-  - `async def open_positions(self, *a)` (l.94)
-  - `async def account(self, mode, starting)` (l.97)
-  - `async def snapshot_equity(self, mode, *, equity, free_quote, position_value_quote, **kw)` (l.135)
-  - `async def insert_signal(self, mode, symbol, model_name, **kw)` (l.142)
-  - `async def last_signal_at(self, mode, symbol)` (l.147)
-  - `async def insert_evaluation(self, *a, **kw)` (l.150)
-  - `async def insert_shadow_trade(self, *a, **kw)` (l.153)
-  - `async def create_position(self, mode, **kw)` (l.156)
-  - `async def insert_order(self, mode, **kw)` (l.170)
-  - `async def entry_fee(self, position_id)` (l.174)
-  - `async def close_position(self, pid, **kw)` (l.184)
-  - `async def update_after_close(self, mode, *, consecutive_losses, equity)` (l.198)
-  - `async def update_position_stop(self, pid, stop)` (l.202)
-  - `async def advance_paper_position(self, pos, stop, close_at)` (l.207)
-  - `async def deferred_sweep_quote(self, *a)` (l.214)
-  - `async def insert_sweep(self, mode, **kw)` (l.217)
-  - `async def capital_state(self, *a)` (l.224)
-  - `async def ensure_capital(self, mode, quote, equity, reserve, at)` (l.227)
-  - `async def allocate_capital(self, mode, pid, pnl, at, policy, *, allow_promotion)` (l.232)
-  - `async def save_policy(self, policy)` (l.242)
-  - `async def attach_policy(self, mode, pid, policy)` (l.246)
-  - `async def position_policy(self, pid)` (l.252)
-  - `async def entry_control(self, *a)` (l.255)
-- **class HistoricalExchange** (l.259)
-  - `def __init__(self, dataset, now)` (l.260)
-  - `def market(self, symbol)` (l.282)
-  - `def milliseconds(self)` (l.285)
-  - `def fetch_ohlcv(self, symbol, timeframe, limit=720)` (l.288)
-  - `def fetch_ticker(self, symbol)` (l.295)
-  - `def fetch_order_book(self, symbol, limit=20)` (l.305)
-- **class ExperimentSignal** (l.314)
-  - `def __init__(self, variant)` (l.315)
-  - `async def propose(self, symbol, snapshot, context, *, has_position=False, **kw)` (l.325)
-- `def validate_experiment(spec)` (l.355)
-- `async def run_experiment(spec, settings=None)` (l.471)
+- **class MemoryLedger** (l.23) — Ledger d'expérience isolé, sans connexion SQL et sans transport exchange.
+  - `def __init__(self, equity, now)` (l.26)
+  - `async def cycle_lock(self, *a)` (l.47)
+  - `async def transaction(self)` (l.51)
+  - `async def ensure_mode(self, *a)` (l.59)
+  - `async def state(self, *a)` (l.62)
+  - `async def transition(self, mode, expected, target, reason, code=None, context=None)` (l.65)
+  - `async def force_halt(self, mode, reason, code=None, auto_resume_at=None)` (l.70)
+  - `async def force_resume(self, *a, **k)` (l.75)
+  - `async def halt_details(self, *a)` (l.79)
+  - `async def set_cooldown(self, mode, until)` (l.82)
+  - `async def note_error(self, *a)` (l.85)
+  - `async def runtime_settings(self, *a)` (l.88)
+  - `async def active_lessons(self, *a)` (l.91)
+  - `async def open_position(self, *a)` (l.94)
+  - `async def open_positions(self, *a)` (l.97)
+  - `async def account(self, mode, starting)` (l.100)
+  - `async def snapshot_equity(self, mode, *, equity, free_quote, position_value_quote, **kw)` (l.138)
+  - `async def insert_signal(self, mode, symbol, model_name, **kw)` (l.145)
+  - `async def last_signal_at(self, mode, symbol)` (l.150)
+  - `async def insert_evaluation(self, *a, **kw)` (l.153)
+  - `async def insert_shadow_trade(self, *a, **kw)` (l.157)
+  - `async def create_position(self, mode, **kw)` (l.160)
+  - `async def insert_order(self, mode, **kw)` (l.174)
+  - `async def entry_fee(self, position_id)` (l.178)
+  - `async def close_position(self, pid, **kw)` (l.188)
+  - `async def update_after_close(self, mode, *, consecutive_losses, equity)` (l.202)
+  - `async def update_position_stop(self, pid, stop)` (l.206)
+  - `async def advance_paper_position(self, pos, stop, close_at)` (l.211)
+  - `async def deferred_sweep_quote(self, *a)` (l.218)
+  - `async def insert_sweep(self, mode, **kw)` (l.221)
+  - `async def capital_state(self, *a)` (l.228)
+  - `async def ensure_capital(self, mode, quote, equity, reserve, at)` (l.231)
+  - `async def allocate_capital(self, mode, pid, pnl, at, policy, *, allow_promotion)` (l.236)
+  - `async def save_policy(self, policy)` (l.246)
+  - `async def attach_policy(self, mode, pid, policy)` (l.250)
+  - `async def position_policy(self, pid)` (l.256)
+  - `async def entry_control(self, *a)` (l.259)
+- **class HistoricalExchange** (l.263)
+  - `def __init__(self, dataset, now)` (l.264)
+  - `def market(self, symbol)` (l.289)
+  - `def milliseconds(self)` (l.292)
+  - `def fetch_ohlcv(self, symbol, timeframe, limit=720)` (l.295)
+  - `def fetch_ticker(self, symbol)` (l.301)
+  - `def fetch_order_book(self, symbol, limit=20)` (l.311)
+- **class ExperimentSignal** (l.320)
+  - `def __init__(self, variant)` (l.321)
+  - `async def propose(self, symbol, snapshot, context, *, has_position=False, **kw)` (l.331)
+- `def validate_experiment(spec)` (l.361)
+- `async def run_experiment(spec, settings=None)` (l.477)
 
 ### `backend/app/insights/health.py`
 
@@ -1009,6 +1017,16 @@ le code, pas une copie de celui-ci.
 - `async def _run(args: argparse.Namespace) -> int` (l.93)
 - `def main(argv: list[str] | None=None) -> int` (l.171)
 
+### `backend/app/market/dataset.py`
+
+*Jeu de marché figé : empreintes, Decimal, continuité explicite et aucun réseau.*
+
+- `def file_digest(path)` (l.13)
+- `def validate_rows(rows, timeframe)` (l.17)
+- `def coverage(rows, timeframe)` (l.30)
+- `def build_manifest(directory, markets, *, source, consistency)` (l.39)
+- `def load_dataset(directory, *, start_ms=None, end_ms=None)` (l.63)
+
 ### `backend/app/market/feed.py`
 
 *Flux de marché Kraken et indicateurs — bougies **clôturées** uniquement.*
@@ -1087,6 +1105,15 @@ le code, pas une copie de celui-ci.
   - `def read_text(self, name: str, encoding: str='utf-8') -> str` (l.312)
 - `def _apply_zip64_extra(extra: bytes, uncompressed: int, compressed: int, offset: int) -> tuple[int, int, int]` (l.197) — Applique le champ supplémentaire ZIP64 (id 0x0001) aux valeurs 32 bits.
 - `def parse_central_directory(directory: bytes) -> dict[str, ArchiveMember]` (l.224) — Répertoire central d'un ZIP → {nom: membre}. Pur, testable hors réseau.
+
+### `backend/app/market/trade_history.py`
+
+*Reconstruit des bougies seulement à partir de transactions publiques prouvées.*
+
+- **class TradeCandles** (l.6)
+  - `def __init__(self, start_ms, end_ms)` (l.7)
+  - `def observe(self, rows)` (l.15)
+  - `def candles(self)` (l.49)
 
 ### `backend/app/runtime/execution_recovery.py`
 
@@ -1356,6 +1383,13 @@ le code, pas une copie de celui-ci.
 - `def _run(symbol: str | None) -> int` (l.60)
 - `def main() -> int` (l.135)
 
+### `backend/scripts/market_dataset.py`
+
+*Export public uniquement, snapshot SQL cohérent ; audit local reproductible.*
+
+- `async def export(args)` (l.19)
+- `def main(argv=None)` (l.47)
+
 ### `backend/scripts/paper_component.py`
 
 *Lance un composant PAPER depuis un fichier privé, avec mode et clés verrouillés.*
@@ -1372,12 +1406,27 @@ le code, pas une copie de celui-ci.
 - `def fetch_all(exchange, timeframe: str, days: int) -> list[list]` (l.28)
 - `def main() -> None` (l.49)
 
+### `backend/scripts/qualify_economics.py`
+
+*Comparaison exploratoire hors ligne, sans SQL, clé, modèle ou ordre réel.*
+
+- `def buy_and_hold(data, start, finish, capital, fee, bps)` (l.20) — Pondération égale, lots arrondis vers le bas, reliquats en cash.
+- `async def qualify(directory, plan)` (l.52)
+- `def main()` (l.104)
+
 ### `backend/scripts/reconcile.py`
 
 *Audit de réconciliation — lecture seule, aucun ordre, aucune écriture.*
 
 - `async def _run(args: argparse.Namespace) -> int` (l.41)
 - `def main(argv: list[str] | None=None) -> int` (l.95)
+
+### `backend/scripts/repair_history.py`
+
+*Collecte publique paginée, sans clé ni écriture SQL, pour réparer un trou H1.*
+
+- `def collect(symbol, start, end, directory, *, max_pages=1000)` (l.20)
+- `def main(argv=None)` (l.73)
 
 ### `backend/scripts/shadow_report.py`
 
@@ -1889,20 +1938,20 @@ le code, pas une copie de celui-ci.
 - `async def test_real_runtime_cycle_replays_offline_and_detects_tampering()` (l.320)
 - `async def test_suspending_entries_keeps_the_position_stop_managed()` (l.352)
 - `async def test_experiments_keep_portfolios_and_capital_independent()` (l.400)
-- `def test_confidence_separates_cohorts_and_excludes_unresolved_and_degraded()` (l.431)
-- `async def test_observer_never_calls_exchange_mutations_and_distinguishes_partial_protection()` (l.460)
-- `def test_opportunity_counts_do_not_sum_approvals_into_executed_orders()` (l.501)
-- `async def test_runtime_ranking_observes_by_default_and_selects_only_opt_in_paper(mode, expected)` (l.516)
-- `async def test_entry_suspension_during_inference_prevents_order_submission()` (l.556)
-- `async def test_selected_candidate_is_revalidated_at_the_final_price()` (l.582)
-- `async def test_observation_failure_blocks_new_entries_but_keeps_existing_stop_management()` (l.616)
-- `def test_recording_limit_cannot_interrupt_an_already_executed_side_effect()` (l.664)
-- `async def test_observer_notification_uses_read_only_payload_and_does_not_follow_redirects()` (l.682)
-- `async def test_failed_alert_is_retried_even_if_incident_resolves_before_delivery(tmp_path)` (l.713)
-- `async def test_delivered_alert_is_deduplicated_until_incident_reopens(tmp_path)` (l.748)
-- `def test_confidence_does_not_mix_exit_policies_or_certify_unknown_versions()` (l.770)
-- `async def test_replay_preserves_model_identity_and_already_applied_settings_on_later_cycles()` (l.801)
-- `async def test_uncertain_live_entry_blocks_retry_without_sending_a_compensating_sell()` (l.840)
+- `def test_confidence_separates_cohorts_and_excludes_unresolved_and_degraded()` (l.433)
+- `async def test_observer_never_calls_exchange_mutations_and_distinguishes_partial_protection()` (l.462)
+- `def test_opportunity_counts_do_not_sum_approvals_into_executed_orders()` (l.503)
+- `async def test_runtime_ranking_observes_by_default_and_selects_only_opt_in_paper(mode, expected)` (l.518)
+- `async def test_entry_suspension_during_inference_prevents_order_submission()` (l.558)
+- `async def test_selected_candidate_is_revalidated_at_the_final_price()` (l.584)
+- `async def test_observation_failure_blocks_new_entries_but_keeps_existing_stop_management()` (l.618)
+- `def test_recording_limit_cannot_interrupt_an_already_executed_side_effect()` (l.666)
+- `async def test_observer_notification_uses_read_only_payload_and_does_not_follow_redirects()` (l.684)
+- `async def test_failed_alert_is_retried_even_if_incident_resolves_before_delivery(tmp_path)` (l.715)
+- `async def test_delivered_alert_is_deduplicated_until_incident_reopens(tmp_path)` (l.750)
+- `def test_confidence_does_not_mix_exit_policies_or_certify_unknown_versions()` (l.772)
+- `async def test_replay_preserves_model_identity_and_already_applied_settings_on_later_cycles()` (l.803)
+- `async def test_uncertain_live_entry_blocks_retry_without_sending_a_compensating_sell()` (l.842)
 
 ### `backend/tests/test_insights_api.py`
 
@@ -2143,6 +2192,15 @@ le code, pas une copie de celui-ci.
 - `async def test_locked_and_halted_states_have_no_automatic_exit()` (l.41)
 - `def test_unknown_state_is_refused_at_construction()` (l.50)
 
+### `backend/tests/test_market_dataset.py`
+
+- `def fixture_dataset(path)` (l.11)
+- `def test_dataset_exact_decimal_and_filtered_coverage(tmp_path)` (l.19)
+- `def test_modified_manifest_or_part_is_rejected(tmp_path, target)` (l.27)
+- `def test_incomplete_export_is_rejected(tmp_path)` (l.36)
+- `def test_gaps_are_measured_without_inventing_candles()` (l.43)
+- `def test_historical_exchange_excludes_future_and_unfinished_candles()` (l.50)
+
 ### `backend/tests/test_mean_reversion.py`
 
 *Tests du laboratoire Mean Reversion — aucun réseau, aucun ordre.*
@@ -2318,6 +2376,12 @@ le code, pas une copie de celui-ci.
 - `async def test_budget_comparison_reports_the_mechanical_ledger()` (l.135)
 - `async def test_runtime_raises_the_same_stop_as_the_replay(monkeypatch)` (l.145)
 - `async def test_runtime_revalidates_sizing_at_the_price_used_for_paper_fill(monkeypatch)` (l.174)
+
+### `backend/tests/test_qualify_economics.py`
+
+- `def data(minimum, symbols=('BTC/EUR',))` (l.7)
+- `def test_unfinanceable_benchmark_keeps_all_cash_without_rounding_loss()` (l.14)
+- `def test_financed_benchmark_includes_both_fees_slippage_and_cash_remainder()` (l.23)
 
 ### `backend/tests/test_reconciliation.py`
 
@@ -2586,6 +2650,15 @@ le code, pas une copie de celui-ci.
 - `def test_swing_chandelier_exits_on_a_close_below_the_trailing_stop()` (l.156)
 - `def test_swing_default_mode_does_not_use_the_chandelier()` (l.170)
 
+### `backend/tests/test_trade_history.py`
+
+- `def trade(price, volume, seconds, identity)` (l.8)
+- `def test_exact_decimal_volume_duplicate_page_and_numeric_tie_break()` (l.12)
+- `def test_empty_hour_is_not_fabricated_and_end_trade_is_excluded()` (l.20)
+- `def test_unfinished_pagination_cannot_produce_accepted_candles()` (l.27)
+- `def test_same_id_with_different_trade_is_rejected()` (l.34)
+- `def test_invalid_public_trade_is_not_turned_into_a_candle(row)` (l.43)
+
 ### `backend/tests/test_watchdog.py`
 
 *Une surveillance morte ou illisible ne peut jamais être annoncée saine.*
@@ -2639,6 +2712,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_llm.py` | 23 |
 | `backend/tests/test_llm_eval.py` | 5 |
 | `backend/tests/test_machine.py` | 4 |
+| `backend/tests/test_market_dataset.py` | 6 |
 | `backend/tests/test_mean_reversion.py` | 4 |
 | `backend/tests/test_notifications.py` | 10 |
 | `backend/tests/test_orchestrator.py` | 26 |
@@ -2646,6 +2720,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_paper_component.py` | 16 |
 | `backend/tests/test_pre_live_fixes.py` | 10 |
 | `backend/tests/test_progressif.py` | 14 |
+| `backend/tests/test_qualify_economics.py` | 2 |
 | `backend/tests/test_reconciliation.py` | 15 |
 | `backend/tests/test_recovery.py` | 10 |
 | `backend/tests/test_risk_gate.py` | 148 |
@@ -2656,8 +2731,9 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_shadow.py` | 5 |
 | `backend/tests/test_sweep.py` | 13 |
 | `backend/tests/test_swing_backtest.py` | 7 |
+| `backend/tests/test_trade_history.py` | 8 |
 | `backend/tests/test_watchdog.py` | 12 |
-| **Total** | **835** |
+| **Total** | **851** |
 
 ## 5. Schéma SQL
 

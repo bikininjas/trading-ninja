@@ -1,0 +1,47 @@
+{
+  "source": "Supabase trninja, public Kraken OHLCV and public Trades only",
+  "financial_tables_modified": false,
+  "database_rows_before": 323374,
+  "recent_closed_candles_added": 543,
+  "reconstructed_h1_added": 333,
+  "database_rows_after": 324250,
+  "database_bytes_after": 78739123,
+  "retained_free_floor_bytes": 100000000,
+  "recent_snapshot_sha256": "d6e4afff4722c1a394d403bac00dcacdc19294d7e0101992cdf1e2d6c9cc96bb",
+  "repair_checks": [
+    {
+      "symbol": "BTC/EUR",
+      "h1_reconstructed": 111,
+      "h4_compared": 27,
+      "ohlc_divergences": 0,
+      "max_volume_delta": "0E-10"
+    },
+    {
+      "symbol": "ETH/EUR",
+      "h1_reconstructed": 111,
+      "h4_compared": 27,
+      "ohlc_divergences": 0,
+      "max_volume_delta": "0E-10"
+    },
+    {
+      "symbol": "SOL/EUR",
+      "h1_reconstructed": 111,
+      "h4_compared": 27,
+      "ohlc_divergences": 0,
+      "max_volume_delta": "0E-10"
+    }
+  ],
+  "dataset_rows": 137767,
+  "dataset_digest": "c625858f50091ca284562d7a030829347b25f28449adf98410450299b37d4f85",
+  "portable_archive_sha256": "dacaca0e74e121a819f93b97a733143b32be803e8f71463b7531be0f385952ba",
+  "archive_contains_full_database": false,
+  "paper_desired_settings": {
+    "RISK_PROFILE": "prudent",
+    "RISK_PER_TRADE_PCT": "0.0075",
+    "MAX_NOTIONAL_PCT": "0.30"
+  },
+  "paper_desired_revision": 1,
+  "paper_applied_revision": null,
+  "live_settings_changed": false,
+  "live_activated": false
+}

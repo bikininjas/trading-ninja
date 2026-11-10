@@ -2001,3 +2001,21 @@ automatique n'est ajoutée. Les cycles normaux du WSL doivent tenir ce budget ou
 leur latence doit être traitée avant qualification ; le budget n'est pas élargi
 automatiquement après un échec. Les délais source/réception du canal réel restent
 à mesurer. Le test local avec notification injectée ne valide pas ce canal.
+
+---
+
+## D-088 — Assouplissement modeste explicite et mesure conservée (2026-11-10)
+
+Seb autorise un prudent légèrement moins restrictif et les opérations Supabase.
+Le candidat PAPER porte deux surcharges : risque prévu 0,75 % par trade et
+exposition 30 %, contre 0,5 % / 20 % pour le preset d'origine, conservé. Budget
+total 9,37 EUR, une position, frais, stops, drawdowns, confiance et fréquence
+restent inchangés. Les trois services lisent les mêmes surcharges ; la révision
+souhaitée en base ne vaut pas accusé d'application ni activation du moteur.
+
+Le protocole est gelé avant sa mesure, sur une fenêtre historique connue :
+mécanique du vrai runtime, cash et buy-and-hold finançable, frais du compte et
+stress. Aucun choix automatique après résultat et aucune hausse supplémentaire
+pour franchir les minima. Un résultat sans achat reste un échec de faisabilité,
+sans être présenté comme une stratégie sans perte. La qualification du LLM reste
+prospective et distincte, sur captures du modèle réel.

@@ -1,0 +1,1790 @@
+{
+  "schema_version": 1,
+  "status": "EXPLORATORY_ONLY_NO_GO",
+  "llm_inference_performed": false,
+  "llm_performance_validated": false,
+  "out_of_calibration_validated": false,
+  "real_orders": 0,
+  "dataset_digest": "c625858f50091ca284562d7a030829347b25f28449adf98410450299b37d4f85",
+  "plan_sha256": "c919a2c2318e437201cc1600a8dd41f28d1c068ec11dfcca119cd85ce68b5c10",
+  "full_dataset_coverage": [
+    {
+      "symbol": "BTC/EUR",
+      "timeframe": "1h",
+      "rows": 36738,
+      "first_ms": 1661990400000,
+      "last_ms": 1794319200000,
+      "gaps": [
+        {
+          "after_ms": 1683486000000,
+          "before_ms": 1683493200000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1704700800000,
+          "before_ms": 1704711600000,
+          "missing": 2
+        },
+        {
+          "after_ms": 1705766400000,
+          "before_ms": 1705784400000,
+          "missing": 4
+        },
+        {
+          "after_ms": 1713063600000,
+          "before_ms": 1713085200000,
+          "missing": 5
+        },
+        {
+          "after_ms": 1737813600000,
+          "before_ms": 1737828000000,
+          "missing": 3
+        },
+        {
+          "after_ms": 1756368000000,
+          "before_ms": 1756375200000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1762009200000,
+          "before_ms": 1762030800000,
+          "missing": 5
+        }
+      ],
+      "missing": 21
+    },
+    {
+      "symbol": "BTC/EUR",
+      "timeframe": "4h",
+      "rows": 9187,
+      "first_ms": 1661990400000,
+      "last_ms": 1794297600000,
+      "gaps": [
+        {
+          "after_ms": 1713052800000,
+          "before_ms": 1713081600000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1761998400000,
+          "before_ms": 1762027200000,
+          "missing": 1
+        }
+      ],
+      "missing": 2
+    },
+    {
+      "symbol": "ETH/EUR",
+      "timeframe": "1h",
+      "rows": 36737,
+      "first_ms": 1661990400000,
+      "last_ms": 1794319200000,
+      "gaps": [
+        {
+          "after_ms": 1683486000000,
+          "before_ms": 1683493200000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1704700800000,
+          "before_ms": 1704711600000,
+          "missing": 2
+        },
+        {
+          "after_ms": 1705762800000,
+          "before_ms": 1705784400000,
+          "missing": 5
+        },
+        {
+          "after_ms": 1713063600000,
+          "before_ms": 1713085200000,
+          "missing": 5
+        },
+        {
+          "after_ms": 1737813600000,
+          "before_ms": 1737828000000,
+          "missing": 3
+        },
+        {
+          "after_ms": 1756368000000,
+          "before_ms": 1756375200000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1762009200000,
+          "before_ms": 1762030800000,
+          "missing": 5
+        }
+      ],
+      "missing": 22
+    },
+    {
+      "symbol": "ETH/EUR",
+      "timeframe": "4h",
+      "rows": 9186,
+      "first_ms": 1661990400000,
+      "last_ms": 1794297600000,
+      "gaps": [
+        {
+          "after_ms": 1705752000000,
+          "before_ms": 1705780800000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1713052800000,
+          "before_ms": 1713081600000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1761998400000,
+          "before_ms": 1762027200000,
+          "missing": 1
+        }
+      ],
+      "missing": 3
+    },
+    {
+      "symbol": "SOL/EUR",
+      "timeframe": "1h",
+      "rows": 36733,
+      "first_ms": 1661990400000,
+      "last_ms": 1794319200000,
+      "gaps": [
+        {
+          "after_ms": 1671940800000,
+          "before_ms": 1671948000000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1683486000000,
+          "before_ms": 1683493200000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1684288800000,
+          "before_ms": 1684296000000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1684634400000,
+          "before_ms": 1684641600000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1704700800000,
+          "before_ms": 1704711600000,
+          "missing": 2
+        },
+        {
+          "after_ms": 1705762800000,
+          "before_ms": 1705784400000,
+          "missing": 5
+        },
+        {
+          "after_ms": 1713060000000,
+          "before_ms": 1713085200000,
+          "missing": 6
+        },
+        {
+          "after_ms": 1737813600000,
+          "before_ms": 1737828000000,
+          "missing": 3
+        },
+        {
+          "after_ms": 1756368000000,
+          "before_ms": 1756375200000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1762009200000,
+          "before_ms": 1762030800000,
+          "missing": 5
+        }
+      ],
+      "missing": 26
+    },
+    {
+      "symbol": "SOL/EUR",
+      "timeframe": "4h",
+      "rows": 9186,
+      "first_ms": 1661990400000,
+      "last_ms": 1794297600000,
+      "gaps": [
+        {
+          "after_ms": 1705752000000,
+          "before_ms": 1705780800000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1713052800000,
+          "before_ms": 1713081600000,
+          "missing": 1
+        },
+        {
+          "after_ms": 1761998400000,
+          "before_ms": 1762027200000,
+          "missing": 1
+        }
+      ],
+      "missing": 3
+    }
+  ],
+  "evaluated_data_coverage": [
+    {
+      "symbol": "BTC/EUR",
+      "timeframe": "1h",
+      "rows": 8965,
+      "first_ms": 1762041600000,
+      "last_ms": 1794312000000,
+      "gaps": [],
+      "missing": 0
+    },
+    {
+      "symbol": "BTC/EUR",
+      "timeframe": "4h",
+      "rows": 2241,
+      "first_ms": 1762041600000,
+      "last_ms": 1794297600000,
+      "gaps": [],
+      "missing": 0
+    },
+    {
+      "symbol": "ETH/EUR",
+      "timeframe": "1h",
+      "rows": 8965,
+      "first_ms": 1762041600000,
+      "last_ms": 1794312000000,
+      "gaps": [],
+      "missing": 0
+    },
+    {
+      "symbol": "ETH/EUR",
+      "timeframe": "4h",
+      "rows": 2241,
+      "first_ms": 1762041600000,
+      "last_ms": 1794297600000,
+      "gaps": [],
+      "missing": 0
+    },
+    {
+      "symbol": "SOL/EUR",
+      "timeframe": "1h",
+      "rows": 8965,
+      "first_ms": 1762041600000,
+      "last_ms": 1794312000000,
+      "gaps": [],
+      "missing": 0
+    },
+    {
+      "symbol": "SOL/EUR",
+      "timeframe": "4h",
+      "rows": 2241,
+      "first_ms": 1762041600000,
+      "last_ms": 1794297600000,
+      "gaps": [],
+      "missing": 0
+    }
+  ],
+  "results": [
+    {
+      "name": "prudent-original",
+      "kind": "mechanical",
+      "trades": 0,
+      "equity_start": "9.37",
+      "equity_end": "9.37",
+      "net_realized": "0",
+      "profit_factor": null,
+      "max_drawdown": "0",
+      "open_position": false,
+      "reserve": "0",
+      "growth": "0",
+      "promotions": 0,
+      "fees": "0",
+      "errors": [],
+      "missing_signals": 0,
+      "cycles": 1882,
+      "signals": 358,
+      "evaluations": 358,
+      "approvals": 0,
+      "rejections": {
+        "RISK_LIMIT_EXCEEDED": 358
+      },
+      "degraded_calls": 0,
+      "costs": {
+        "name": "account-taker",
+        "fee": "0.008",
+        "slippage_bps": 5
+      },
+      "policy": {
+        "name": "prudent-original",
+        "risk": "0.005",
+        "exposure": "0.20"
+      },
+      "first_decision_at": "2026-01-01T00:00:00+00:00",
+      "last_decision_at": "2026-11-10T12:00:00+00:00",
+      "cash_baseline": "9.37",
+      "buy_and_hold": {
+        "equity_start": "9.37",
+        "equity_end": "9.370000000000000000000000000",
+        "net_return": "0E-25",
+        "legs": [
+          {
+            "symbol": "BTC/EUR",
+            "quantity": "0",
+            "financed": false,
+            "initial_price": "74500.1000000000",
+            "final_price": "66265.0000000000",
+            "unfinanced_market_return": "-0.1105381066602595164301792883",
+            "equity_end": "3.123333333333333333333333333"
+          },
+          {
+            "symbol": "ETH/EUR",
+            "quantity": "0",
+            "financed": false,
+            "initial_price": "2525.9900000000",
+            "final_price": "1865.0100000000",
+            "unfinanced_market_return": "-0.2616716614080024069770664175",
+            "equity_end": "3.123333333333333333333333333"
+          },
+          {
+            "symbol": "SOL/EUR",
+            "quantity": "0",
+            "financed": false,
+            "initial_price": "105.9500000000",
+            "final_price": "75.4500000000",
+            "unfinanced_market_return": "-0.2878716375648890986314299198",
+            "equity_end": "3.123333333333333333333333334"
+          }
+        ],
+        "current_exchange_minima_used_retrospectively": true,
+        "final_liquidation_cost_included": true
+      },
+      "manifest_digest": "d35977e6bdf4e821ba4cacb0d6544248fe098a305c9e62dcefc814059c07e92d",
+      "code_fingerprint": "01f56b497bf66d847afb46d35c7e6522731a6bb55b092e2fad521b6d0c821a7c",
+      "base_settings": {
+        "@": "dataclass",
+        "type": "app.core.settings.Settings",
+        "fields": {
+          "env": "development",
+          "debug": true,
+          "mode": "paper",
+          "risk": {
+            "@": "dataclass",
+            "type": "app.engine.risk_gate.RiskConfig",
+            "fields": {
+              "risk_per_trade_pct": {
+                "@": "decimal",
+                "value": "0.005"
+              },
+              "max_notional_pct": {
+                "@": "decimal",
+                "value": "0.20"
+              },
+              "max_position_notional_quote": {
+                "@": "decimal",
+                "value": "2000"
+              },
+              "fee_buffer_pct": {
+                "@": "decimal",
+                "value": "0.016"
+              },
+              "cost_aware": true,
+              "execution_fee_pct": {
+                "@": "decimal",
+                "value": "0.008"
+              },
+              "execution_slippage_pct": {
+                "@": "decimal",
+                "value": "0.0005"
+              },
+              "opportunity_r_multiple": {
+                "@": "decimal",
+                "value": "4"
+              },
+              "min_net_reward_to_risk": {
+                "@": "decimal",
+                "value": "1.5"
+              },
+              "profit_trailing_enabled": false,
+              "profit_trailing_start_r": {
+                "@": "decimal",
+                "value": "2"
+              },
+              "profit_trailing_distance_r": {
+                "@": "decimal",
+                "value": "1"
+              },
+              "stop_atr_multiple": {
+                "@": "decimal",
+                "value": "2.5"
+              },
+              "take_profit_r_multiple": {
+                "@": "decimal",
+                "value": "2.0"
+              },
+              "trend_buffer_pct": {
+                "@": "decimal",
+                "value": "0.005"
+              },
+              "falling_knife_atr_multiple": {
+                "@": "decimal",
+                "value": "2.5"
+              },
+              "stop_mode": {
+                "@": "enum",
+                "type": "app.engine.risk_gate.StopMode",
+                "value": "ATR"
+              },
+              "max_stop_distance_pct": {
+                "@": "decimal",
+                "value": "0.05"
+              },
+              "allow_counter_trend": false,
+              "small_account_full_allocation": false,
+              "small_account_threshold_quote": {
+                "@": "decimal",
+                "value": "50"
+              },
+              "small_account_max_risk_pct": {
+                "@": "decimal",
+                "value": "0.05"
+              },
+              "min_atr_pct_of_price": {
+                "@": "decimal",
+                "value": "0.0015"
+              },
+              "max_atr_pct_of_price": {
+                "@": "decimal",
+                "value": "0.08"
+              },
+              "min_confidence": {
+                "@": "decimal",
+                "value": "0.80"
+              },
+              "reject_trending_down_regime": true,
+              "max_daily_drawdown_pct": {
+                "@": "decimal",
+                "value": "0.02"
+              },
+              "max_weekly_drawdown_pct": {
+                "@": "decimal",
+                "value": "0.05"
+              },
+              "max_drawdown_from_hwm_pct": {
+                "@": "decimal",
+                "value": "0.10"
+              },
+              "max_consecutive_losses": 4,
+              "risk_throttle_after_losses": 2,
+              "risk_throttle_factor": {
+                "@": "decimal",
+                "value": "0.5"
+              },
+              "max_orders_per_hour": 6,
+              "stale_data_seconds": 5,
+              "max_open_positions": 1,
+              "entry_rule_enabled": true,
+              "entry_require_positive_h1": false,
+              "entry_rsi_min": {
+                "@": "decimal",
+                "value": "40"
+              },
+              "entry_rsi_max": {
+                "@": "decimal",
+                "value": "65"
+              },
+              "entry_pullback_atr": {
+                "@": "decimal",
+                "value": "0.75"
+              },
+              "entry_require_ema50_above_ema200": true,
+              "entry_ema200_slope_min": {
+                "@": "decimal",
+                "value": "2.0"
+              },
+              "entry_mode": {
+                "@": "enum",
+                "type": "app.engine.risk_gate.EntryMode",
+                "value": "EMA50_H4"
+              },
+              "entry_pullback_h1_atr": {
+                "@": "decimal",
+                "value": "1.0"
+              },
+              "entry_h1_rsi_min": {
+                "@": "decimal",
+                "value": "38"
+              },
+              "entry_h1_rsi_max": {
+                "@": "decimal",
+                "value": "55"
+              },
+              "swing_donchian_days": 20,
+              "swing_rsi_min": {
+                "@": "decimal",
+                "value": "50"
+              },
+              "swing_rsi_max": {
+                "@": "decimal",
+                "value": "65"
+              },
+              "swing_require_donchian": true,
+              "swing_require_value_rebound": true,
+              "swing_breakeven_r": {
+                "@": "decimal",
+                "value": "1"
+              },
+              "swing_exit_mode": {
+                "@": "enum",
+                "type": "app.engine.risk_gate.SwingExitMode",
+                "value": "EMA20"
+              },
+              "swing_exit_below_ema20": true,
+              "swing_bollinger_period": 20,
+              "swing_bollinger_std": {
+                "@": "decimal",
+                "value": "2.5"
+              },
+              "swing_chandelier_period": 20,
+              "swing_chandelier_atr_multiple": {
+                "@": "decimal",
+                "value": "3.0"
+              },
+              "min_exit_confidence": {
+                "@": "decimal",
+                "value": "0.55"
+              },
+              "min_halt_confidence": {
+                "@": "decimal",
+                "value": "0.80"
+              }
+            }
+          },
+          "risk_profile": "prudent",
+          "exchange": {
+            "@": "dataclass",
+            "type": "app.core.settings.ExchangeSettings",
+            "fields": {
+              "exchange_id": "kraken",
+              "api_key": "",
+              "secret": "",
+              "kill_api_key": "",
+              "kill_secret": "",
+              "sandbox": true,
+              "symbol": "BTC/EUR",
+              "quote_currency": "EUR",
+              "allowed_symbols": {
+                "@": "tuple",
+                "items": [
+                  "BTC/EUR",
+                  "ETH/EUR",
+                  "SOL/EUR"
+                ]
+              },
+              "daily_timeframe_decision": "4h",
+              "entry_timeframe": "1h",
+              "taker_fee": {
+                "@": "decimal",
+                "value": "0.008"
+              },
+              "maker_fee": {
+                "@": "decimal",
+                "value": "0.004"
+              }
+            }
+          },
+          "llm": {
+            "@": "dataclass",
+            "type": "app.core.settings.LLMSettings",
+            "fields": {
+              "base_url": "http://127.0.0.1:11434/v1",
+              "model": "qwen2.5:14b-instruct-q4_K_M",
+              "timeout_seconds": 5.0,
+              "max_retries": 1,
+              "temperature": 0.0
+            }
+          },
+          "master_encryption_key": "",
+          "jwt_secret": "",
+          "totp_secret": "",
+          "admin_password_hash": "",
+          "paper_start_equity": {
+            "@": "decimal",
+            "value": "9.37"
+          },
+          "paper_slippage_bps": 5,
+          "capital_policy": {
+            "@": "dataclass",
+            "type": "app.engine.capital.CapitalPolicy",
+            "fields": {
+              "enabled": false,
+              "reserve_ratio": {
+                "@": "decimal",
+                "value": "0.30"
+              },
+              "growth_trigger": {
+                "@": "decimal",
+                "value": "1"
+              },
+              "step_quote": {
+                "@": "decimal",
+                "value": "0.25"
+              },
+              "step_max_pct": {
+                "@": "decimal",
+                "value": "0.05"
+              },
+              "interval_days": 7,
+              "max_active_quote": {
+                "@": "decimal",
+                "value": "20"
+              }
+            }
+          },
+          "insights_enabled": true,
+          "ranking_mode": "observe",
+          "observer_api_key": "",
+          "observer_secret": "",
+          "observer_interval_seconds": 15,
+          "sweep_ratio": {
+            "@": "decimal",
+            "value": "0.30"
+          },
+          "sweep_min_transfer_quote": {
+            "@": "decimal",
+            "value": "1.00"
+          },
+          "halt_auto_resume_hours": 24,
+          "_raw_env": "REDACTED_PRESENT"
+        }
+      }
+    },
+    {
+      "name": "prudent-assoupli",
+      "kind": "mechanical",
+      "trades": 0,
+      "equity_start": "9.37",
+      "equity_end": "9.37",
+      "net_realized": "0",
+      "profit_factor": null,
+      "max_drawdown": "0",
+      "open_position": false,
+      "reserve": "0",
+      "growth": "0",
+      "promotions": 0,
+      "fees": "0",
+      "errors": [],
+      "missing_signals": 0,
+      "cycles": 1882,
+      "signals": 358,
+      "evaluations": 358,
+      "approvals": 0,
+      "rejections": {
+        "RISK_LIMIT_EXCEEDED": 358
+      },
+      "degraded_calls": 0,
+      "costs": {
+        "name": "account-taker",
+        "fee": "0.008",
+        "slippage_bps": 5
+      },
+      "policy": {
+        "name": "prudent-assoupli",
+        "risk": "0.0075",
+        "exposure": "0.30"
+      },
+      "first_decision_at": "2026-01-01T00:00:00+00:00",
+      "last_decision_at": "2026-11-10T12:00:00+00:00",
+      "cash_baseline": "9.37",
+      "buy_and_hold": {
+        "equity_start": "9.37",
+        "equity_end": "9.370000000000000000000000000",
+        "net_return": "0E-25",
+        "legs": [
+          {
+            "symbol": "BTC/EUR",
+            "quantity": "0",
+            "financed": false,
+            "initial_price": "74500.1000000000",
+            "final_price": "66265.0000000000",
+            "unfinanced_market_return": "-0.1105381066602595164301792883",
+            "equity_end": "3.123333333333333333333333333"
+          },
+          {
+            "symbol": "ETH/EUR",
+            "quantity": "0",
+            "financed": false,
+            "initial_price": "2525.9900000000",
+            "final_price": "1865.0100000000",
+            "unfinanced_market_return": "-0.2616716614080024069770664175",
+            "equity_end": "3.123333333333333333333333333"
+          },
+          {
+            "symbol": "SOL/EUR",
+            "quantity": "0",
+            "financed": false,
+            "initial_price": "105.9500000000",
+            "final_price": "75.4500000000",
+            "unfinanced_market_return": "-0.2878716375648890986314299198",
+            "equity_end": "3.123333333333333333333333334"
+          }
+        ],
+        "current_exchange_minima_used_retrospectively": true,
+        "final_liquidation_cost_included": true
+      },
+      "manifest_digest": "369723eccbe38ad65bc910c71835a46d258f74d10bb0eb946a5e6fb9aa70937d",
+      "code_fingerprint": "01f56b497bf66d847afb46d35c7e6522731a6bb55b092e2fad521b6d0c821a7c",
+      "base_settings": {
+        "@": "dataclass",
+        "type": "app.core.settings.Settings",
+        "fields": {
+          "env": "development",
+          "debug": true,
+          "mode": "paper",
+          "risk": {
+            "@": "dataclass",
+            "type": "app.engine.risk_gate.RiskConfig",
+            "fields": {
+              "risk_per_trade_pct": {
+                "@": "decimal",
+                "value": "0.0075"
+              },
+              "max_notional_pct": {
+                "@": "decimal",
+                "value": "0.30"
+              },
+              "max_position_notional_quote": {
+                "@": "decimal",
+                "value": "2000"
+              },
+              "fee_buffer_pct": {
+                "@": "decimal",
+                "value": "0.016"
+              },
+              "cost_aware": true,
+              "execution_fee_pct": {
+                "@": "decimal",
+                "value": "0.008"
+              },
+              "execution_slippage_pct": {
+                "@": "decimal",
+                "value": "0.0005"
+              },
+              "opportunity_r_multiple": {
+                "@": "decimal",
+                "value": "4"
+              },
+              "min_net_reward_to_risk": {
+                "@": "decimal",
+                "value": "1.5"
+              },
+              "profit_trailing_enabled": false,
+              "profit_trailing_start_r": {
+                "@": "decimal",
+                "value": "2"
+              },
+              "profit_trailing_distance_r": {
+                "@": "decimal",
+                "value": "1"
+              },
+              "stop_atr_multiple": {
+                "@": "decimal",
+                "value": "2.5"
+              },
+              "take_profit_r_multiple": {
+                "@": "decimal",
+                "value": "2.0"
+              },
+              "trend_buffer_pct": {
+                "@": "decimal",
+                "value": "0.005"
+              },
+              "falling_knife_atr_multiple": {
+                "@": "decimal",
+                "value": "2.5"
+              },
+              "stop_mode": {
+                "@": "enum",
+                "type": "app.engine.risk_gate.StopMode",
+                "value": "ATR"
+              },
+              "max_stop_distance_pct": {
+                "@": "decimal",
+                "value": "0.05"
+              },
+              "allow_counter_trend": false,
+              "small_account_full_allocation": false,
+              "small_account_threshold_quote": {
+                "@": "decimal",
+                "value": "50"
+              },
+              "small_account_max_risk_pct": {
+                "@": "decimal",
+                "value": "0.05"
+              },
+              "min_atr_pct_of_price": {
+                "@": "decimal",
+                "value": "0.0015"
+              },
+              "max_atr_pct_of_price": {
+                "@": "decimal",
+                "value": "0.08"
+              },
+              "min_confidence": {
+                "@": "decimal",
+                "value": "0.80"
+              },
+              "reject_trending_down_regime": true,
+              "max_daily_drawdown_pct": {
+                "@": "decimal",
+                "value": "0.02"
+              },
+              "max_weekly_drawdown_pct": {
+                "@": "decimal",
+                "value": "0.05"
+              },
+              "max_drawdown_from_hwm_pct": {
+                "@": "decimal",
+                "value": "0.10"
+              },
+              "max_consecutive_losses": 4,
+              "risk_throttle_after_losses": 2,
+              "risk_throttle_factor": {
+                "@": "decimal",
+                "value": "0.5"
+              },
+              "max_orders_per_hour": 6,
+              "stale_data_seconds": 5,
+              "max_open_positions": 1,
+              "entry_rule_enabled": true,
+              "entry_require_positive_h1": false,
+              "entry_rsi_min": {
+                "@": "decimal",
+                "value": "40"
+              },
+              "entry_rsi_max": {
+                "@": "decimal",
+                "value": "65"
+              },
+              "entry_pullback_atr": {
+                "@": "decimal",
+                "value": "0.75"
+              },
+              "entry_require_ema50_above_ema200": true,
+              "entry_ema200_slope_min": {
+                "@": "decimal",
+                "value": "2.0"
+              },
+              "entry_mode": {
+                "@": "enum",
+                "type": "app.engine.risk_gate.EntryMode",
+                "value": "EMA50_H4"
+              },
+              "entry_pullback_h1_atr": {
+                "@": "decimal",
+                "value": "1.0"
+              },
+              "entry_h1_rsi_min": {
+                "@": "decimal",
+                "value": "38"
+              },
+              "entry_h1_rsi_max": {
+                "@": "decimal",
+                "value": "55"
+              },
+              "swing_donchian_days": 20,
+              "swing_rsi_min": {
+                "@": "decimal",
+                "value": "50"
+              },
+              "swing_rsi_max": {
+                "@": "decimal",
+                "value": "65"
+              },
+              "swing_require_donchian": true,
+              "swing_require_value_rebound": true,
+              "swing_breakeven_r": {
+                "@": "decimal",
+                "value": "1"
+              },
+              "swing_exit_mode": {
+                "@": "enum",
+                "type": "app.engine.risk_gate.SwingExitMode",
+                "value": "EMA20"
+              },
+              "swing_exit_below_ema20": true,
+              "swing_bollinger_period": 20,
+              "swing_bollinger_std": {
+                "@": "decimal",
+                "value": "2.5"
+              },
+              "swing_chandelier_period": 20,
+              "swing_chandelier_atr_multiple": {
+                "@": "decimal",
+                "value": "3.0"
+              },
+              "min_exit_confidence": {
+                "@": "decimal",
+                "value": "0.55"
+              },
+              "min_halt_confidence": {
+                "@": "decimal",
+                "value": "0.80"
+              }
+            }
+          },
+          "risk_profile": "prudent",
+          "exchange": {
+            "@": "dataclass",
+            "type": "app.core.settings.ExchangeSettings",
+            "fields": {
+              "exchange_id": "kraken",
+              "api_key": "",
+              "secret": "",
+              "kill_api_key": "",
+              "kill_secret": "",
+              "sandbox": true,
+              "symbol": "BTC/EUR",
+              "quote_currency": "EUR",
+              "allowed_symbols": {
+                "@": "tuple",
+                "items": [
+                  "BTC/EUR",
+                  "ETH/EUR",
+                  "SOL/EUR"
+                ]
+              },
+              "daily_timeframe_decision": "4h",
+              "entry_timeframe": "1h",
+              "taker_fee": {
+                "@": "decimal",
+                "value": "0.008"
+              },
+              "maker_fee": {
+                "@": "decimal",
+                "value": "0.004"
+              }
+            }
+          },
+          "llm": {
+            "@": "dataclass",
+            "type": "app.core.settings.LLMSettings",
+            "fields": {
+              "base_url": "http://127.0.0.1:11434/v1",
+              "model": "qwen2.5:14b-instruct-q4_K_M",
+              "timeout_seconds": 5.0,
+              "max_retries": 1,
+              "temperature": 0.0
+            }
+          },
+          "master_encryption_key": "",
+          "jwt_secret": "",
+          "totp_secret": "",
+          "admin_password_hash": "",
+          "paper_start_equity": {
+            "@": "decimal",
+            "value": "9.37"
+          },
+          "paper_slippage_bps": 5,
+          "capital_policy": {
+            "@": "dataclass",
+            "type": "app.engine.capital.CapitalPolicy",
+            "fields": {
+              "enabled": false,
+              "reserve_ratio": {
+                "@": "decimal",
+                "value": "0.30"
+              },
+              "growth_trigger": {
+                "@": "decimal",
+                "value": "1"
+              },
+              "step_quote": {
+                "@": "decimal",
+                "value": "0.25"
+              },
+              "step_max_pct": {
+                "@": "decimal",
+                "value": "0.05"
+              },
+              "interval_days": 7,
+              "max_active_quote": {
+                "@": "decimal",
+                "value": "20"
+              }
+            }
+          },
+          "insights_enabled": true,
+          "ranking_mode": "observe",
+          "observer_api_key": "",
+          "observer_secret": "",
+          "observer_interval_seconds": 15,
+          "sweep_ratio": {
+            "@": "decimal",
+            "value": "0.30"
+          },
+          "sweep_min_transfer_quote": {
+            "@": "decimal",
+            "value": "1.00"
+          },
+          "halt_auto_resume_hours": 24,
+          "_raw_env": "REDACTED_PRESENT"
+        }
+      }
+    },
+    {
+      "name": "prudent-original",
+      "kind": "mechanical",
+      "trades": 0,
+      "equity_start": "9.37",
+      "equity_end": "9.37",
+      "net_realized": "0",
+      "profit_factor": null,
+      "max_drawdown": "0",
+      "open_position": false,
+      "reserve": "0",
+      "growth": "0",
+      "promotions": 0,
+      "fees": "0",
+      "errors": [],
+      "missing_signals": 0,
+      "cycles": 1882,
+      "signals": 358,
+      "evaluations": 358,
+      "approvals": 0,
+      "rejections": {
+        "RISK_LIMIT_EXCEEDED": 358
+      },
+      "degraded_calls": 0,
+      "costs": {
+        "name": "stress",
+        "fee": "0.010",
+        "slippage_bps": 10
+      },
+      "policy": {
+        "name": "prudent-original",
+        "risk": "0.005",
+        "exposure": "0.20"
+      },
+      "first_decision_at": "2026-01-01T00:00:00+00:00",
+      "last_decision_at": "2026-11-10T12:00:00+00:00",
+      "cash_baseline": "9.37",
+      "buy_and_hold": {
+        "equity_start": "9.37",
+        "equity_end": "9.370000000000000000000000000",
+        "net_return": "0E-25",
+        "legs": [
+          {
+            "symbol": "BTC/EUR",
+            "quantity": "0",
+            "financed": false,
+            "initial_price": "74500.1000000000",
+            "final_price": "66265.0000000000",
+            "unfinanced_market_return": "-0.1105381066602595164301792883",
+            "equity_end": "3.123333333333333333333333333"
+          },
+          {
+            "symbol": "ETH/EUR",
+            "quantity": "0",
+            "financed": false,
+            "initial_price": "2525.9900000000",
+            "final_price": "1865.0100000000",
+            "unfinanced_market_return": "-0.2616716614080024069770664175",
+            "equity_end": "3.123333333333333333333333333"
+          },
+          {
+            "symbol": "SOL/EUR",
+            "quantity": "0",
+            "financed": false,
+            "initial_price": "105.9500000000",
+            "final_price": "75.4500000000",
+            "unfinanced_market_return": "-0.2878716375648890986314299198",
+            "equity_end": "3.123333333333333333333333334"
+          }
+        ],
+        "current_exchange_minima_used_retrospectively": true,
+        "final_liquidation_cost_included": true
+      },
+      "manifest_digest": "88778cdcae75ca2c488f3376c6fe37fc1c98d5efb8d8d25b8dd69be242886076",
+      "code_fingerprint": "01f56b497bf66d847afb46d35c7e6522731a6bb55b092e2fad521b6d0c821a7c",
+      "base_settings": {
+        "@": "dataclass",
+        "type": "app.core.settings.Settings",
+        "fields": {
+          "env": "development",
+          "debug": true,
+          "mode": "paper",
+          "risk": {
+            "@": "dataclass",
+            "type": "app.engine.risk_gate.RiskConfig",
+            "fields": {
+              "risk_per_trade_pct": {
+                "@": "decimal",
+                "value": "0.005"
+              },
+              "max_notional_pct": {
+                "@": "decimal",
+                "value": "0.20"
+              },
+              "max_position_notional_quote": {
+                "@": "decimal",
+                "value": "2000"
+              },
+              "fee_buffer_pct": {
+                "@": "decimal",
+                "value": "0.016"
+              },
+              "cost_aware": true,
+              "execution_fee_pct": {
+                "@": "decimal",
+                "value": "0.010"
+              },
+              "execution_slippage_pct": {
+                "@": "decimal",
+                "value": "0.001"
+              },
+              "opportunity_r_multiple": {
+                "@": "decimal",
+                "value": "4"
+              },
+              "min_net_reward_to_risk": {
+                "@": "decimal",
+                "value": "1.5"
+              },
+              "profit_trailing_enabled": false,
+              "profit_trailing_start_r": {
+                "@": "decimal",
+                "value": "2"
+              },
+              "profit_trailing_distance_r": {
+                "@": "decimal",
+                "value": "1"
+              },
+              "stop_atr_multiple": {
+                "@": "decimal",
+                "value": "2.5"
+              },
+              "take_profit_r_multiple": {
+                "@": "decimal",
+                "value": "2.0"
+              },
+              "trend_buffer_pct": {
+                "@": "decimal",
+                "value": "0.005"
+              },
+              "falling_knife_atr_multiple": {
+                "@": "decimal",
+                "value": "2.5"
+              },
+              "stop_mode": {
+                "@": "enum",
+                "type": "app.engine.risk_gate.StopMode",
+                "value": "ATR"
+              },
+              "max_stop_distance_pct": {
+                "@": "decimal",
+                "value": "0.05"
+              },
+              "allow_counter_trend": false,
+              "small_account_full_allocation": false,
+              "small_account_threshold_quote": {
+                "@": "decimal",
+                "value": "50"
+              },
+              "small_account_max_risk_pct": {
+                "@": "decimal",
+                "value": "0.05"
+              },
+              "min_atr_pct_of_price": {
+                "@": "decimal",
+                "value": "0.0015"
+              },
+              "max_atr_pct_of_price": {
+                "@": "decimal",
+                "value": "0.08"
+              },
+              "min_confidence": {
+                "@": "decimal",
+                "value": "0.80"
+              },
+              "reject_trending_down_regime": true,
+              "max_daily_drawdown_pct": {
+                "@": "decimal",
+                "value": "0.02"
+              },
+              "max_weekly_drawdown_pct": {
+                "@": "decimal",
+                "value": "0.05"
+              },
+              "max_drawdown_from_hwm_pct": {
+                "@": "decimal",
+                "value": "0.10"
+              },
+              "max_consecutive_losses": 4,
+              "risk_throttle_after_losses": 2,
+              "risk_throttle_factor": {
+                "@": "decimal",
+                "value": "0.5"
+              },
+              "max_orders_per_hour": 6,
+              "stale_data_seconds": 5,
+              "max_open_positions": 1,
+              "entry_rule_enabled": true,
+              "entry_require_positive_h1": false,
+              "entry_rsi_min": {
+                "@": "decimal",
+                "value": "40"
+              },
+              "entry_rsi_max": {
+                "@": "decimal",
+                "value": "65"
+              },
+              "entry_pullback_atr": {
+                "@": "decimal",
+                "value": "0.75"
+              },
+              "entry_require_ema50_above_ema200": true,
+              "entry_ema200_slope_min": {
+                "@": "decimal",
+                "value": "2.0"
+              },
+              "entry_mode": {
+                "@": "enum",
+                "type": "app.engine.risk_gate.EntryMode",
+                "value": "EMA50_H4"
+              },
+              "entry_pullback_h1_atr": {
+                "@": "decimal",
+                "value": "1.0"
+              },
+              "entry_h1_rsi_min": {
+                "@": "decimal",
+                "value": "38"
+              },
+              "entry_h1_rsi_max": {
+                "@": "decimal",
+                "value": "55"
+              },
+              "swing_donchian_days": 20,
+              "swing_rsi_min": {
+                "@": "decimal",
+                "value": "50"
+              },
+              "swing_rsi_max": {
+                "@": "decimal",
+                "value": "65"
+              },
+              "swing_require_donchian": true,
+              "swing_require_value_rebound": true,
+              "swing_breakeven_r": {
+                "@": "decimal",
+                "value": "1"
+              },
+              "swing_exit_mode": {
+                "@": "enum",
+                "type": "app.engine.risk_gate.SwingExitMode",
+                "value": "EMA20"
+              },
+              "swing_exit_below_ema20": true,
+              "swing_bollinger_period": 20,
+              "swing_bollinger_std": {
+                "@": "decimal",
+                "value": "2.5"
+              },
+              "swing_chandelier_period": 20,
+              "swing_chandelier_atr_multiple": {
+                "@": "decimal",
+                "value": "3.0"
+              },
+              "min_exit_confidence": {
+                "@": "decimal",
+                "value": "0.55"
+              },
+              "min_halt_confidence": {
+                "@": "decimal",
+                "value": "0.80"
+              }
+            }
+          },
+          "risk_profile": "prudent",
+          "exchange": {
+            "@": "dataclass",
+            "type": "app.core.settings.ExchangeSettings",
+            "fields": {
+              "exchange_id": "kraken",
+              "api_key": "",
+              "secret": "",
+              "kill_api_key": "",
+              "kill_secret": "",
+              "sandbox": true,
+              "symbol": "BTC/EUR",
+              "quote_currency": "EUR",
+              "allowed_symbols": {
+                "@": "tuple",
+                "items": [
+                  "BTC/EUR",
+                  "ETH/EUR",
+                  "SOL/EUR"
+                ]
+              },
+              "daily_timeframe_decision": "4h",
+              "entry_timeframe": "1h",
+              "taker_fee": {
+                "@": "decimal",
+                "value": "0.010"
+              },
+              "maker_fee": {
+                "@": "decimal",
+                "value": "0.004"
+              }
+            }
+          },
+          "llm": {
+            "@": "dataclass",
+            "type": "app.core.settings.LLMSettings",
+            "fields": {
+              "base_url": "http://127.0.0.1:11434/v1",
+              "model": "qwen2.5:14b-instruct-q4_K_M",
+              "timeout_seconds": 5.0,
+              "max_retries": 1,
+              "temperature": 0.0
+            }
+          },
+          "master_encryption_key": "",
+          "jwt_secret": "",
+          "totp_secret": "",
+          "admin_password_hash": "",
+          "paper_start_equity": {
+            "@": "decimal",
+            "value": "9.37"
+          },
+          "paper_slippage_bps": 10,
+          "capital_policy": {
+            "@": "dataclass",
+            "type": "app.engine.capital.CapitalPolicy",
+            "fields": {
+              "enabled": false,
+              "reserve_ratio": {
+                "@": "decimal",
+                "value": "0.30"
+              },
+              "growth_trigger": {
+                "@": "decimal",
+                "value": "1"
+              },
+              "step_quote": {
+                "@": "decimal",
+                "value": "0.25"
+              },
+              "step_max_pct": {
+                "@": "decimal",
+                "value": "0.05"
+              },
+              "interval_days": 7,
+              "max_active_quote": {
+                "@": "decimal",
+                "value": "20"
+              }
+            }
+          },
+          "insights_enabled": true,
+          "ranking_mode": "observe",
+          "observer_api_key": "",
+          "observer_secret": "",
+          "observer_interval_seconds": 15,
+          "sweep_ratio": {
+            "@": "decimal",
+            "value": "0.30"
+          },
+          "sweep_min_transfer_quote": {
+            "@": "decimal",
+            "value": "1.00"
+          },
+          "halt_auto_resume_hours": 24,
+          "_raw_env": "REDACTED_PRESENT"
+        }
+      }
+    },
+    {
+      "name": "prudent-assoupli",
+      "kind": "mechanical",
+      "trades": 0,
+      "equity_start": "9.37",
+      "equity_end": "9.37",
+      "net_realized": "0",
+      "profit_factor": null,
+      "max_drawdown": "0",
+      "open_position": false,
+      "reserve": "0",
+      "growth": "0",
+      "promotions": 0,
+      "fees": "0",
+      "errors": [],
+      "missing_signals": 0,
+      "cycles": 1882,
+      "signals": 358,
+      "evaluations": 358,
+      "approvals": 0,
+      "rejections": {
+        "RISK_LIMIT_EXCEEDED": 358
+      },
+      "degraded_calls": 0,
+      "costs": {
+        "name": "stress",
+        "fee": "0.010",
+        "slippage_bps": 10
+      },
+      "policy": {
+        "name": "prudent-assoupli",
+        "risk": "0.0075",
+        "exposure": "0.30"
+      },
+      "first_decision_at": "2026-01-01T00:00:00+00:00",
+      "last_decision_at": "2026-11-10T12:00:00+00:00",
+      "cash_baseline": "9.37",
+      "buy_and_hold": {
+        "equity_start": "9.37",
+        "equity_end": "9.370000000000000000000000000",
+        "net_return": "0E-25",
+        "legs": [
+          {
+            "symbol": "BTC/EUR",
+            "quantity": "0",
+            "financed": false,
+            "initial_price": "74500.1000000000",
+            "final_price": "66265.0000000000",
+            "unfinanced_market_return": "-0.1105381066602595164301792883",
+            "equity_end": "3.123333333333333333333333333"
+          },
+          {
+            "symbol": "ETH/EUR",
+            "quantity": "0",
+            "financed": false,
+            "initial_price": "2525.9900000000",
+            "final_price": "1865.0100000000",
+            "unfinanced_market_return": "-0.2616716614080024069770664175",
+            "equity_end": "3.123333333333333333333333333"
+          },
+          {
+            "symbol": "SOL/EUR",
+            "quantity": "0",
+            "financed": false,
+            "initial_price": "105.9500000000",
+            "final_price": "75.4500000000",
+            "unfinanced_market_return": "-0.2878716375648890986314299198",
+            "equity_end": "3.123333333333333333333333334"
+          }
+        ],
+        "current_exchange_minima_used_retrospectively": true,
+        "final_liquidation_cost_included": true
+      },
+      "manifest_digest": "da686f335de4a9a172fbdbfb7a14bc39e20a6f4c61ca3411a03b82c19d770a5b",
+      "code_fingerprint": "01f56b497bf66d847afb46d35c7e6522731a6bb55b092e2fad521b6d0c821a7c",
+      "base_settings": {
+        "@": "dataclass",
+        "type": "app.core.settings.Settings",
+        "fields": {
+          "env": "development",
+          "debug": true,
+          "mode": "paper",
+          "risk": {
+            "@": "dataclass",
+            "type": "app.engine.risk_gate.RiskConfig",
+            "fields": {
+              "risk_per_trade_pct": {
+                "@": "decimal",
+                "value": "0.0075"
+              },
+              "max_notional_pct": {
+                "@": "decimal",
+                "value": "0.30"
+              },
+              "max_position_notional_quote": {
+                "@": "decimal",
+                "value": "2000"
+              },
+              "fee_buffer_pct": {
+                "@": "decimal",
+                "value": "0.016"
+              },
+              "cost_aware": true,
+              "execution_fee_pct": {
+                "@": "decimal",
+                "value": "0.010"
+              },
+              "execution_slippage_pct": {
+                "@": "decimal",
+                "value": "0.001"
+              },
+              "opportunity_r_multiple": {
+                "@": "decimal",
+                "value": "4"
+              },
+              "min_net_reward_to_risk": {
+                "@": "decimal",
+                "value": "1.5"
+              },
+              "profit_trailing_enabled": false,
+              "profit_trailing_start_r": {
+                "@": "decimal",
+                "value": "2"
+              },
+              "profit_trailing_distance_r": {
+                "@": "decimal",
+                "value": "1"
+              },
+              "stop_atr_multiple": {
+                "@": "decimal",
+                "value": "2.5"
+              },
+              "take_profit_r_multiple": {
+                "@": "decimal",
+                "value": "2.0"
+              },
+              "trend_buffer_pct": {
+                "@": "decimal",
+                "value": "0.005"
+              },
+              "falling_knife_atr_multiple": {
+                "@": "decimal",
+                "value": "2.5"
+              },
+              "stop_mode": {
+                "@": "enum",
+                "type": "app.engine.risk_gate.StopMode",
+                "value": "ATR"
+              },
+              "max_stop_distance_pct": {
+                "@": "decimal",
+                "value": "0.05"
+              },
+              "allow_counter_trend": false,
+              "small_account_full_allocation": false,
+              "small_account_threshold_quote": {
+                "@": "decimal",
+                "value": "50"
+              },
+              "small_account_max_risk_pct": {
+                "@": "decimal",
+                "value": "0.05"
+              },
+              "min_atr_pct_of_price": {
+                "@": "decimal",
+                "value": "0.0015"
+              },
+              "max_atr_pct_of_price": {
+                "@": "decimal",
+                "value": "0.08"
+              },
+              "min_confidence": {
+                "@": "decimal",
+                "value": "0.80"
+              },
+              "reject_trending_down_regime": true,
+              "max_daily_drawdown_pct": {
+                "@": "decimal",
+                "value": "0.02"
+              },
+              "max_weekly_drawdown_pct": {
+                "@": "decimal",
+                "value": "0.05"
+              },
+              "max_drawdown_from_hwm_pct": {
+                "@": "decimal",
+                "value": "0.10"
+              },
+              "max_consecutive_losses": 4,
+              "risk_throttle_after_losses": 2,
+              "risk_throttle_factor": {
+                "@": "decimal",
+                "value": "0.5"
+              },
+              "max_orders_per_hour": 6,
+              "stale_data_seconds": 5,
+              "max_open_positions": 1,
+              "entry_rule_enabled": true,
+              "entry_require_positive_h1": false,
+              "entry_rsi_min": {
+                "@": "decimal",
+                "value": "40"
+              },
+              "entry_rsi_max": {
+                "@": "decimal",
+                "value": "65"
+              },
+              "entry_pullback_atr": {
+                "@": "decimal",
+                "value": "0.75"
+              },
+              "entry_require_ema50_above_ema200": true,
+              "entry_ema200_slope_min": {
+                "@": "decimal",
+                "value": "2.0"
+              },
+              "entry_mode": {
+                "@": "enum",
+                "type": "app.engine.risk_gate.EntryMode",
+                "value": "EMA50_H4"
+              },
+              "entry_pullback_h1_atr": {
+                "@": "decimal",
+                "value": "1.0"
+              },
+              "entry_h1_rsi_min": {
+                "@": "decimal",
+                "value": "38"
+              },
+              "entry_h1_rsi_max": {
+                "@": "decimal",
+                "value": "55"
+              },
+              "swing_donchian_days": 20,
+              "swing_rsi_min": {
+                "@": "decimal",
+                "value": "50"
+              },
+              "swing_rsi_max": {
+                "@": "decimal",
+                "value": "65"
+              },
+              "swing_require_donchian": true,
+              "swing_require_value_rebound": true,
+              "swing_breakeven_r": {
+                "@": "decimal",
+                "value": "1"
+              },
+              "swing_exit_mode": {
+                "@": "enum",
+                "type": "app.engine.risk_gate.SwingExitMode",
+                "value": "EMA20"
+              },
+              "swing_exit_below_ema20": true,
+              "swing_bollinger_period": 20,
+              "swing_bollinger_std": {
+                "@": "decimal",
+                "value": "2.5"
+              },
+              "swing_chandelier_period": 20,
+              "swing_chandelier_atr_multiple": {
+                "@": "decimal",
+                "value": "3.0"
+              },
+              "min_exit_confidence": {
+                "@": "decimal",
+                "value": "0.55"
+              },
+              "min_halt_confidence": {
+                "@": "decimal",
+                "value": "0.80"
+              }
+            }
+          },
+          "risk_profile": "prudent",
+          "exchange": {
+            "@": "dataclass",
+            "type": "app.core.settings.ExchangeSettings",
+            "fields": {
+              "exchange_id": "kraken",
+              "api_key": "",
+              "secret": "",
+              "kill_api_key": "",
+              "kill_secret": "",
+              "sandbox": true,
+              "symbol": "BTC/EUR",
+              "quote_currency": "EUR",
+              "allowed_symbols": {
+                "@": "tuple",
+                "items": [
+                  "BTC/EUR",
+                  "ETH/EUR",
+                  "SOL/EUR"
+                ]
+              },
+              "daily_timeframe_decision": "4h",
+              "entry_timeframe": "1h",
+              "taker_fee": {
+                "@": "decimal",
+                "value": "0.010"
+              },
+              "maker_fee": {
+                "@": "decimal",
+                "value": "0.004"
+              }
+            }
+          },
+          "llm": {
+            "@": "dataclass",
+            "type": "app.core.settings.LLMSettings",
+            "fields": {
+              "base_url": "http://127.0.0.1:11434/v1",
+              "model": "qwen2.5:14b-instruct-q4_K_M",
+              "timeout_seconds": 5.0,
+              "max_retries": 1,
+              "temperature": 0.0
+            }
+          },
+          "master_encryption_key": "",
+          "jwt_secret": "",
+          "totp_secret": "",
+          "admin_password_hash": "",
+          "paper_start_equity": {
+            "@": "decimal",
+            "value": "9.37"
+          },
+          "paper_slippage_bps": 10,
+          "capital_policy": {
+            "@": "dataclass",
+            "type": "app.engine.capital.CapitalPolicy",
+            "fields": {
+              "enabled": false,
+              "reserve_ratio": {
+                "@": "decimal",
+                "value": "0.30"
+              },
+              "growth_trigger": {
+                "@": "decimal",
+                "value": "1"
+              },
+              "step_quote": {
+                "@": "decimal",
+                "value": "0.25"
+              },
+              "step_max_pct": {
+                "@": "decimal",
+                "value": "0.05"
+              },
+              "interval_days": 7,
+              "max_active_quote": {
+                "@": "decimal",
+                "value": "20"
+              }
+            }
+          },
+          "insights_enabled": true,
+          "ranking_mode": "observe",
+          "observer_api_key": "",
+          "observer_secret": "",
+          "observer_interval_seconds": 15,
+          "sweep_ratio": {
+            "@": "decimal",
+            "value": "0.30"
+          },
+          "sweep_min_transfer_quote": {
+            "@": "decimal",
+            "value": "1.00"
+          },
+          "halt_auto_resume_hours": 24,
+          "_raw_env": "REDACTED_PRESENT"
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "No Ollama inference or captured model decision. Mechanical BUY confidence 1 when flat and HOLD when positioned; actual entry rule, Risk Gateway and PaperBroker are used.",
+    "Known historical window, not independent out-of-calibration validation. No parameter search or selection after this result.",
+    "2022-2025 source gaps remain disclosed. Warmup starts after the last older gap; repaired October 2026 hours are sourced from public trades and checked against H4. This does not qualify full history.",
+    "Current exchange minimums and fee schedule are applied retrospectively, not asserted to be historically accurate.",
+    "Cash has no interest. Equal-weight buy-and-hold includes lot rounding, minimums, fees and slippage at entry and hypothetical final liquidation; unfinanceable legs stay cash.",
+    "Single shared portfolio, one position, no deposits, reserve or growth promotions. Live remains disabled. No successful test may authorize live or raise capital, risk or frequency."
+  ]
+}
