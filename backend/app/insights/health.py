@@ -51,4 +51,8 @@ def classify(record, *, now, max_age_seconds, require_runtime=True):
         runtime = heartbeat_health(record.get("runtime_heartbeat_at"), now=now)
         if runtime["status"] != "OK":
             return runtime
+    if type(body.get("notification_pending")) is not bool:
+        return {"status": "UNKNOWN", "reason": "OBSERVER_NOTIFICATION_UNKNOWN"}
+    if body["notification_pending"]:
+        return {"status": "ALERT", "reason": "OBSERVER_NOTIFICATION_PENDING"}
     return {"status": "OK", "reason": "OBSERVER_CURRENT"}

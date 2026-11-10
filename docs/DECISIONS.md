@@ -1922,3 +1922,15 @@ preuve récente n'est pas une garantie instantanée ; un blocage asynchrone peut
 laisser avancer l'event loop, et le délai de cycle historique de dix minutes reste
 distinct. Mesures sous charge, horloges, contention et canal cible sont nécessaires
 avant qualification R3. Aucune installation ni activation réelle n'est implicite.
+
+---
+
+## D-083 — Alerte résolue mais non livrée visible dans le verdict (2026-11-10)
+
+Le surveillant publie `notification_pending` dans le JSON d'observation existant,
+après commit local et avant envoi. Après réponse HTTPS acceptée et acquittement
+local, seul un UPDATE portant la même date d'observation peut effacer cet état.
+Une réponse tardive ne blanchit pas une observation plus récente. L'indicateur
+absent ou invalide donne UNKNOWN ; vrai donne ALERT même si l'incident est résolu.
+La sonde, l'API et le dashboard voient ainsi les alertes du surveillant en attente,
+en plus de celles de la sonde. Une file vide ne qualifie pas un canal jamais exercé.

@@ -7,7 +7,7 @@ import pytest
 from scripts.watchdog import check, classify, main
 
 NOW = datetime(2026, 11, 10, 12, tzinfo=timezone.utc)
-HEALTHY = {"complete": True, "issues": 0, "runtime_expected": True}
+HEALTHY = {"complete": True, "issues": 0, "runtime_expected": True, "notification_pending": False}
 DB_ENV = {"DATABASE_URL": "postgresql://postgres:test@127.0.0.1/test?sslmode=disable"}
 
 
@@ -22,6 +22,7 @@ def observation(body=HEALTHY, at=NOW):
     (observation(body="invalid json"), "INVALID_OBSERVATION"),
     (observation(body={**HEALTHY, "issues": True}), "INVALID_OBSERVATION"),
     (observation(body={**HEALTHY, "runtime_expected": False}), "RUNTIME_NOT_MONITORED"),
+    (observation(body={**HEALTHY, "notification_pending": "false"}), "OBSERVER_NOTIFICATION_UNKNOWN"),
 ])
 def test_missing_stale_or_invalid_information_is_not_healthy(record, reason):
     result = classify(record, now=NOW, max_age_seconds=35)
@@ -34,6 +35,8 @@ def test_incomplete_or_critical_observation_is_an_alert():
     assert classify(observation({**HEALTHY, "issues": 1}), now=NOW,
                     max_age_seconds=35)["reason"] == "ACTIVE_INCIDENT"
     assert classify(observation(), now=NOW, max_age_seconds=35)["status"] == "OK"
+    assert classify(observation({**HEALTHY, "notification_pending": True}), now=NOW,
+                    max_age_seconds=35) == {"status": "ALERT", "reason": "OBSERVER_NOTIFICATION_PENDING"}
 
 
 @pytest.mark.asyncio

@@ -175,11 +175,11 @@ def test_old_protection_observation_never_looks_fresh(api):
     assert result.status_code == 200 and result.json()["freshness"] == "STALE"
 
 
-@pytest.mark.parametrize("problem", ["dead_runtime", "missing_runtime", "incomplete", "incident", "not_monitored", "invalid"])
+@pytest.mark.parametrize("problem", ["dead_runtime", "missing_runtime", "incomplete", "incident", "not_monitored", "invalid", "notification_pending", "notification_unknown"])
 def test_recent_observation_is_not_green_without_all_proofs(api, problem):
     client, ledger, settings, headers = api
     now = datetime.now(timezone.utc)
-    body = {"complete": True, "issues": 0, "runtime_expected": True}
+    body = {"complete": True, "issues": 0, "runtime_expected": True, "notification_pending": False}
     heartbeat = now
     if problem == "dead_runtime":
         heartbeat -= timedelta(seconds=31)
@@ -193,6 +193,10 @@ def test_recent_observation_is_not_green_without_all_proofs(api, problem):
         body["runtime_expected"] = False
     elif problem == "invalid":
         body = {"complete": "true"}
+    elif problem == "notification_pending":
+        body["notification_pending"] = True
+    elif problem == "notification_unknown":
+        del body["notification_pending"]
     ledger.protection = {"latest": {"observed_at": now, "body": body},
                          "incidents": [], "runtime_heartbeat_at": heartbeat}
     result = client.get("/api/insights/protection", headers=headers).json()
@@ -203,7 +207,7 @@ def test_api_and_probe_share_the_same_healthy_verdict(api):
     client, ledger, settings, headers = api
     now = datetime.now(timezone.utc)
     ledger.protection = {"latest": {"observed_at": now,
-                                     "body": {"complete": True, "issues": 0, "runtime_expected": True}},
+                                     "body": {"complete": True, "issues": 0, "runtime_expected": True, "notification_pending": False}},
                          "incidents": [], "runtime_heartbeat_at": now}
     result = client.get("/api/insights/protection", headers=headers).json()
     assert result["status"] == "OK" and result["freshness"] == "FRESH"

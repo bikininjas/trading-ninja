@@ -127,7 +127,7 @@ async def test_watchdog_retries_database_outage_after_restart_and_recovery(tmp_p
 
     async def healthy_read(config, mode):
         return {"observed_at": NOW, "runtime_heartbeat_at": NOW,
-                "body": {"complete": True, "issues": 0, "runtime_expected": True}}
+                "body": {"complete": True, "issues": 0, "runtime_expected": True, "notification_pending": False}}
 
     calls = []
 
@@ -204,3 +204,91 @@ async def test_incident_is_durable_before_remote_persistence_fails(tmp_path):
                                      expect_runtime=True, on_observation=outbox.observe)
     with NotificationOutbox(path, source="test", mode="PAPER") as outbox:
         assert outbox.pending
+
+
+@pytest.mark.asyncio
+async def test_observer_pending_delivery_remains_visible_after_incident_resolves(tmp_path, monkeypatch):
+    from copy import deepcopy
+    from datetime import timedelta
+    from app.db.repository import PostgresRepository
+    from app.insights import watch as watch_module
+    from app.insights.health import classify
+    from scripts.insights import watch
+    from tests.test_insights import FeatureLedger, config
+
+    class Store(FeatureLedger):
+        alive = False
+
+        async def runtime_heartbeat(self, mode):
+            return datetime.now(timezone.utc) - timedelta(seconds=0 if self.alive else 31)
+
+        async def recent_cycles(self, *args):
+            return [{"status": "COMPLETE", "started_at": datetime.now(timezone.utc) - timedelta(hours=1)}]
+
+        async def record_protection(self, mode, observation, issues):
+            self.latest = {"observed_at": observation["observed_at"], "body": deepcopy(observation)}
+            return True
+
+        async def protection_notification_state(self, mode, at, pending):
+            assert at == self.latest["observed_at"]
+            self.latest["body"]["notification_pending"] = pending
+
+        async def close(self):
+            pass
+
+    store = Store()
+
+    async def connect(config):
+        return store
+
+    calls = []
+
+    async def fail(url, payload):
+        calls.append(payload)
+        raise TimeoutError("webhook unavailable")
+
+    async def send(url, payload):
+        calls.append(payload)
+
+    monkeypatch.setattr(PostgresRepository, "connect", connect)
+    monkeypatch.setattr(watch_module, "notify_incident", fail)
+    settings = config(**DB_ENV)
+    args = SimpleNamespace(notification_state=tmp_path / "alerts.sqlite3",
+                           webhook="https://alerts.example", expect_runtime=True, serve=False)
+    assert (await watch(settings, args))["status"] == "ALERT"
+    store.alive = True
+    assert (await watch(settings, args))["status"] == "ALERT"
+    record = {**store.latest, "runtime_heartbeat_at": datetime.now(timezone.utc)}
+    assert record["body"]["issues"] == 0
+    assert classify(record, now=datetime.now(timezone.utc), max_age_seconds=35)["reason"] == "OBSERVER_NOTIFICATION_PENDING"
+    monkeypatch.setattr(watch_module, "notify_incident", send)
+    assert (await watch(settings, args))["status"] == "OBSERVED"
+    record = {**store.latest, "runtime_heartbeat_at": datetime.now(timezone.utc)}
+    assert classify(record, now=datetime.now(timezone.utc), max_age_seconds=35)["status"] == "OK"
+    assert calls[0]["pending_incidents"] == calls[2]["pending_incidents"]
+
+
+@pytest.mark.postgres_integration
+@pytest.mark.asyncio
+async def test_late_webhook_response_cannot_clear_newer_observation(postgres_test_url):
+    import asyncpg
+    import json
+    from datetime import timedelta
+    from app.db.repository import PostgresRepository
+
+    conn = await asyncpg.connect(postgres_test_url)
+    tx = conn.transaction()
+    await tx.start()
+    try:
+        await conn.execute("INSERT INTO protection_observations(mode,observed_at,body) VALUES('TESTNET',$1,$2::jsonb)",
+                           NOW, json.dumps({"notification_pending": True}))
+        repo = PostgresRepository(conn)
+        await repo.protection_notification_state("TESTNET", NOW - timedelta(seconds=1), False)
+        body = await conn.fetchval("SELECT body FROM protection_observations WHERE mode='TESTNET'")
+        assert json.loads(body)["notification_pending"] is True
+        await repo.protection_notification_state("TESTNET", NOW, False)
+        body = await conn.fetchval("SELECT body FROM protection_observations WHERE mode='TESTNET'")
+        assert json.loads(body)["notification_pending"] is False
+    finally:
+        await tx.rollback()
+        await conn.close()

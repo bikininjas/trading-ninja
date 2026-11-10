@@ -7,8 +7,8 @@ les améliorations restantes. Les preuves datées sont conservées dans
 [JOURNAL.md](JOURNAL.md) ; le [snapshot SQL vérifié](audits/2026-11-10/supabase_migrations.json)
 confirme les treize migrations et les contrôles d’intégrité.
 
-État vérifié : lots de sécurité et de surveillance, 798 tests Python dont
-40 PostgreSQL sur base jetable, 31 Node ; CI publiée à vérifier pour chaque candidat.
+État vérifié : lots de sécurité et de surveillance, 803 tests Python dont
+41 PostgreSQL sur base jetable, 31 Node ; CI publiée à vérifier pour chaque candidat.
 Supabase trninja est en
 0013, droits publics fermés et 323 374 bougies inchangées. La préparation de
 sauvegarde était ciblée ; une sauvegarde complète et sa restauration restent en R3.
@@ -60,6 +60,11 @@ exiger une preuve de vie distincte des cycles H4/D1. Files durables et heartbeat
 vérifiés localement ; API/sonde partagent le verdict, le navigateur expire sa
 preuve. Le délai historique de cycle bloqué (dix minutes) et les délais bout en
 bout restent à qualifier sur la cible ; R3 n'est pas validée.
+
+🟨 **R3 — visibilité des livraisons en attente** *(commencé le 10 novembre 2026)* :
+empêcher un état sain après résolution si l'alerte du surveillant attend encore
+sa livraison. Indicateur partagé et acquittement conditionnel vérifiés localement ;
+le canal réel et le déploiement restent à qualifier.
 
 Responsabilité technique : préparation du code, migrations, tests, déploiement
 PAPER et dossier de preuves. Responsabilité de Seb : validation du mandat de risque,

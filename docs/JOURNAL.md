@@ -6,6 +6,32 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Livraisons en attente : troisième lot R3 vérifié localement
+
+La relecture finale relève un cas restant : la sonde connaît ses propres alertes
+en attente, mais l'API et la sonde ignorent encore celles du surveillant après
+résolution de l'incident. Début de la propagation d'un indicateur durable dans
+le JSON d'observation existant, sans migration cible, pour supprimer ce faux vert.
+
+**D-083 vérifiée.** L'indicateur est committé avant envoi et effacé seulement
+après acquittement local, sur la même date d'observation. Une réponse ancienne
+ne peut effacer l'attente d'une observation nouvelle. Champ absent/invalide =
+UNKNOWN ; attente = ALERT même après résolution. La file vide ne prouve toujours
+pas un canal réel jamais exercé. Le deuxième lot `a927cc8` a passé sa CI :
+[42820279506](https://github.com/bikininjas/trading-ninja/actions/runs/42820279506).
+
+Python 3.13.17, PostgreSQL 17 jetable : **803 tests réussis**, dont 41 SQL ;
+scénario de panne webhook, résolution puis livraison après trois ouvertures de
+la file vérifié ; contrat SQL d'acquittement tardif réussi. Golden identique,
+toujours négatif ; Chromium vérifie l'affichage de l'attente, l'expiration et la
+panne 503 simulée, avec captures desktop/mobile dans `/tmp/tn-r3-dashboard-final`.
+`scripts/check.sh` entièrement vert : 762 tests hors base, 41 ignorés, 31 Node,
+13 migrations locales, drawdowns et index. La suite distincte a exécuté les 41 SQL.
+Pas de migration nouvelle, d'accès Supabase ni d'ordre réel. Le statut NO-GO et
+les limites de délai de cycle et d'exploitation cible restent inchangés.
+
+---
+
 ## 2026-11-10 — Heartbeat continu : second lot R3 vérifié localement
 
 Le lot d'alertes durables est publié sur master `da76438`, référence distante

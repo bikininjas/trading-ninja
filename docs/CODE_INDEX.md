@@ -3,18 +3,18 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `ff327fb9e4c856cf`
+Empreinte des sources : `3f152dc2b3b8b414`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
 | Modules Python | 140 |
-| Lignes Python | 33135 |
+| Lignes Python | 33255 |
 | Classes | 147 |
-| Fonctions et méthodes | 1057 |
-| Cas de test collectés par pytest | 798 |
-| Fonctions de test (comptage statique) | 633 |
+| Fonctions et méthodes | 1059 |
+| Cas de test collectés par pytest | 803 |
+| Fonctions de test (comptage statique) | 635 |
 | Migrations SQL | 13 |
 | Scripts shell | 3 |
 
@@ -68,12 +68,12 @@ Empreinte des sources : `ff327fb9e4c856cf`
 | `backend/app/insights/costs.py` | 87 | Coût de carnet observé : aucune espérance inventée et aucun sizing ici. |
 | `backend/app/insights/diagnostics.py` | 202 | Analyse descriptive, prix observés à la clôture et couverture explicite. |
 | `backend/app/insights/experiments.py` | 640 | Portefeuilles indépendants sur le véritable runtime, données entièrement locales. |
-| `backend/app/insights/health.py` | 54 | Verdict commun API/sonde : une preuve inconnue ne vaut jamais santé. |
+| `backend/app/insights/health.py` | 58 | Verdict commun API/sonde : une preuve inconnue ne vaut jamais santé. |
 | `backend/app/insights/notifications.py` | 93 | File locale durable : commit avant envoi, acquittement après réponse HTTPS. |
 | `backend/app/insights/policy.py` | 79 | Règles stratégiques immuables ; les limites de sécurité restent courantes. |
 | `backend/app/insights/ranking.py` | 42 | Classement observable ; sélection activable uniquement en papier. |
 | `backend/app/insights/replay.py` | 366 | Enregistre les frontières I/O et rejoue le vrai orchestrateur sans réseau ni base. |
-| `backend/app/insights/store.py` | 494 | Persistance des observations privées ; aucune instruction d'ordre exchange. |
+| `backend/app/insights/store.py` | 501 | Persistance des observations privées ; aucune instruction d'ordre exchange. |
 | `backend/app/insights/watch.py` | 204 | Surveillant de lecture séparé ; ses seules commandes sont des demandes de HALT. |
 | `backend/app/llm/__init__.py` | 1 | Client LLM local. Aucune I/O à l'import. |
 | `backend/app/llm/client.py` | 568 | Client LLM local (Ollama) — auditeur de confluences, jamais exécutant. |
@@ -100,7 +100,7 @@ Empreinte des sources : `ff327fb9e4c856cf`
 | `backend/scripts/eval_llm_swing.py` | 269 | Évalue le LLM sur les signaux swing D1, sans ordre ni écriture en base. |
 | `backend/scripts/hash_password.py` | 35 | Génère un hash de mot de passe administrateur (scrypt). |
 | `backend/scripts/ingest_history.py` | 471 | Ingestion de l'historique OHLCVT multi-années de Kraken. |
-| `backend/scripts/insights.py` | 169 | Observation et recherche : aucun chemin d'ordre ni d'armement live. |
+| `backend/scripts/insights.py` | 183 | Observation et recherche : aucun chemin d'ordre ni d'armement live. |
 | `backend/scripts/kill_switch.py` | 122 | Kill-switch autonome — solde la position et halte le bot, backend arrêté ou non. |
 | `backend/scripts/lab_rotation.py` | 294 | Laboratoire de rotation momentum D1 — aucun ordre, aucune écriture. |
 | `backend/scripts/lessons.py` | 168 | Mémoire de leçons — relecture des résultats, affichage, purge. |
@@ -135,7 +135,7 @@ Empreinte des sources : `ff327fb9e4c856cf`
 | `backend/tests/test_heartbeat.py` | 301 | Vie continue du moteur : veille, panne SQL, sortie et arrêt brutal. |
 | `backend/tests/test_history.py` | 255 | Historique OHLCVT : analyse pure du CSV Kraken, trous, agrégation, cohérence. |
 | `backend/tests/test_insights.py` | 868 | Contrats des dix briefs : calculs purs, frontières de rejeu et runtime réel. |
-| `backend/tests/test_insights_api.py` | 239 | Parcours administratifs privés : observation, révisions et aucune exécution. |
+| `backend/tests/test_insights_api.py` | 243 | Parcours administratifs privés : observation, révisions et aucune exécution. |
 | `backend/tests/test_insights_postgres.py` | 382 | Preuves SQL des contrôles, paquets, incidents et révisions ; cible locale stricte. |
 | `backend/tests/test_kraken_adapter.py` | 307 | Tests de la passerelle Kraken, hors réseau. |
 | `backend/tests/test_kraken_archive.py` | 145 | Lecture ZIP par plages HTTP : le mécanisme qui évite 9,5 Go de téléchargement. |
@@ -146,7 +146,7 @@ Empreinte des sources : `ff327fb9e4c856cf`
 | `backend/tests/test_llm_eval.py` | 89 | Métriques de l'évaluation LLM : rétention des gagnants, filtration des perdants. |
 | `backend/tests/test_machine.py` | 52 | Tests de la machine à états : le graphe est une contrainte, pas une convention. |
 | `backend/tests/test_mean_reversion.py` | 133 | Tests du laboratoire Mean Reversion — aucun réseau, aucun ordre. |
-| `backend/tests/test_notifications.py` | 206 | Preuves de reprise : disque, arrêt brutal, récidive et réponse perdue. |
+| `backend/tests/test_notifications.py` | 294 | Preuves de reprise : disque, arrêt brutal, récidive et réponse perdue. |
 | `backend/tests/test_orchestrator.py` | 791 | Tests de bout en bout de l'orchestrateur, avec des doubles. |
 | `backend/tests/test_paper.py` | 78 | Tests de l'exécution papier : frais, slippage, gaps, priorité du stop. |
 | `backend/tests/test_pre_live_fixes.py` | 199 | Contre-exemples pré live convertis en contrats à respecter. |
@@ -161,7 +161,7 @@ Empreinte des sources : `ff327fb9e4c856cf`
 | `backend/tests/test_shadow.py` | 76 | Tests du simulateur de shadow trades — purs, sans réseau ni base. |
 | `backend/tests/test_sweep.py` | 71 | Tests du Profit Sweeper : calcul pur, seuil, absence de ligne sur perte. |
 | `backend/tests/test_swing_backtest.py` | 176 | Tests du rejeu swing Daily : entrée, stop structurel, breakeven, sortie. |
-| `backend/tests/test_watchdog.py` | 101 | Une surveillance morte ou illisible ne peut jamais être annoncée saine. |
+| `backend/tests/test_watchdog.py` | 104 | Une surveillance morte ou illisible ne peut jamais être annoncée saine. |
 | `scripts/backtest_watch.sh` | 27 | Veille de backtest — conçue pour un cron silencieux. |
 | `scripts/check.sh` | 206 | Vérification complète de l'état du dépôt en une commande. |
 | `scripts/manage.sh` | 307 | ============================================================================= |
@@ -943,7 +943,8 @@ le code, pas une copie de celui-ci.
   - `async def protection_health(self, mode)` (l.408)
   - `async def record_protection(self, mode, observation, issues)` (l.425)
   - `async def acknowledge_incident(self, mode, incident_id, who='admin')` (l.472)
-  - `async def consume_observation_commands(self, mode)` (l.480)
+  - `async def protection_notification_state(self, mode, observed_at, pending)` (l.480)
+  - `async def consume_observation_commands(self, mode)` (l.487)
 - `def obj(value)` (l.9)
 - `def row(value)` (l.13)
 
@@ -1292,8 +1293,8 @@ le code, pas une copie de celui-ci.
 
 - `def read_json(path)` (l.16)
 - `async def watch(config, args)` (l.23)
-- `async def run(args)` (l.81)
-- `def main(argv=None)` (l.131)
+- `async def run(args)` (l.95)
+- `def main(argv=None)` (l.145)
 
 ### `backend/scripts/kill_switch.py`
 
@@ -1869,9 +1870,9 @@ le code, pas une copie de celui-ci.
 - `def test_diagnostic_ids_and_time_windows_are_bounded(api)` (l.140)
 - `def test_old_protection_observation_never_looks_fresh(api)` (l.165)
 - `def test_recent_observation_is_not_green_without_all_proofs(api, problem)` (l.179)
-- `def test_api_and_probe_share_the_same_healthy_verdict(api)` (l.202)
-- `def test_legacy_policy_adoption_requires_fresh_totp_and_expected_fingerprint(api)` (l.212)
-- `def test_invalid_experiment_never_starts_a_financial_action(api)` (l.232)
+- `def test_api_and_probe_share_the_same_healthy_verdict(api)` (l.206)
+- `def test_legacy_policy_adoption_requires_fresh_totp_and_expected_fingerprint(api)` (l.216)
+- `def test_invalid_experiment_never_starts_a_financial_action(api)` (l.236)
 
 ### `backend/tests/test_insights_postgres.py`
 
@@ -2119,6 +2120,8 @@ le code, pas une copie de celui-ci.
 - `async def test_watchdog_retries_database_outage_after_restart_and_recovery(tmp_path)` (l.122)
 - `async def test_observer_database_connect_failure_is_durable_and_alerts(tmp_path, monkeypatch)` (l.154)
 - `async def test_incident_is_durable_before_remote_persistence_fails(tmp_path)` (l.184)
+- `async def test_observer_pending_delivery_remains_visible_after_incident_resolves(tmp_path, monkeypatch)` (l.210)
+- `async def test_late_webhook_response_cannot_clear_newer_observation(postgres_test_url)` (l.273)
 
 ### `backend/tests/test_orchestrator.py`
 
@@ -2530,12 +2533,12 @@ le code, pas une copie de celui-ci.
 *Une surveillance morte ou illisible ne peut jamais être annoncée saine.*
 
 - `def observation(body=HEALTHY, at=NOW)` (l.14)
-- `def test_missing_stale_or_invalid_information_is_not_healthy(record, reason)` (l.26)
-- `def test_incomplete_or_critical_observation_is_an_alert()` (l.31)
-- `async def test_database_outage_notifies_without_leaking_exception_text(tmp_path)` (l.40)
-- `async def test_failed_notification_keeps_an_unhealthy_exit_state(tmp_path)` (l.60)
-- `def test_live_cannot_disable_runtime_monitoring(monkeypatch)` (l.74)
-- `async def test_watchdog_reads_a_real_observation_from_disposable_postgres(postgres_test_url)` (l.82)
+- `def test_missing_stale_or_invalid_information_is_not_healthy(record, reason)` (l.27)
+- `def test_incomplete_or_critical_observation_is_an_alert()` (l.32)
+- `async def test_database_outage_notifies_without_leaking_exception_text(tmp_path)` (l.43)
+- `async def test_failed_notification_keeps_an_unhealthy_exit_state(tmp_path)` (l.63)
+- `def test_live_cannot_disable_runtime_monitoring(monkeypatch)` (l.77)
+- `async def test_watchdog_reads_a_real_observation_from_disposable_postgres(postgres_test_url)` (l.85)
 
 ## 4. Tests
 
@@ -2566,7 +2569,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_heartbeat.py` | 18 |
 | `backend/tests/test_history.py` | 22 |
 | `backend/tests/test_insights.py` | 27 |
-| `backend/tests/test_insights_api.py` | 16 |
+| `backend/tests/test_insights_api.py` | 18 |
 | `backend/tests/test_insights_postgres.py` | 26 |
 | `backend/tests/test_kraken_adapter.py` | 25 |
 | `backend/tests/test_kraken_archive.py` | 11 |
@@ -2577,7 +2580,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_llm_eval.py` | 5 |
 | `backend/tests/test_machine.py` | 4 |
 | `backend/tests/test_mean_reversion.py` | 4 |
-| `backend/tests/test_notifications.py` | 8 |
+| `backend/tests/test_notifications.py` | 10 |
 | `backend/tests/test_orchestrator.py` | 26 |
 | `backend/tests/test_paper.py` | 9 |
 | `backend/tests/test_pre_live_fixes.py` | 10 |
@@ -2592,8 +2595,8 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_shadow.py` | 5 |
 | `backend/tests/test_sweep.py` | 13 |
 | `backend/tests/test_swing_backtest.py` | 7 |
-| `backend/tests/test_watchdog.py` | 11 |
-| **Total** | **798** |
+| `backend/tests/test_watchdog.py` | 12 |
+| **Total** | **803** |
 
 ## 5. Schéma SQL
 

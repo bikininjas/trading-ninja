@@ -477,6 +477,13 @@ class InsightsStore:
             who,
         )
 
+    async def protection_notification_state(self, mode, observed_at, pending):
+        # Une réponse tardive ne peut modifier une observation plus récente.
+        await self._conn.execute(
+            "UPDATE protection_observations SET body=jsonb_set(body,'{notification_pending}',to_jsonb($3::boolean)) "
+            "WHERE mode=$1::execution_mode AND observed_at=$2", mode, observed_at, pending,
+        )
+
     async def consume_observation_commands(self, mode):
         async with self._conn.transaction():
             pending = await self._conn.fetch(

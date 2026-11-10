@@ -274,6 +274,12 @@ doit être persistant, privé, surveillé en capacité et sauvegardé ; ne pas e
 la file au redémarrage. Un processus concurrent ou un fichier corrompu échoue
 explicitement. Chaque récidive reçoit un `event_id` stable : la réponse HTTPS
 acquitte l'événement, une réponse perdue peut le renvoyer avec le même identifiant.
+L'observation SQL conserve `notification_pending` avant livraison et ne l'efface
+qu'après acquittement de la file ; une réponse tardive ne modifie pas une observation
+plus récente. Sonde, API et dashboard restent en alerte tant que la file du
+surveillant attend, même après résolution. Une observation héritée sans ce champ
+reste inconnue jusqu'au prochain passage du surveillant à jour. L'absence d'alerte
+en attente ne prouve pas la disponibilité du canal réel : sa recette reste requise.
 Le destinataire doit dédupliquer ces identifiants. Une panne SQL produit une alerte
 locale durable et une tentative de reconnexion, sans modifier d'ordre. Il reste à
 qualifier le canal réel et installer une sonde

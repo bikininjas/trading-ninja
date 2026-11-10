@@ -33,6 +33,10 @@ async def watch(config, args):
         exchange = build_exchange(api_key=config.observer_api_key, secret=config.observer_secret)
     repo = None
     with NotificationOutbox(path, source="observer", mode=config.execution_mode) as notifications:
+        def stage(result):
+            notifications.observe(result)
+            result["observation"]["notification_pending"] = notifications.pending
+
         try:
             while True:
                 try:
@@ -43,7 +47,7 @@ async def watch(config, args):
                         expect_runtime=args.expect_runtime,
                         timeframe=config.exchange.daily_timeframe_decision,
                         universe=config.exchange.allowed_symbols,
-                        on_observation=notifications.observe,
+                        on_observation=stage,
                     )
                 except Exception as exc:
                     result = {
@@ -59,8 +63,7 @@ async def watch(config, args):
                         except Exception:
                             pass
                         repo = None
-                notifications.observe(result)
-                print(json.dumps(public(result), ensure_ascii=False), flush=True)
+                stage(result)
                 delivery_failed = False
                 if args.webhook and notifications.pending:
                     try:
@@ -69,6 +72,17 @@ async def watch(config, args):
                         delivery_failed = True
                         print(json.dumps({"notification": "FAILED", "error_type": type(exc).__name__}),
                               file=sys.stderr, flush=True)
+                result["observation"]["notification_pending"] = notifications.pending
+                if repo is not None:
+                    try:
+                        await repo.protection_notification_state(
+                            config.execution_mode, result["observation"]["observed_at"], notifications.pending,
+                        )
+                    except Exception:
+                        # L'observation publiée reste conservatrice (pending),
+                        # et une sonde distincte détectera l'arrêt du surveillant.
+                        raise RuntimeError("état de livraison non persisté") from None
+                print(json.dumps(public(result), ensure_ascii=False), flush=True)
                 if not args.serve:
                     unhealthy = bool(result["issues"]) or delivery_failed or notifications.pending
                     return {"status": "ALERT" if unhealthy else "OBSERVED", "issues": len(result["issues"])}

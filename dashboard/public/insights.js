@@ -110,6 +110,8 @@
     const reasons = { RUNTIME_HEARTBEAT_STALE: 'moteur sans signe de vie récent', RUNTIME_HEARTBEAT_MISSING: 'aucune preuve de vie du moteur',
       RUNTIME_NOT_MONITORED: 'moteur non surveillé', OBSERVER_STALE: 'observation trop ancienne', OBSERVER_MISSING: 'aucune observation',
       INCOMPLETE_OBSERVATION: 'observation incomplète', ACTIVE_INCIDENT: 'incident ouvert',
+      OBSERVER_NOTIFICATION_PENDING: 'alerte du surveillant en attente de livraison',
+      OBSERVER_NOTIFICATION_UNKNOWN: 'état de livraison des alertes inconnu',
       OBSERVATION_UNAVAILABLE: 'actualisation impossible', PROOF_EXPIRED: 'preuve de surveillance expirée' };
     line(box, `${health}${data.status !== 'OK' ? ` · ${reasons[data.reason] || 'preuve insuffisante'}` : ''}${data.latest ? ` · observation ${data.latest.observed_at}` : ''}`);
     if (data.status === 'OK') protectionExpiry = setTimeout(() => renderProtection({ ...data, status: 'UNKNOWN', reason: 'PROOF_EXPIRED' }), remaining + 1);
