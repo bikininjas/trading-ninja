@@ -6,6 +6,27 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-10 — Vérification de reprise sur la cible, en lecture seule
+
+Vers 08:41 UTC, les 13 empreintes du registre `schema_migrations` concordent
+avec les fichiers du dépôt. L'historique BTC/EUR, ETH/EUR et SOL/EUR disponible
+en base s'arrête au 4 novembre ; il comporte respectivement 113 899, 97 407 et
+47 041 bougies H1, ainsi que 28 637, 24 597 et 11 793 bougies H4. La continuité
+et la couverture récente restent à qualifier avant toute mesure économique.
+
+La base compte zéro cycle de décision capturé, sept signaux historiques et zéro
+position clôturée : elle ne fournit pas de série d'exploitation validante. L'advisor
+Supabase ne rapporte que 41 notices INFO RLS sans policy, déjà justifiées pour ces
+tables privées ; ces notices ne prouvent pas à elles seules les droits effectifs.
+Aucune écriture ni export de données privées n'a été effectué sur la cible.
+
+Sur une copie fraîche du dépôt et PostgreSQL 17 local jetable, `scripts/check.sh`
+est entièrement vert : 729 tests sans base, 36 ignorés, migrations et drawdowns
+vérifiés localement, 31 tests Node et index conformes. La suite distincte avec
+`--postgres-test-url` a exécuté les 765 tests, dont les 36 contrats SQL.
+
+---
+
 ## 2026-11-10 — Sonde externe du surveillant R3
 
 Une sonde séparée signale la disparition du surveillant, les incidents et une

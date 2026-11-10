@@ -7,8 +7,9 @@ les améliorations restantes. Les preuves datées sont conservées dans
 [JOURNAL.md](JOURNAL.md) ; le [snapshot SQL vérifié](audits/2026-11-10/supabase_migrations.json)
 confirme les treize migrations et les contrôles d’intégrité.
 
-État vérifié : lots de sécurité 1–6 publiés, 744 tests Python dont 35 PostgreSQL,
-31 Node et contrôle navigateur ; CI de 24a449c réussie. Supabase trninja est en
+État vérifié : lots de sécurité et de surveillance publiés, 765 tests Python dont
+36 PostgreSQL sur base jetable, 31 Node ; CI publiée à vérifier pour chaque candidat.
+Supabase trninja est en
 0013, droits publics fermés et 323 374 bougies inchangées. La préparation de
 sauvegarde était ciblée ; une sauvegarde complète et sa restauration restent en R3.
 
