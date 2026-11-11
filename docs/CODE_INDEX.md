@@ -3,18 +3,18 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `9783f6ed1d6c8082`
+Empreinte des sources : `81ceac8cffc38ed3`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
 | Modules Python | 163 |
-| Lignes Python | 35470 |
-| Classes | 153 |
-| Fonctions et méthodes | 1166 |
-| Cas de test collectés par pytest | 906 |
-| Fonctions de test (comptage statique) | 698 |
+| Lignes Python | 35665 |
+| Classes | 156 |
+| Fonctions et méthodes | 1179 |
+| Cas de test collectés par pytest | 921 |
+| Fonctions de test (comptage statique) | 707 |
 | Migrations SQL | 15 |
 | Scripts shell | 3 |
 
@@ -29,7 +29,7 @@ Empreinte des sources : `9783f6ed1d6c8082`
 | `backend/app/api/security.py` | 227 | Authentification de l'API d'administration. |
 | `backend/app/api/service.py` | 122 | Vue « administration » : lecture de l'état et actions de contrôle. |
 | `backend/app/api/settings_store.py` | 161 | Réglages pilotables depuis le dashboard, stockés en base. |
-| `backend/app/api/stats.py` | 138 | Statistiques du dashboard — lecture seule, aucun calcul de trading. |
+| `backend/app/api/stats.py` | 139 | Statistiques du dashboard — lecture seule, aucun calcul de trading. |
 | `backend/app/backtest/__init__.py` | 5 | Rejeu historique et régression des décisions. |
 | `backend/app/backtest/engine.py` | 863 | Rejeu historique — le vrai pare-feu, le vrai simulateur, aucune écriture en base. |
 | `backend/app/backtest/golden.py` | 224 | Golden de backtest : décisions enregistrées + métriques attendues. |
@@ -76,10 +76,10 @@ Empreinte des sources : `9783f6ed1d6c8082`
 | `backend/app/insights/store.py` | 505 | Persistance des observations privées ; aucune instruction d'ordre exchange. |
 | `backend/app/insights/watch.py` | 184 | Surveillant de lecture séparé ; ses seules commandes sont des demandes de HALT. |
 | `backend/app/learning/__init__.py` | 1 | Simulation prospective et mémoire d'expérience, exclusivement PAPER. |
-| `backend/app/learning/simulation.py` | 108 | Évaluation prospective de plans fixes, sans connaissance des prix futurs. |
+| `backend/app/learning/simulation.py` | 193 | Simulation prospective : contexte figé, prix causaux et erreurs isolées. |
 | `backend/app/learning/status.py` | 17 | Présentation factuelle du dernier passage du worker, sans faux voyant vert. |
 | `backend/app/learning/store.py` | 124 | Lectures bornées, journal et verrou d'apprentissage, distincts du ledger. |
-| `backend/app/learning/worker.py` | 65 | Boucle de mémoire PAPER, indépendante du processus d'exécution. |
+| `backend/app/learning/worker.py` | 69 | Boucle de mémoire PAPER, indépendante du processus d'exécution. |
 | `backend/app/llm/__init__.py` | 1 | Client LLM local. Aucune I/O à l'import. |
 | `backend/app/llm/client.py` | 568 | Client LLM local (Ollama) — auditeur de confluences, jamais exécutant. |
 | `backend/app/llm/lessons.py` | 202 | Mémoire de leçons — apprendre des résultats, pas du bruit de marché. |
@@ -128,7 +128,7 @@ Empreinte des sources : `9783f6ed1d6c8082`
 | `backend/tests/__init__.py` | 1 |  |
 | `backend/tests/conftest.py` | 74 | Les tests unitaires ne doivent jamais contacter un service externe. |
 | `backend/tests/test_affordability.py` | 182 | Tests de la faisabilité d'un ordre avec un petit capital. |
-| `backend/tests/test_api.py` | 609 | Tests de l'API d'administration : session, pause, panic-sell, WebSocket. |
+| `backend/tests/test_api.py` | 631 | Tests de l'API d'administration : session, pause, panic-sell, WebSocket. |
 | `backend/tests/test_api_security.py` | 105 | Tests de la couche d'authentification : scrypt, JWT, TOTP, anti-rejeu. |
 | `backend/tests/test_backtest.py` | 288 | Tests du moteur de backtest : absence de lookahead, stop prioritaire, frais. |
 | `backend/tests/test_backtest_golden.py` | 95 | Régression de backtest : le comportement doit rester celui du golden. |
@@ -155,8 +155,8 @@ Empreinte des sources : `9783f6ed1d6c8082`
 | `backend/tests/test_insights_postgres.py` | 382 | Preuves SQL des contrôles, paquets, incidents et révisions ; cible locale stricte. |
 | `backend/tests/test_kraken_adapter.py` | 308 | Tests de la passerelle Kraken, hors réseau. |
 | `backend/tests/test_kraken_archive.py` | 145 | Lecture ZIP par plages HTTP : le mécanisme qui évite 9,5 Go de téléchargement. |
-| `backend/tests/test_learning.py` | 214 | Mémoire automatique : causalité, nouveaux résultats, échecs et isolation PAPER. |
-| `backend/tests/test_learning_postgres.py` | 119 | Contrats SQL du laboratoire, uniquement PostgreSQL local jetable. |
+| `backend/tests/test_learning.py` | 282 | Mémoire automatique : causalité, nouveaux résultats, échecs et isolation PAPER. |
+| `backend/tests/test_learning_postgres.py` | 134 | Contrats SQL du laboratoire, uniquement PostgreSQL local jetable. |
 | `backend/tests/test_lessons.py` | 172 | Tests de la mémoire de leçons — purs, sans réseau ni base. |
 | `backend/tests/test_live_execution.py` | 657 | Tests de l'exécuteur réel — aucun réseau, aucune clé, aucun ordre réel. |
 | `backend/tests/test_live_probe.py` | 34 | La sonde ne constitue jamais un chemin de trading hors journal. |
@@ -985,11 +985,19 @@ le code, pas une copie de celui-ci.
 
 ### `backend/app/learning/simulation.py`
 
-*Évaluation prospective de plans fixes, sans connaissance des prix futurs.*
+*Simulation prospective : contexte figé, prix causaux et erreurs isolées.*
 
-- **class TrainingOutcome** (l.22)
-- `def simulate_training(row, candles, now)` (l.31)
-- `async def evaluate_training_shadows(repo, exchange, *, now, limit=100)` (l.95)
+- **class InvalidProposal(ValueError)** (l.20) — Le plan enregistré n'est pas exploitable ; aucun PnL ne doit être inventé.
+- **class SimulationDataUnavailable(RuntimeError)** (l.24) — Certains prix manquent ; les autres simulations ont été traitées.
+  - `def __init__(self, evaluated_count, failed_count)` (l.26)
+- **class TrainingOutcome** (l.33)
+- **class TrainingPlan** (l.43)
+- `def _decimal(value)` (l.55)
+- `def _integer(value)` (l.64)
+- `def training_plan(row)` (l.71)
+- `def _bar(candle)` (l.96)
+- `def simulate_training(row, candles, now)` (l.109)
+- `async def evaluate_training_shadows(repo, exchange, *, now, limit=100)` (l.164)
 
 ### `backend/app/learning/status.py`
 
@@ -1612,6 +1620,8 @@ le code, pas une copie de celui-ci.
 - `def test_portfolio_position_empty(api)` (l.587)
 - `def test_llm_prompt_is_masked(api)` (l.595)
 - `def test_llm_prompt_missing_returns_404(api)` (l.605)
+- `async def test_dashboard_profit_factor_uses_net_results_without_counting_fees_twice(net_wins, net_losses, fees, expected)` (l.615)
+- `def test_position_without_take_profit_uses_json_null_instead_of_a_string()` (l.627)
 
 ### `backend/tests/test_api_security.py`
 
@@ -2159,6 +2169,12 @@ le code, pas une copie de celui-ci.
 - `async def test_cancelled_inference_is_journaled_without_replacing_memory()` (l.186)
 - `async def test_daemon_refuses_live_before_opening_database(monkeypatch)` (l.200)
 - `async def test_lost_worker_lock_refuses_publication_after_inference()` (l.208)
+- `def test_corrupt_prices_after_a_valid_exit_do_not_change_its_result()` (l.217)
+- `def test_repeated_prices_with_a_volume_correction_are_not_conflicting()` (l.222)
+- `def test_invalid_proposals_cannot_produce_eligible_labels(changes)` (l.230)
+- `async def test_a_failed_market_does_not_prevent_another_market_being_evaluated()` (l.236)
+- `async def test_bad_context_is_excluded_without_blocking_healthy_proposals()` (l.253)
+- `async def test_partial_batch_records_completed_work_without_publishing_lessons()` (l.268)
 
 ### `backend/tests/test_learning_postgres.py`
 
@@ -2173,6 +2189,7 @@ le code, pas une copie de celui-ci.
 - `async def test_learner_role_has_no_order_rights_and_cannot_see_or_write_live(repo)` (l.87)
 - `async def test_public_roles_cannot_read_learning_and_api_cannot_mutate_runs(repo)` (l.101)
 - `async def test_interrupted_run_cannot_publish_even_with_an_unchanged_lesson_version(repo)` (l.111)
+- `async def test_invalid_proposal_is_quarantined_with_learner_rights_and_never_enters_memory(repo)` (l.122)
 
 ### `backend/tests/test_lessons.py`
 
@@ -2813,7 +2830,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/__init__.py` | 0 |
 | `backend/tests/conftest.py` | 0 |
 | `backend/tests/test_affordability.py` | 9 |
-| `backend/tests/test_api.py` | 31 |
+| `backend/tests/test_api.py` | 36 |
 | `backend/tests/test_api_security.py` | 22 |
 | `backend/tests/test_backtest.py` | 9 |
 | `backend/tests/test_backtest_golden.py` | 3 |
@@ -2840,8 +2857,8 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_insights_postgres.py` | 26 |
 | `backend/tests/test_kraken_adapter.py` | 25 |
 | `backend/tests/test_kraken_archive.py` | 11 |
-| `backend/tests/test_learning.py` | 18 |
-| `backend/tests/test_learning_postgres.py` | 7 |
+| `backend/tests/test_learning.py` | 27 |
+| `backend/tests/test_learning_postgres.py` | 8 |
 | `backend/tests/test_lessons.py` | 11 |
 | `backend/tests/test_live_execution.py` | 29 |
 | `backend/tests/test_live_probe.py` | 3 |
@@ -2870,7 +2887,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_swing_backtest.py` | 7 |
 | `backend/tests/test_trade_history.py` | 8 |
 | `backend/tests/test_watchdog.py` | 12 |
-| **Total** | **906** |
+| **Total** | **921** |
 
 ## 5. Schéma SQL
 

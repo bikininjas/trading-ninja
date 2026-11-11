@@ -36,15 +36,16 @@ async def build_stats(repo, settings: Settings) -> dict:
 
     gross_profit = Decimal(str(metrics.get("gross_profit", 0) or 0))
     gross_loss = Decimal(str(metrics.get("gross_loss", 0) or 0))
-    fees = Decimal(str(metrics.get("fees", 0) or 0))
     avg_win = Decimal(str(metrics.get("avg_win", 0) or 0))
     avg_loss = Decimal(str(metrics.get("avg_loss", 0) or 0))
 
-    payoff_ratio = (avg_win / abs(avg_loss)) if avg_loss != 0 else Decimal(0)
-    profit_factor_denominator = abs(gross_loss) + fees
+    payoff_ratio = (avg_win / abs(avg_loss)) if avg_loss != 0 else None
+    # Ces deux agrégats proviennent déjà de net_pnl_quote : rajouter les frais
+    # au dénominateur les compterait une seconde fois.
+    profit_factor_denominator = abs(gross_loss)
     profit_factor_net = (
         gross_profit / profit_factor_denominator
-        if profit_factor_denominator != 0 else Decimal(0)
+        if profit_factor_denominator != 0 else None
     )
 
     engaged_position = Decimal(0)
@@ -81,8 +82,8 @@ async def build_stats(repo, settings: Settings) -> dict:
             "net_pnl": jsonable(metrics.get("net_pnl", Decimal("0"))),
             "fees": jsonable(metrics.get("fees", Decimal("0"))),
             "r_multiple": jsonable(metrics.get("r_multiple", Decimal("0"))),
-            "payoff_ratio": str(payoff_ratio),
-            "profit_factor_net": str(profit_factor_net),
+            "payoff_ratio": jsonable(payoff_ratio),
+            "profit_factor_net": jsonable(profit_factor_net),
             "gross_profit": jsonable(gross_profit),
             "gross_loss": jsonable(gross_loss),
         },

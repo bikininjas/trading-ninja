@@ -25,18 +25,36 @@ async def main():
   page=await browser.new_page(viewport={'width':1440,'height':1000})
   await page.emulate_media(reduced_motion='reduce')
   await page.clock.install()
+  async def deadline(seconds):
+   # Les expirations suivent l’horloge du navigateur, y compris après fast_forward.
+   return await page.evaluate('(seconds) => new Date(Date.now() + seconds * 1000).toISOString()', seconds)
   # Flux déterministe : mêmes handlers que l’EventSource réel, erreurs injectables.
   await page.add_init_script('''window.EventSource = class extends EventTarget {
     constructor() { super(); window.testStream = this;
       setTimeout(() => { this.onopen?.(); this.onmessage?.({data: JSON.stringify(''' + json.dumps(STATUS) + ''')}); }, 10);
     }
   };''')
+  await page.add_init_script('''
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (path, options) => {
+      if (path === '/api/stats' && window.reviewStallStats) {
+        window.reviewStatsSignal = options?.signal;
+        return new Promise((resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+        });
+      }
+      return originalFetch(path, options);
+    };
+  ''')
   errors=[]
   controls={'enabled':True,'revision':0}
   sent=[]
   cycle_id='00000000-0000-0000-0000-000000000001'
   protection={'latest':None,'incidents':[],'freshness':'UNKNOWN','status':'UNKNOWN','reason':'OBSERVER_MISSING'}
   overview_down=False
+  stats_invalid=False
+  settings_invalid=False
+  learning_invalid=False
   learning_down=False
   learning_data={'state':'NOT_STARTED','run':None,'valid_until':None,
    'simulations':{'total':0,'eligible':0,'pending':0,'excluded':0,'no_plan':0},'history':[],
@@ -52,6 +70,12 @@ async def main():
     return await r.fulfill(status=503,content_type='application/json',body='{"detail":"service indisponible"}')
    if path=='/api/insights/learning' and learning_down:
     return await r.fulfill(status=503,content_type='application/json',body='{}')
+   if path=='/api/settings' and settings_invalid:
+    return await r.fulfill(status=200,content_type='application/json',body='{}')
+   if path=='/api/stats' and stats_invalid:
+    return await r.fulfill(status=200,content_type='application/json',body='{}')
+   if path=='/api/insights/learning' and learning_invalid:
+    return await r.fulfill(status=200,content_type='application/json',body='{"state":"LEARNED"}')
    if path=='/events': return await r.fulfill(status=200,content_type='text/event-stream',body='data: '+json.dumps(STATUS)+'\n\n')
    if path=='/api/status': payload=STATUS
    elif path.endswith('/prompt'): payload={'prompt_payload':{'example':'fixture locale'}}
@@ -63,9 +87,11 @@ async def main():
    elif path=='/api/stats':payload={
     'pnl':{'net_pnl':'.47','wins':3,'trades':5,'losses':2,'win_rate':'.6','r_multiple':'.24','fees':'.12','payoff_ratio':'1.4','profit_factor_net':'1.3'},
     'capital':{'engaged_position_quote':'0'},
+    'shadow':{'total':0,'planned':0,'no_plan':0,'open':0,'closed':0,'wins':0,'losses':0,'net_pnl':'0','by_kind':{},'by_rejection':[]},
+    'lessons':{'active':[],'source_count':0,'version':None,'updated_at':None},
     'equity_curve':[{'at':(datetime.now(timezone.utc)-timedelta(hours=4*(23-i))).isoformat(),'equity':str(round(10.9+i*.02+(.04 if i%3==0 else -.02),2))} for i in range(24)],
     'daily':[{'day':(datetime.now(timezone.utc)-timedelta(days=13-i)).date().isoformat(),'net_pnl':str(.12 if i%3 else -.06),'trades':1,'wins':int(i%3!=0)} for i in range(14)],
-    'llm':{'model':'qwen3.5:9b','total':8,'counts':{'HOLD':6,'BUY':2},'degraded':0,'last':{'action':'HOLD','confidence':'.72','inference_time_ms':1240,'thesis':'Le marché évolue sans tendance claire. Le moteur conserve les euros en attendant une opportunité conforme aux limites.'}},
+    'llm':{'model':'qwen3.5:9b','total':8,'counts':{'HOLD':6,'BUY':2,'SELL':0,'HALT':0},'degraded':0,'last':{'action':'HOLD','confidence':'.72','inference_time_ms':1240,'thesis':'Le marché évolue sans tendance claire. Le moteur conserve les euros en attendant une opportunité conforme aux limites.'}},
     'rejections':[{'code':'SIZING_BELOW_EXCHANGE_MINIMUM','count':3,'percentage':'.75'},{'code':'CONFIDENCE_TOO_LOW','count':1,'percentage':'.25'}]}
    elif path=='/api/settings':
     if r.request.method=='POST': sent.append((path,r.request.post_data_json))
@@ -74,6 +100,7 @@ async def main():
      'entry_rule_enabled':True,'application':{'revision':0,'applied_revision':0,'apply_error':None},
      'max_weekly_loss_pct':'.05','max_drawdown_from_hwm_pct':'.1','max_consecutive_losses':3,
      'cost_aware':True,'profiles':PROFILE_OPTIONS}
+    if r.request.method=='POST':payload['application']['apply_error']='Erreur de recette du moteur'
    elif path=='/api/settings/preview':payload={'changes':{'min_confidence':{'scope':'GLOBAL_SAFETY'}},'positions':[]}
    elif path=='/api/control/entries':
     body=r.request.post_data_json;sent.append((path,body));controls.update(enabled=body['enabled'],revision=controls['revision']+1);payload=controls
@@ -117,6 +144,42 @@ async def main():
   await page.keyboard.press('End')
   await page.locator('[data-range="all"]').click()
   assert await page.locator('#equity-tooltip').is_hidden()
+  # Une réponse partielle ne doit jamais faire disparaître une position ouverte.
+  opened={**STATUS,'state':'IN_POSITION','position':{'id':cycle_id,'symbol':'BTC/EUR',
+    'entry_price':'100','amount':'.05','stop_loss_price':'95','take_profit_price':None,
+    'opened_at':datetime.now(timezone.utc).isoformat(),'risk_amount_quote':'.25',
+    'estimated_net_risk_quote':'.33','unrealized_pnl_quote':None,'unrealized_pnl_pct':None}}
+  await page.evaluate("testStream.onmessage({data:JSON.stringify("+json.dumps(opened)+")})")
+  await page.wait_for_function("document.querySelector('#position-symbol').textContent==='BTC/EUR'")
+  await page.evaluate("testStream.onmessage({data:JSON.stringify({mode:'PAPER',state:'IDLE',equity:'11.37',free_quote:'9.62',reserve_quote:'.60'})})")
+  assert await page.locator('#position-symbol').inner_text()=='BTC/EUR', 'Une réponse partielle efface la position.'
+  assert '0,0 %' not in await page.locator('#position').inner_text(), 'Un PnL inconnu est affiché comme zéro.'
+  assert 'non' not in await page.locator('#position').inner_text(), 'Le breakeven inconnu est affiché comme inactif.'
+  await page.evaluate("testStream.onmessage({data:JSON.stringify("+json.dumps(STATUS)+")})")
+  # Les statistiques invalides conservent valeurs et courbe, avec un avertissement.
+  before_pnl=await page.locator('#stat-pnl').inner_text()
+  stats_invalid=True
+  await page.locator('#refresh-all').click()
+  await page.wait_for_function("document.querySelector('#refresh-all').disabled === false")
+  assert await page.locator('#stat-pnl').inner_text()==before_pnl, 'Les statistiques incomplètes remplacent les valeurs valides.'
+  assert await page.locator('#equity-chart svg').count()==1
+  assert await page.locator('#stats-warning').is_visible()
+  stats_invalid=False
+  await page.locator('#refresh-all').click()
+  await page.wait_for_function("document.querySelector('#refresh-all').disabled === false")
+  assert await page.locator('#stats-warning').is_hidden()
+  # Une requête sans réponse doit libérer le rafraîchissement et préserver les chiffres.
+  await page.evaluate('window.reviewStallStats = true')
+  await page.locator('#refresh-all').click()
+  await page.wait_for_function('window.reviewStatsSignal instanceof AbortSignal')
+  await page.clock.fast_forward(10100)
+  await page.wait_for_function("document.querySelector('#refresh-all').disabled === false",timeout=15000)
+  assert await page.locator('#stat-pnl').inner_text()==before_pnl
+  assert await page.locator('#stats-warning').is_visible()
+  await page.evaluate('window.reviewStallStats = false')
+  await page.locator('#refresh-all').click()
+  await page.wait_for_function("document.querySelector('#refresh-all').disabled === false")
+  assert await page.locator('#stats-warning').is_hidden()
   # Un message invalide, puis une coupure, ne doivent effacer ni redater le statut.
   before=await page.locator('#updated-footer').inner_text()
   await page.evaluate("testStream.onmessage({data:JSON.stringify({error:'interrompu'})})")
@@ -136,7 +199,7 @@ async def main():
   await page.locator('[data-nav=decisions]').click()
   await page.locator('#view-decisions').wait_for(state='visible')
   await page.wait_for_function("document.querySelector('#learning-state').textContent.includes('n’a pas encore')")
-  learning_data.update(state='LEARNED',valid_until=(datetime.now(timezone.utc)+timedelta(seconds=5)).isoformat(),
+  learning_data.update(state='LEARNED',valid_until=await deadline(5),
     run={'status':'LEARNED','reason':'NEW_LESSONS','started_at':datetime.now(timezone.utc).isoformat(),
          'finished_at':datetime.now(timezone.utc).isoformat(),'source_count':20,'new_source_count':20},
     history=[{'version':1,'active':True,'valid_until':None,'created_at':datetime.now(timezone.utc).isoformat(),
@@ -144,6 +207,16 @@ async def main():
   await page.locator('#learning-refresh').click()
   await page.wait_for_function("document.querySelector('#learning-state').textContent.includes('nouvelle version')")
   assert await page.locator('#learning-history img').count()==0
+  memory_stamp=await page.locator('#learning-updated').inner_text()
+  learning_invalid=True
+  await page.locator('#learning-refresh').click()
+  await page.wait_for_function("document.querySelector('#learning-refresh').disabled === false")
+  assert 'impossible' in await page.locator('#learning-state').inner_text(), 'Une mémoire incomplète paraît à jour.'
+  assert await page.locator('#learning-updated').inner_text()==memory_stamp
+  learning_invalid=False
+  await page.locator('#learning-refresh').click()
+  await page.wait_for_function("document.querySelector('#learning-refresh').disabled === false")
+
   await page.clock.fast_forward(6000)
   await page.wait_for_function("document.querySelector('#learning-state').textContent.includes('récemment')")
   learning_down=True
@@ -152,7 +225,7 @@ async def main():
   await page.clock.fast_forward(2000)
   assert 'impossible' in await page.locator('#learning-state').inner_text()
   learning_down=False
-  learning_data['valid_until']=(datetime.now(timezone.utc)+timedelta(seconds=120)).isoformat()
+  learning_data['valid_until']=await deadline(120)
   await page.locator('#learning-refresh').click()
   await page.wait_for_function("document.querySelector('#learning-state').textContent.includes('nouvelle version')")
   await page.wait_for_function("document.querySelector('#entries-toggle').disabled === false")
@@ -160,12 +233,12 @@ async def main():
   protection.update(status='ALERT',reason='OBSERVER_NOTIFICATION_PENDING')
   await page.locator('#insights-refresh').click()
   await page.wait_for_function("document.querySelector('#protection-results').textContent.includes('alerte du surveillant en attente de livraison')")
-  protection.update(status='OK',reason='OBSERVER_CURRENT',valid_until=(datetime.now(timezone.utc)+timedelta(seconds=10)).isoformat())
+  protection.update(status='OK',reason='OBSERVER_CURRENT',valid_until=await deadline(10))
   await page.locator('#insights-refresh').click()
   await page.wait_for_function("document.querySelector('#protection-results').textContent.includes('Surveillance à jour')")
   await page.clock.fast_forward(11000)
   await page.wait_for_function("document.querySelector('#protection-results').textContent.includes('preuve de surveillance expirée')")
-  protection['valid_until']=(datetime.now(timezone.utc)+timedelta(seconds=30)).isoformat()
+  protection['valid_until']=await deadline(30)
   await page.locator('#insights-refresh').click()
   await page.wait_for_function("document.querySelector('#protection-results').textContent.includes('Surveillance à jour')")
   overview_down=True
@@ -192,6 +265,12 @@ async def main():
   assert not any(path.endswith('/panic') for path,_ in sent)
   await page.locator('[data-nav=settings]').click()
   await page.locator('#view-settings').wait_for(state='visible')
+  draft=await page.locator('#set-profile').input_value()
+  settings_invalid=True
+  await page.locator('#settings-reload').click()
+  await page.wait_for_function("document.querySelector('#settings-feedback').textContent.includes('incomplets')")
+  assert await page.locator('#set-profile').input_value()==draft, 'Une réponse invalide efface les réglages.'
+  settings_invalid=False
   await page.locator('#set-profile').select_option('nano_budget')
   assert await page.locator('#set-notional').input_value()=='100'
   assert '100 %' in await page.locator('#set-profile-help').inner_text()
@@ -205,6 +284,8 @@ async def main():
   assert 'supérieur à zéro' in await page.locator('#profile-example').inner_text()
   await page.locator('#settings-save').click()
   await page.wait_for_function("document.querySelector('#settings-save').disabled === false")
+  assert await page.locator('#settings-feedback').get_attribute('data-kind')=='error'
+  assert 'moteur signale une erreur' in await page.locator('#settings-feedback').inner_text()
   saved=next(body for path,body in reversed(sent) if path=='/api/settings')
   assert saved['profile']=='nano_budget' and saved['max_per_trade_pct']==1
   await page.locator('#set-profile').select_option('micro_budget')

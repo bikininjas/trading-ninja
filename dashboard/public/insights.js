@@ -14,7 +14,7 @@
   let protectionExpiry = null;
   function status(message) { if ($('insights-status')) $('insights-status').textContent = message; }
   async function api(path, body) {
-    const response = await fetch(path, body === undefined ? {} : {
+    const response = await fetch(path, body === undefined ? { signal: AbortSignal.timeout(10_000) } : {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
     if (response.status === 401) { window.location.href = '/login'; throw new Error('Session expirée'); }

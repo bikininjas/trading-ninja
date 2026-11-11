@@ -48,7 +48,7 @@ def _position_payload(position, fee_rate: Decimal = Decimal("0")) -> dict | None
         "entry_price": str(position.entry_price),
         "amount": str(position.amount),
         "stop_loss_price": str(position.stop_loss_price),
-        "take_profit_price": str(position.take_profit_price),
+        "take_profit_price": jsonable(position.take_profit_price),
         "opened_at": position.opened_at.isoformat(),
         "risk_amount_quote": str(position.risk_amount_quote),
         "fee_rate": str(fee_rate),

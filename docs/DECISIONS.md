@@ -2126,3 +2126,30 @@ d’autorisation de modifier son schéma et ses droits. Seb a ensuite donné cet
 autorisation explicitement ; 0015 a été appliquée et vérifiée le 11 novembre.
 Aucun contournement du refus ni activation de processus. La performance avec
 cette mémoire reste à comparer hors des données de relecture.
+
+---
+
+## D-094 — Conserver les preuves valides et isoler les erreurs de simulation (2026-11-11)
+
+La revue demandée par Seb reproduit des réponses partielles capables d’effacer
+une position ou des statistiques, et une mémoire partielle présentée comme fraîche.
+Valider les lectures avant mutation du DOM, conserver les valeurs et leurs dates
+en cas d’erreur, borner les lectures HTTP à dix secondes. Ne pas remplacer un PnL
+inconnu par zéro, ni confirmer les réglages si le moteur signale une erreur.
+
+Les gains et pertes agrégés de l’API sont déjà nets : le profit factor ne rajoute
+plus les frais au dénominateur. Le profit factor et le payoff sont indéfinis sans
+perte de référence (`null`, affiché « — »). Un objectif de sortie absent est aussi
+un `null` JSON et non la chaîne `None`.
+
+Valider quantité, géométrie, coûts, période et horizon figés avant la simulation.
+Un plan invalide est écarté sans prix de sortie ni PnL inventé. Évaluer les bougies
+chronologiquement jusqu’à la sortie : une bougie corrompue ultérieure ou un volume
+différent ne change pas un résultat établi. Un échec de cours sur une paire laisse
+ses lignes à réessayer et ne bloque pas les autres paires ; le passage global est
+`FAILED / SIMULATION_DATA_UNAVAILABLE`, sans appel de relecture ni publication.
+Les erreurs SQL restent fatales. Les résultats déjà clos ne sont pas recalculés.
+
+Aucune nouvelle migration, aucun changement de règle d’achat ni de plafond de
+risque. Ces corrections ne mesurent pas l’effet économique de la mémoire et
+ne changent pas la limite des plans fixes : ils ne simulent pas le trailing.

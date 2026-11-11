@@ -18,7 +18,7 @@ Les migrations 0001–0015 sont appliquées sur trninja, vérifiées le 11 novem
 Sur une autre base, vérifier les migrations avant de démarrer l’instrumentation.
 
 Les tests n’utilisent aucune clé du shell et interdisent les connexions externes.
-La suite normale collecte 906 tests : 844 passent hors base, 62 contrats SQL sont
+La suite normale collecte 921 tests : 858 passent hors base, 63 contrats SQL sont
 ignorés sans base jetable. Pour tout vérifier, démarrer PostgreSQL 17 local avec
 les rôles `anon`/`authenticated`, appliquer les quinze migrations et utiliser :
 
@@ -30,6 +30,13 @@ TN_TEST_DATABASE_URL="$TN_REVIEW_DSN" .venv/bin/python -m pytest \
 `TN_REVIEW_DSN` doit viser exclusivement `127.0.0.1`/`localhost`, base
 `trading_ninja_review` jetable. Les tests SQL annulent leurs écritures ; ils ne
 valident pas le schéma Supabase déployé. Le golden est inclus dans la suite.
+
+La mémoire prospective valide chaque plan avant calcul. Un plan incohérent est
+exclu sans PnL ; une panne de cours reste à réessayer sans interrompre les autres
+marchés. Le passage est alors journalisé `SIMULATION_DATA_UNAVAILABLE`, avec le
+nombre de simulations terminées, et ne publie aucune nouvelle leçon. Seules les
+bougies jusqu’à la sortie déterminent le résultat ; le volume ne change pas les
+sorties fixes au stop/objectif. Aucun schéma supplémentaire n’est nécessaire.
 
 ## Outillage qualifié
 
@@ -59,7 +66,7 @@ Le profil papier `progressif` et le comparatif de budgets sont décrits dans
 virtuels ; il ne modifie pas les réglages locaux existants.
 
 ```bash
-.venv/bin/python -m pytest                     # 906 tests collectés ; 62 PostgreSQL opt-in, voir ci-dessous
+.venv/bin/python -m pytest                     # 921 tests collectés ; 63 PostgreSQL opt-in, voir ci-dessous
 .venv/bin/python -m app.main --once            # un cycle papier complet (données réelles)
 .venv/bin/python -m app.main --serve           # une évaluation par bougie H4 clôturée
 .venv/bin/python -m app.main --status          # état + 3 dernières lignes par table

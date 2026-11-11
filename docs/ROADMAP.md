@@ -8,7 +8,7 @@ les améliorations restantes. Les preuves datées sont conservées dans
 confirme les quatorze migrations, les groupes et les contrôles d’intégrité.
 
 État vérifié : lots de sécurité, surveillance et préparation d'exploitation,
-906 tests Python dont 62 PostgreSQL sur base jetable, 32 Node ; CI à vérifier
+921 tests Python dont 63 PostgreSQL sur base jetable, 32 Node ; CI à vérifier
 pour chaque candidat.
 Supabase trninja est en
 0015, droits publics fermés et 324 250 bougies. Seb a retiré le 10 novembre la
@@ -25,6 +25,12 @@ observés en réel à budget constant. Le go live ne garantit ni rentabilité fu
 ni absence totale de panne.
 
 ## Ordre et responsabilités
+
+✅ **Revue dashboard v2 et mémoire PAPER** *(11 novembre 2026)* :
+réponses incomplètes conservant le dernier affichage valide, timeouts de lecture,
+ratios nets corrigés, plans incohérents exclus et pannes de cours isolées sans
+publication de leçons. 921 tests Python dont 63 PostgreSQL, Chromium et golden
+vérifiés ; D-094. Aucun changement des plafonds financiers ni des résultats clos.
 
 ✅ **Apprentissage PAPER automatique — code et recette locale** *(11 novembre 2026)* :
 simulations prospectives, mémoire versionnée, worker horaire séparé, 20 résultats

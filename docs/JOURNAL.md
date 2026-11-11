@@ -6,6 +6,51 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-11 — Revue dashboard v2 et apprentissage : corrections vérifiées
+
+Seb demande une nouvelle passe pour trouver améliorations et bugs. D-094 :
+corrections ciblées, sans nouvelle migration ni changement de risque.
+
+- Un statut partiel pouvait effacer une position ouverte ; des statistiques
+  incomplètes effaçaient valeurs et courbes ; une mémoire partielle pouvait
+  paraître fraîche. Validation avant rendu, dernières données conservées et
+  avertissement explicite. Les lectures HTTP expirent après dix secondes et
+  libèrent le rafraîchissement. Les réglages incomplets ne remplacent plus le
+  formulaire ; un `apply_error` du moteur reste une erreur même à révision égale.
+- Le profit factor recomptait les frais au dénominateur de résultats déjà nets.
+  Gains nets / pertes nettes absolues ; payoff et profit factor indéfinis sans
+  perte, affichés « — ». PnL et breakeven inconnus ne deviennent plus zéro/non.
+  Un take-profit absent utilise `null` JSON au lieu de la chaîne `None`.
+- Huit reproductions de simulation échouaient avant correction : prix corrompus
+  après une sortie valide, correction du seul volume, quatre plans invalides,
+  panne d’un marché et contexte invalide bloquant le lot. Les plans sont validés
+  et exclus sans PnL inventé ; seules les bougies utiles jusqu’à la sortie comptent.
+  Une panne de cours laisse les lignes concernées en attente, traite les autres
+  et journalise `FAILED / SIMULATION_DATA_UNAVAILABLE` avec le nombre terminé.
+  Pas de relecture ni publication sur ce passage ; la mémoire précédente reste.
+  Le contrat SQL confirme l’exclusion sous les seuls droits du learner.
+
+Vérification locale avec Python **3.13.17** et le lock :
+`TN_TEST_DATABASE_URL=<base jetable locale> python -m pytest -o addopts='' -q
+--postgres-test-url <base jetable locale>` → **921 succès**, dont **63 PostgreSQL**,
+aucun test sauté ; seul avertissement Starlette/httpx déjà présent.
+`python scripts/backtest.py replay` → golden identique, net **−34,8828 EUR**.
+`python scripts/check_dashboard_browser.py /tmp/tn-review-browser-final` → cinq
+espaces sur API factice, réponses partielles, timeout, conservation des données, erreur moteur,
+expiration mémoire, contrôles TOTP, CSV et quatre largeurs vérifiés. Les dates
+de recette suivent désormais l’horloge Chromium après ses avances simulées.
+`DATABASE_URL=<base jetable locale> bash scripts/check.sh` → **TOUT EST VERT** :
+858 tests hors base, 63 SQL opt-in sautés par cette commande (tous exécutés dans
+la suite complète ci-dessus), **32 Node**, quinze migrations locales conformes,
+drawdowns transactionnels, index et documentation cohérents. Ce contrôle utilise
+le venv de travail 3.15.2 ; la suite de livraison a été exécutée sous 3.13.17.
+
+Ces tests n’activent aucun moteur ni worker et n’écrivent pas sur Supabase. Les
+résultats clos restent inchangés. La mesure économique de la mémoire sur des
+données nouvelles et l’installation du service WSL restent à faire.
+
+---
+
 ## 2026-11-11 — Migration 0015 appliquée sur Supabase après autorisation
 
 Seb a explicitement autorisé les migrations Supabase. Sur **trninja**, la migration

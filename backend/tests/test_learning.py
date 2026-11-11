@@ -8,7 +8,7 @@ import asyncio
 
 import pytest
 
-from app.learning.simulation import simulate_training, evaluate_training_shadows
+from app.learning.simulation import simulate_training, evaluate_training_shadows, SimulationDataUnavailable
 from app.learning.worker import run_learning_once
 from app.learning.status import learning_view
 
@@ -212,3 +212,71 @@ async def test_lost_worker_lock_refuses_publication_after_inference():
     result=await run_learning_once(repo,None,client,SETTINGS,now=NOW)
     assert result['status']=='FAILED' and not repo.saved
     assert repo.runs[-1]['status']=='FAILED'
+
+
+def test_corrupt_prices_after_a_valid_exit_do_not_change_its_result():
+    result=simulate_training(shadow(),[candle(0,lo=94),candle(1,hi=float('nan'))],NOW+timedelta(hours=12))
+    assert result.status=='STOP_LOSS' and result.eligible and result.pnl_quote < 0
+
+
+def test_repeated_prices_with_a_volume_correction_are_not_conflicting():
+    corrected=candle(0,hi=111);corrected[5]=42
+    result=simulate_training(shadow(),[candle(0,hi=111),corrected],NOW+timedelta(hours=4))
+    assert result.status=='TAKE_PROFIT' and result.eligible
+
+
+@pytest.mark.parametrize('changes',[{'amount':D('-.05')},{'decision_price':D('NaN')},
+    {'stop_loss_price':D('105')},{'take_profit_price':D('90')}])
+def test_invalid_proposals_cannot_produce_eligible_labels(changes):
+    with pytest.raises(ValueError):
+        simulate_training(shadow(**changes),[candle(0,hi=111,lo=94)],NOW+timedelta(hours=4))
+
+
+@pytest.mark.asyncio
+async def test_a_failed_market_does_not_prevent_another_market_being_evaluated():
+    bad=shadow(symbol='ETH/EUR');good=shadow(symbol='BTC/EUR')
+    updates={}
+    class SimulationRepo:
+        async def training_shadows(self,limit):return [bad,good]
+        async def update_training_shadow(self,row,outcome):updates[row['symbol']]=outcome
+    class Market:
+        def fetch_ohlcv(self,symbol,*args):
+            if symbol=='ETH/EUR':raise TimeoutError('fixture')
+            return [candle(0,hi=111)]
+    with pytest.raises(SimulationDataUnavailable) as error:
+        await evaluate_training_shadows(SimulationRepo(),Market(),now=NOW+timedelta(hours=4))
+    assert error.value.evaluated_count==1 and error.value.failed_count==1
+    assert updates['BTC/EUR'].eligible and updates['ETH/EUR'] is None
+
+
+@pytest.mark.asyncio
+async def test_bad_context_is_excluded_without_blocking_healthy_proposals():
+    bad=shadow();bad['simulation_context']['horizon_bars']=0
+    good=shadow()
+    updates={}
+    class SimulationRepo:
+        async def training_shadows(self,limit):return [bad,good]
+        async def update_training_shadow(self,row,outcome):updates[row['id']]=outcome
+    class Market:
+        def fetch_ohlcv(self,*args):return [candle(0,hi=111)]
+    assert await evaluate_training_shadows(SimulationRepo(),Market(),now=NOW+timedelta(hours=4))==2
+    assert not updates[bad['id']].eligible and updates[bad['id']].pnl_quote is None
+    assert updates[good['id']].eligible
+
+
+@pytest.mark.asyncio
+async def test_partial_batch_records_completed_work_without_publishing_lessons():
+    repo,client=Repo(),Client()
+    repo.training_shadows=lambda limit:asyncio.sleep(0,result=[shadow(symbol='ETH/EUR'),shadow()])
+    updates=[]
+    async def update(row,outcome):updates.append(outcome)
+    repo.update_training_shadow=update
+    class Market:
+        def fetch_ohlcv(self,symbol,*args):
+            if symbol=='ETH/EUR':raise TimeoutError('fixture')
+            return [candle(0,hi=111)]
+    result=await run_learning_once(repo,Market(),client,SETTINGS,now=NOW+timedelta(hours=4))
+    assert result['status']=='FAILED' and result['reason']=='SIMULATION_DATA_UNAVAILABLE'
+    assert result['evaluated_count']==1 and result['failed_simulations']==1
+    assert len(updates)==2 and not client.calls and not repo.saved
+    assert repo.runs[-1]['evaluated_count']==1

@@ -607,3 +607,25 @@ def test_llm_prompt_missing_returns_404(api):
     headers = {"Authorization": f"Bearer {token_of(client)}"}
     response = client.get("/api/history/llm_signals/missing/prompt", headers=headers)
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('net_wins,net_losses,fees,expected',[
+    ('6','-3','1','2'),('0','-3','1','0'),('6','0','1',None),('0','0','0',None)])
+async def test_dashboard_profit_factor_uses_net_results_without_counting_fees_twice(net_wins,net_losses,fees,expected):
+    from app.api.stats import build_stats
+    repo=FakeRepo()
+    async def metrics(mode):
+        return {'gross_profit':Decimal(net_wins),'gross_loss':Decimal(net_losses),'fees':Decimal(fees),
+                'avg_win':Decimal(net_wins),'avg_loss':Decimal(net_losses)}
+    repo.dashboard_metrics=metrics
+    result=await build_stats(repo,load_settings(use_environment=False))
+    assert result['pnl']['profit_factor_net']==expected
+    assert result['pnl']['payoff_ratio']==expected
+
+
+def test_position_without_take_profit_uses_json_null_instead_of_a_string():
+    position=SimpleNamespace(id='fixture',symbol='BTC/EUR',entry_price=Decimal('100'),amount=Decimal('.05'),
+      risk_amount_quote=Decimal('.25'),stop_loss_price=Decimal('95'),take_profit_price=None,
+      opened_at=datetime(2026,11,4,12,tzinfo=timezone.utc))
+    assert _position_payload(position)['take_profit_price'] is None

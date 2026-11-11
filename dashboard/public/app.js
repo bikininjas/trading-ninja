@@ -166,7 +166,7 @@
   // ------------------------------------------------------------ formatage --
 
   const toNumber = (value) => {
-    if (value === null || value === undefined || value === '') return null;
+    if (!['number', 'string'].includes(typeof value) || String(value).trim() === '') return null;
     const number = Number(value);
     return Number.isFinite(number) ? number : null;
   };
@@ -755,9 +755,40 @@
 
   let latestEquityPoints = [];
   let latestDailyPoints = [];
+  let lastStatsAt = 0;
+  const record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+  const numeric = (value) => toNumber(value) !== null;
+  const count = (value) => numeric(value) && Number.isInteger(Number(value)) && Number(value) >= 0;
+  const timestamp = (value) => typeof value === 'string' && Number.isFinite(Date.parse(value));
+
+  function validStats(stats) {
+    if (!record(stats) || !record(stats.pnl) || !record(stats.capital)
+      || !['net_pnl', 'fees', 'win_rate', 'r_multiple'].every((key) => numeric(stats.pnl[key]))
+      || !['trades', 'wins', 'losses'].every((key) => count(stats.pnl[key]))
+      || !numeric(stats.capital.engaged_position_quote)
+      || !['equity_curve', 'daily', 'rejections'].every((key) => Array.isArray(stats[key]))) return false;
+    if (!stats.equity_curve.every((point) => record(point) && timestamp(point.at) && numeric(point.equity))
+      || !stats.daily.every((day) => record(day) && timestamp(day.day) && numeric(day.net_pnl))
+      || !stats.rejections.every((row) => record(row) && count(row.count) && numeric(row.percentage))) return false;
+    for (const key of ['payoff_ratio', 'profit_factor_net']) {
+      if (!Object.hasOwn(stats.pnl, key) || (stats.pnl[key] !== null && !numeric(stats.pnl[key]))) return false;
+    }
+    if (!['llm', 'shadow', 'lessons'].every((key) => record(stats[key]))) return false;
+    const { llm, shadow, lessons } = stats;
+    if (typeof llm.model !== 'string' || !count(llm.total) || !count(llm.degraded)
+      || !record(llm.counts) || !['BUY', 'SELL', 'HOLD', 'HALT'].every((key) => count(llm.counts[key]))) return false;
+    if (llm.last !== null && (!record(llm.last) || !Object.hasOwn(ACTION_LABELS, llm.last.action)
+      || !numeric(llm.last.confidence) || !count(llm.last.inference_time_ms) || typeof llm.last.thesis !== 'string')) return false;
+    if (!['total', 'planned', 'no_plan', 'open', 'closed', 'wins', 'losses'].every((key) => count(shadow[key]))
+      || !numeric(shadow.net_pnl) || !record(shadow.by_kind) || !Object.values(shadow.by_kind).every(count)
+      || !Array.isArray(shadow.by_rejection) || !shadow.by_rejection.every((row) => record(row) && count(row.count))) return false;
+    return Array.isArray(lessons.active) && lessons.active.every((item) => typeof item === 'string')
+      && count(lessons.source_count) && (lessons.version === null || count(lessons.version))
+      && (lessons.updated_at === null || timestamp(lessons.updated_at));
+  }
 
   function renderStats(stats) {
-    if (!stats || typeof stats !== 'object') return;
+    if (!validStats(stats)) throw new Error('Statistiques incomplètes');
     latestEquityPoints = stats.equity_curve || [];
     latestDailyPoints = stats.daily || [];
     const pnl = stats.pnl || {};
@@ -778,6 +809,8 @@
     renderRejections(stats.rejections || []);
     renderShadow(stats.shadow || {});
     renderLessons(stats.lessons || {});
+    lastStatsAt = Date.now();
+    if ($('stats-warning')) $('stats-warning').hidden = true;
   }
 
   let statsLoading = false;
@@ -785,15 +818,21 @@
     if (statsLoading) return;
     statsLoading = true;
     try {
-      const response = await fetch('/api/stats', { headers: { Accept: 'application/json' } });
+      const response = await fetch('/api/stats', { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
       if (response.status === 401) {
         window.location.href = '/login';
         return;
       }
-      if (!response.ok) return;
+      if (!response.ok) throw new Error('Statistiques indisponibles');
       renderStats(await response.json());
     } catch {
-      /* le flux temps réel continue ; un graphique manquant n'arrête pas la page */
+      const warning = $('stats-warning');
+      if (warning) {
+        warning.hidden = false;
+        warning.textContent = lastStatsAt
+          ? `Statistiques indisponibles ou incomplètes. Dernières valeurs conservées, reçues à ${timeOnly(new Date(lastStatsAt))}.`
+          : 'Statistiques indisponibles. Les indicateurs et graphiques attendent une réponse valide.';
+      }
     } finally {
       statsLoading = false;
     }
@@ -818,10 +857,10 @@
       ['Entrée', money(position.entry_price)],
       ['Prix actuel', money(position.current_price)],
       ['Quantité', amount(position.amount)],
-      ['PnL latent', `${money(position.unrealized_pnl_quote)} EUR (${percent(Number(position.unrealized_pnl_pct) / 100)})`],
+      ['PnL latent', `${money(position.unrealized_pnl_quote)} EUR (${percent(toNumber(position.unrealized_pnl_pct) === null ? null : Number(position.unrealized_pnl_pct) / 100)})`],
       ['Stop-loss', money(position.stop_loss_price)],
       ['ID stop', position.stop_loss_order_id || '—'],
-      ['Breakeven', position.is_breakeven_active ? 'actif' : 'non'],
+      ['Breakeven', typeof position.is_breakeven_active === 'boolean' ? (position.is_breakeven_active ? 'actif' : 'non') : '—'],
       ['Take-profit', position.take_profit_price ? money(position.take_profit_price) : '—'],
       ['Risque brut', `${money(position.risk_amount_quote)} EUR`],
       ['Perte au stop (frais inclus)', `${money(position.estimated_net_risk_quote)} EUR`],
@@ -1000,10 +1039,17 @@
   }
 
   function render(status) {
-    if (!status || typeof status !== 'object' || Array.isArray(status)
+    const position = status?.position;
+    if (!record(status)
       || !['PAPER', 'LIVE', 'TESTNET'].includes(status.mode)
       || !Object.hasOwn(STATE_LABELS, status.state)
-      || ['equity', 'free_quote', 'reserve_quote'].some((key) => toNumber(status[key]) === null)) {
+      || !['equity', 'free_quote', 'reserve_quote', 'active_equity', 'growth_quote'].every((key) => numeric(status[key]))
+      || !record(status.drawdowns) || !['daily', 'weekly', 'from_hwm'].every((key) => numeric(status.drawdowns[key]))
+      || !['consecutive_losses', 'orders_last_hour'].every((key) => count(status[key]))
+      || !Object.hasOwn(status, 'position')
+      || (position !== null && (!record(position) || typeof position.symbol !== 'string'
+        || !['entry_price', 'amount', 'stop_loss_price'].every((key) => numeric(position[key]))
+        || !timestamp(position.opened_at)))) {
       throw new Error('Statut incomplet ou invalide');
     }
     latestStatus = status;
@@ -1060,7 +1106,7 @@
     if (healthLoading) return;
     healthLoading = true;
     try {
-      const response = await fetch('/api/system/health', { headers: { Accept: 'application/json' } });
+      const response = await fetch('/api/system/health', { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
       if (!response.ok) throw new Error('Santé indisponible');
       const data = await response.json();
       const kraken = data.kraken || {};
@@ -1094,7 +1140,7 @@
   async function loadStatus() {
     const sequence = statusSequence;
     try {
-      const response = await fetch('/api/status', { headers: { Accept: 'application/json' } });
+      const response = await fetch('/api/status', { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
       if (response.status === 401) {
         window.location.href = '/login';
         return false;
@@ -1326,6 +1372,18 @@
   }
 
   function renderSettings(settings) {
+    const fields = ['max_per_trade_pct', 'max_daily_loss_pct', 'confidence_floor', 'halt_auto_resume_hours'];
+    if (!record(settings) || typeof settings.profile !== 'string'
+      || !fields.every((key) => numeric(settings[key])) || !count(settings.max_orders_per_hour)
+      || typeof settings.entry_rule_enabled !== 'boolean' || !Array.isArray(settings.profiles)
+      || !settings.profiles.every((profile) => record(profile) && typeof profile.key === 'string'
+        && typeof profile.label === 'string' && ['max_per_trade_pct', 'max_daily_loss_pct', 'confidence_floor'].every((key) => numeric(profile[key]))
+        && count(profile.max_orders_per_hour))
+      || !settings.profiles.some((profile) => profile.key === settings.profile)
+      || (settings.application != null && (!record(settings.application) || !count(settings.application.revision)
+        || (settings.application.applied_revision != null && !count(settings.application.applied_revision))))) {
+      throw new Error('Réglages incomplets ; dernières valeurs conservées');
+    }
     latestSettings = settings;
     settingsProfiles = settings.profiles || [];
     fillProfileOptions(settingsProfiles, settings.profile);
@@ -1367,7 +1425,7 @@
 
   async function loadSettings() {
     try {
-      const response = await fetch('/api/settings', { headers: { Accept: 'application/json' } });
+      const response = await fetch('/api/settings', { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
       if (response.status === 401) {
         window.location.href = '/login';
         return false;
@@ -1379,7 +1437,7 @@
       renderSettings(await response.json());
       return true;
     } catch (error) {
-      setSettingsFeedback(`réseau : ${error.message}`, 'error');
+      setSettingsFeedback(`Chargement impossible : ${error.message}`, 'error');
       return false;
     }
   }
@@ -1403,6 +1461,10 @@
 
   $('settings-form')?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (!latestSettings) {
+      setSettingsFeedback('Attendre le chargement de réglages valides avant d’enregistrer.', 'error');
+      return;
+    }
     const save = $('settings-save');
     const payload = {
       profile: optionValue('set-profile'),
@@ -1443,12 +1505,16 @@
       }
       renderSettings(data);
       const application = data.application;
-      setSettingsFeedback(application && application.applied_revision === application.revision
-        ? 'Réglages confirmés par le moteur.'
-        : 'Demande enregistrée. En attente de confirmation par le moteur.', 'ok');
+      if (application?.apply_error) {
+        setSettingsFeedback(`Demande enregistrée ; le moteur signale une erreur : ${application.apply_error}`, 'error');
+      } else {
+        setSettingsFeedback(application && application.applied_revision === application.revision
+          ? 'Réglages confirmés par le moteur.'
+          : 'Demande enregistrée. En attente de confirmation par le moteur.', 'ok');
+      }
       await loadStats();
     } catch (error) {
-      setSettingsFeedback(`réseau : ${error.message}`, 'error');
+      setSettingsFeedback(`Enregistrement non confirmé : ${error.message}`, 'error');
     } finally {
       if (save) save.disabled = false;
     }
@@ -1634,7 +1700,7 @@
     try {
       const response = await fetch(
         `/api/history/${encodeURIComponent(activityTable)}?limit=${limit}`,
-        { headers: { Accept: 'application/json' } },
+        { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000) },
       );
       if (request !== activityRequest) return;
       if (response.status === 401) {

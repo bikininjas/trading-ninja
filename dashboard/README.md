@@ -229,7 +229,7 @@ Tests :
 
 ```bash
 cd dashboard && npm test               # 32 tests Node
-cd backend && .venv/bin/python -m pytest  # 906 collectés, dont 62 PostgreSQL opt-in
+cd backend && .venv/bin/python -m pytest  # 921 collectés, dont 63 PostgreSQL opt-in
 python scripts/check_dashboard_browser.py /tmp/tn-dashboard-v2
 bash scripts/check.sh                   # vérification globale
 ```
@@ -322,3 +322,14 @@ exploitables, les simulations ouvertes, les cas écartés et les versions de la
 mémoire. La route privée `GET /api/insights/learning` est uniquement en lecture.
 Un passage trop ancien ou une actualisation en panne ne reste pas présenté comme
 courant. L’interface n’envoie aucune commande d’apprentissage ni de trading.
+
+Les lectures HTTP expirent après dix secondes. Un statut, des statistiques, des
+réglages ou une mémoire incomplets conservent les dernières valeurs valides avec
+un avertissement ; un statut sans champ `position` n’efface pas une position
+ouverte. Un PnL inconnu et les ratios sans perte de référence affichent « — ».
+Le profit factor utilise les gains nets divisés par les pertes nettes absolues :
+les frais sont déjà inclus dans ces résultats.
+
+Les plans de simulation incohérents sont écartés sans PnL. Une panne de cours
+laisse les lignes concernées en attente et n’empêche pas les autres marchés
+d’être évalués ; ce passage échoue sans publier de nouvelles leçons.

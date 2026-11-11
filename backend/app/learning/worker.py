@@ -8,7 +8,7 @@ import asyncio
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 
-from app.learning.simulation import evaluate_training_shadows
+from app.learning.simulation import evaluate_training_shadows, SimulationDataUnavailable
 from app.llm.lessons import review_lessons
 
 
@@ -60,6 +60,10 @@ async def run_learning_once(repo, exchange, client, settings, *, now=None):
         except asyncio.CancelledError:
             await asyncio.shield(finish('FAILED','INTERRUPTED'))
             raise
+        except SimulationDataUnavailable as exc:
+            report['evaluated_count'] = exc.evaluated_count
+            result = await finish('FAILED','SIMULATION_DATA_UNAVAILABLE')
+            return {**result,'failed_simulations':exc.failed_count}
         except Exception as exc:
             # Ne pas publier d'URL SQL, de prompt ou de secret dans le journal.
             return await finish('FAILED',type(exc).__name__)

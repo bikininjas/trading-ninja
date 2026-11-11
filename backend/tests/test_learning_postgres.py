@@ -117,3 +117,18 @@ async def test_interrupted_run_cannot_publish_even_with_an_unchanged_lesson_vers
         await repo.publish_training_review(run,review,SETTINGS,expected_version=0,
             report=dict(evaluated_count=0,source_count=20,new_source_count=20),now=datetime.now(timezone.utc))
     assert not await repo.active_lessons('PAPER')
+
+
+async def test_invalid_proposal_is_quarantined_with_learner_rights_and_never_enters_memory(repo):
+    from app.learning.simulation import evaluate_training_shadows
+    key=await sample(repo)
+    await repo._conn.execute('UPDATE shadow_trades SET amount=-.05 WHERE id=$1',key)
+    await repo._conn.execute('SET LOCAL ROLE tn_paper_learner')
+    class NoMarket:
+        def fetch_ohlcv(self,*args):raise AssertionError('aucun prix requis pour exclure un plan invalide')
+    assert await evaluate_training_shadows(repo,NoMarket(),now=datetime.now(timezone.utc))==1
+    state=await repo.learning_status()
+    assert state['simulations']['excluded']==1 and state['simulations']['pending']==0
+    assert (await repo.training_samples())==([],[])
+    row=await repo._conn.fetchrow('SELECT pnl_quote,outcome_reason FROM shadow_trades WHERE id=$1',key)
+    assert row['pnl_quote'] is None and row['outcome_reason']=='INVALID_PROPOSAL'
