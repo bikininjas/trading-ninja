@@ -6,6 +6,49 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-11 — Migration 0015 appliquée sur Supabase après autorisation
+
+Seb a explicitement autorisé les migrations Supabase. Sur **trninja**, la migration
+`0015_paper_learning.sql` a été appliquée via MCP, après prise du verrou 873421
+et vérification transactionnelle des quatorze empreintes précédentes. Le registre
+applicatif contient désormais quinze migrations ; l’empreinte de 0015 est
+`bd7eb2ad95b3e4f135e7d13bbb628a6fb8a929ebeec8c1b638c0bb7f05f47ef2`.
+Aucun fichier de migration existant n’a changé.
+
+Vérifications hébergées **en lecture seule**, le 11 novembre à 10:18 UTC :
+quinze SHA-256 identiques au dépôt, `simulation_context` JSONB non nullable,
+`learning_runs` et contraintes présents, RLS activée et politiques PAPER conformes.
+Le rôle `tn_paper_learner` est NOLOGIN, sans privilège élevé ; accès aux résultats,
+simulations et mémoires prévu, aucun droit d’ordre, position écrivable, état,
+réglage ou maintenance. `anon` et `authenticated` n’ont aucun accès au nouveau
+journal ; l’API peut seulement le lire. Lectures du groupe exécutées sous
+`SET LOCAL ROLE` dans une transaction READ ONLY annulée, sans visibilité hors PAPER.
+Aucune donnée financière ni aucun résultat fictif inséré pour cette vérification.
+
+Advisors sécurité : mêmes 17 notices INFO sur les partitions privées sans policy,
+aucune nouvelle alerte liée à la migration. Référence :
+https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
+Preuve structurée :
+[audit](audits/2026-11-11/learning-migration-verification.json).
+
+La migration est installée ; le LOGIN privé, les secrets et le service WSL restent
+à préparer. Aucun moteur ni worker lancé et aucun mode financier modifié. Les
+preuves locales antérieures (906 tests Python, 32 Node, Chromium et golden)
+restent attachées au même fichier SQL et au commit f08d194.
+
+---
+
+## 2026-11-11 — Migration Supabase autorisée : application commencée
+
+Seb autorise explicitement les migrations Supabase après le refus de la revue
+automatique. Cible confirmée : trninja, PostgreSQL 17, en 0014. Le fichier 0015
+testé sur base jetable conserve son empreinte
+`bd7eb2ad95b3e4f135e7d13bbb628a6fb8a929ebeec8c1b638c0bb7f05f47ef2`.
+Appliquer avec verrou et garde sur les empreintes des quatorze migrations, puis
+vérifier les objets et les droits ; ne pas confondre migration et service activé.
+
+---
+
 ## 2026-11-11 — Mémoire PAPER automatique : code et recette locale livrés
 
 D-093 : nouveaux plans prospectifs dans `shadow_trades`, coûts/période/horizon

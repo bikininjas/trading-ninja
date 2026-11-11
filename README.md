@@ -5,8 +5,8 @@ dimensionne les ordres. Le dashboard permet de suivre et piloter le bot.
 
 **Simulation uniquement.** Le chemin LIVE est écrit, mais le passage au réel reste
 NO-GO : exploitation, sauvegarde complète et validation économique à qualifier.
-Supabase reste en `0014`. La migration `0015` de la mémoire PAPER est testée
-localement et attend l’autorisation d’application sur la base hébergée.
+Supabase est en `0015` : mémoire PAPER installée et droits vérifiés le 11 novembre
+2026. Le service d’apprentissage reste à installer et démarrer sur le WSL cible.
 
 ## Démarrage
 

@@ -1,0 +1,184 @@
+{
+  "project": "trninja",
+  "project_ref": "sugbashfjondgmlejpnl",
+  "role": {
+    "rolsuper": false,
+    "rolcanlogin": false,
+    "rolcreatedb": false,
+    "rolbypassrls": false,
+    "rolcreaterole": false,
+    "rolreplication": false
+  },
+  "policies": [
+    {
+      "name": "tn_learning_migrations",
+      "check": null,
+      "roles": [
+        "tn_paper_learner"
+      ],
+      "table": "schema_migrations",
+      "using": "true",
+      "command": "SELECT"
+    },
+    {
+      "name": "tn_learning_read",
+      "check": null,
+      "roles": [
+        "tn_paper_learner"
+      ],
+      "table": "llm_signals",
+      "using": "(mode = 'PAPER'::execution_mode)",
+      "command": "SELECT"
+    },
+    {
+      "name": "tn_learning_read",
+      "check": null,
+      "roles": [
+        "tn_paper_learner"
+      ],
+      "table": "bot_state",
+      "using": "(mode = 'PAPER'::execution_mode)",
+      "command": "SELECT"
+    },
+    {
+      "name": "tn_learning_shadow_update",
+      "check": "(mode = 'PAPER'::execution_mode)",
+      "roles": [
+        "tn_paper_learner"
+      ],
+      "table": "shadow_trades",
+      "using": "(mode = 'PAPER'::execution_mode)",
+      "command": "UPDATE"
+    },
+    {
+      "name": "tn_learning_read",
+      "check": null,
+      "roles": [
+        "tn_paper_learner"
+      ],
+      "table": "shadow_trades",
+      "using": "(mode = 'PAPER'::execution_mode)",
+      "command": "SELECT"
+    },
+    {
+      "name": "tn_learning_read",
+      "check": null,
+      "roles": [
+        "tn_paper_learner"
+      ],
+      "table": "positions",
+      "using": "(mode = 'PAPER'::execution_mode)",
+      "command": "SELECT"
+    },
+    {
+      "name": "tn_learning_lessons_update",
+      "check": "(mode = 'PAPER'::execution_mode)",
+      "roles": [
+        "tn_paper_learner"
+      ],
+      "table": "lessons",
+      "using": "(mode = 'PAPER'::execution_mode)",
+      "command": "UPDATE"
+    },
+    {
+      "name": "tn_learning_lessons_insert",
+      "check": "(mode = 'PAPER'::execution_mode)",
+      "roles": [
+        "tn_paper_learner"
+      ],
+      "table": "lessons",
+      "using": null,
+      "command": "INSERT"
+    },
+    {
+      "name": "tn_learning_read",
+      "check": null,
+      "roles": [
+        "tn_paper_learner"
+      ],
+      "table": "lessons",
+      "using": "(mode = 'PAPER'::execution_mode)",
+      "command": "SELECT"
+    },
+    {
+      "name": "tn_learning_api_read",
+      "check": null,
+      "roles": [
+        "tn_paper_api"
+      ],
+      "table": "learning_runs",
+      "using": "(mode = 'PAPER'::execution_mode)",
+      "command": "SELECT"
+    },
+    {
+      "name": "tn_learning_runs",
+      "check": "(mode = 'PAPER'::execution_mode)",
+      "roles": [
+        "tn_paper_learner"
+      ],
+      "table": "learning_runs",
+      "using": "(mode = 'PAPER'::execution_mode)",
+      "command": "ALL"
+    }
+  ],
+  "privileges": {
+    "anon_access": false,
+    "api_reads_runs": true,
+    "learner_orders": false,
+    "api_writes_runs": false,
+    "learner_reads_runs": true,
+    "learner_maintenance": false,
+    "authenticated_access": false,
+    "learner_inserts_runs": true,
+    "learner_writes_state": false,
+    "learner_updates_memory": true,
+    "learner_inserts_lessons": true,
+    "learner_writes_settings": false,
+    "learner_writes_positions": false,
+    "learner_updates_simulations": true
+  },
+  "constraints": {
+    "learning_runs_pkey": "PRIMARY KEY (id)",
+    "learning_runs_mode_check": "CHECK ((mode = 'PAPER'::execution_mode))",
+    "learning_runs_policy_check": "CHECK ((jsonb_typeof(policy) = 'object'::text))",
+    "learning_runs_status_check": "CHECK ((status = ANY (ARRAY['RUNNING'::text, 'WAITING'::text, 'LEARNED'::text, 'FAILED'::text])))",
+    "learning_runs_lesson_id_fkey": "FOREIGN KEY (lesson_id) REFERENCES lessons(id)",
+    "learning_runs_source_count_check": "CHECK ((source_count >= 0))",
+    "learning_runs_evaluated_count_check": "CHECK ((evaluated_count >= 0))",
+    "learning_runs_new_source_count_check": "CHECK ((new_source_count >= 0))"
+  },
+  "verified_at": "2026-11-11T10:18:32.526246+00:00",
+  "learning_rls": true,
+  "migration_count": 15,
+  "migration_checksums": {
+    "0001_init.sql": "88819ddcfd553ef9f49353b59319c4211ec64cf88328de4e6b0e60872bbbb20e",
+    "0007_lessons.sql": "8d777948555dad77380a129b03ffeddd0212fe3c1a91365ed439a67fd9c7f8f0",
+    "0003_audit_fixes.sql": "b056f06b2f20524e1570fd9a47de2fd955c20ad43b1ae84011f64f5bf0d47b4e",
+    "0004_llm_autonomy.sql": "f7db945414d01e8b34981f6a57c9faf5d59ac56b0029594e0f406ba20aed4074",
+    "0006_shadow_trades.sql": "1ed2b9d6ca12e17dbe4e8bd88f8a6629a0f16242ae1db9b75b3312866eb8c612",
+    "0010_capital_ledger.sql": "a50d05de57781027e8de12c4653d8a2cab5cf4a28a00a11909462cae4cf24b32",
+    "0015_paper_learning.sql": "bd7eb2ad95b3e4f135e7d13bbb628a6fb8a929ebeec8c1b638c0bb7f05f47ef2",
+    "0002_lock_public_api.sql": "9d94e34132ed06ab1dc9382a84ce296340832c6e0a6923c44a5689225e121ecd",
+    "0005_runtime_settings.sql": "25635ab217d0fd176c61f0f88cc65c9203ad5a41c75d0f8a98b9a1d9dfcc869f",
+    "0009_allow_1d_timeframe.sql": "5a723f6bf4cebebc8e6269715f8c9d90cc6c596124fdd824a20ea5973687b8ac",
+    "0013_durable_executions.sql": "9a6361b65c47cc02264feeede8c26adc7ba704e1edf105435ce36408fde21d4f",
+    "0012_private_maintenance.sql": "22ee82f612177223853715ddab76a2262fdee702698092be7ec21eea5a84c420",
+    "0014_paper_service_roles.sql": "d68a0a6c9131de300e1a95666b7898c86e3a6af782f3ba23c0c1196fda54a449",
+    "0011_insights_and_controls.sql": "8255b2ad35d67ae6dd1b43f40c9a4521f39ed561d643b148965d113725c06673",
+    "0008_market_candles_history.sql": "20741976e192a4e8c5c74fb65f4c0c4e65ae847b17df15fcbb9c22cf4f748b3b"
+  },
+  "learning_table_present": true,
+  "simulation_context_present": true,
+  "checks": {
+    "all_15_file_checksums_match": true,
+    "role_has_no_login_or_elevated_flags": true,
+    "expected_privileges_match": true,
+    "hosted_verification_read_only": true
+  },
+  "advisors": {
+    "security_new_findings": 0,
+    "existing_info_partition_notices": 17,
+    "reference": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy"
+  },
+  "runtime_activated": false
+}

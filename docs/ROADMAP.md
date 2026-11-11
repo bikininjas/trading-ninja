@@ -1,6 +1,6 @@
 # Roadmap vers le go live définitif
 
-**Version mise à jour le 10 novembre 2026. Statut actuel : NO-GO pour le réel.**
+**Version mise à jour le 11 novembre 2026. Statut actuel : NO-GO pour le réel.**
 
 Ce document est la référence unique pour l’avancement, les portes du go live et
 les améliorations restantes. Les preuves datées sont conservées dans
@@ -11,7 +11,7 @@ confirme les quatorze migrations, les groupes et les contrôles d’intégrité.
 906 tests Python dont 62 PostgreSQL sur base jetable, 32 Node ; CI à vérifier
 pour chaque candidat.
 Supabase trninja est en
-0014, droits publics fermés et 324 250 bougies. Seb a retiré le 10 novembre la
+0015, droits publics fermés et 324 250 bougies. Seb a retiré le 10 novembre la
 sauvegarde complète des prérequis bloquants du démarrage initial, sans ordre ni
 position. Le WSL domestique est la cible retenue ; son accès reste indisponible.
 
@@ -31,11 +31,14 @@ simulations prospectives, mémoire versionnée, worker horaire séparé, 20 rés
 puis 5 nouveaux et 24 h entre relectures, statut et historique dans le dashboard.
 906 tests Python, 32 Node et Chromium vérifiés ; D-093.
 
-🟨 **Installation de la mémoire sur la cible** *(11 novembre 2026)* : migration
-0015 testée sur PostgreSQL jetable mais non appliquée à Supabase. La revue
-automatique refuse cette modification externe sans autorisation explicite.
-Après accord : migration, LOGIN privé `tn_paper_learner` et activation WSL.
-Aucun service activé par cette session.
+✅ **Application Supabase de 0015** *(11 novembre 2026)* : autorisation explicite
+reçue de Seb, fichier testé appliqué après contrôle des quatorze empreintes.
+Quinze empreintes conformes, structure, rôle NOLOGIN, droits et RLS PAPER vérifiés.
+Preuve : [vérification cible](audits/2026-11-11/learning-migration-verification.json).
+
+🟨 **Installation du service de mémoire sur WSL** *(11 novembre 2026)* : préparer
+le LOGIN privé membre de `tn_paper_learner` puis installer et démarrer le service.
+La migration ne crée aucun LOGIN ni secret et n’active aucun processus.
 
 ✅ **Dashboard v2 — refonte intégrale de l’interface** *(11 novembre 2026)* :
 nouvelle navigation en cinq espaces, identité graphite/vert, connexion et pilotage

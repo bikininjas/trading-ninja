@@ -2121,7 +2121,8 @@ simulations et mémoires et écrire le journal ; aucun droit d’ordre, de régl
 de changement d’état. Aucune clé exchange dans le worker. La mise en place systemd
 demande le service avec le moteur, sans l’activer sur une machine depuis ce dépôt.
 
-La revue automatique a refusé la migration hébergée : l’autorisation de coder et
-pousser n’autorise pas la modification externe de son schéma et de ses droits.
-0015 reste à appliquer après accord explicite ; aucun contournement par SQL direct.
-La performance avec cette mémoire reste à comparer hors des données de relecture.
+La revue automatique a initialement refusé la migration hébergée faute
+d’autorisation de modifier son schéma et ses droits. Seb a ensuite donné cette
+autorisation explicitement ; 0015 a été appliquée et vérifiée le 11 novembre.
+Aucun contournement du refus ni activation de processus. La performance avec
+cette mémoire reste à comparer hors des données de relecture.

@@ -13,8 +13,8 @@ Les dix briefs sont implémentés en première version : voir
 [`OBSERVATION_ET_RECHERCHE.md`](../docs/OBSERVATION_ET_RECHERCHE.md) pour les
 contrats JSON, API, CLI et limites. `scripts/insights.py --help` donne les commandes.
 Replay, expériences et analyse de confiance par fichier fonctionnent hors ligne.
-Les migrations 0001–0013 sont appliquées sur trninja, vérifiées le 10 novembre
-2026 : [preuve de déploiement](../docs/JOURNAL.md#deploiement-supabase).
+Les migrations 0001–0015 sont appliquées sur trninja, vérifiées le 11 novembre
+2026 : [preuve de schéma](../docs/audits/2026-11-11/learning-migration-verification.json).
 Sur une autre base, vérifier les migrations avant de démarrer l’instrumentation.
 
 Les tests n’utilisent aucune clé du shell et interdisent les connexions externes.
