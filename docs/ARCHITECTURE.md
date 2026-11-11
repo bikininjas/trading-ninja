@@ -36,8 +36,8 @@ choisit ni quantité, ni prix, ni stop : toute la géométrie vient du code.
 
 ## 2. Ce qui existe, ce qui n'existe pas
 
-**878 tests** Python (824 hors base et 54 contrats PostgreSQL locaux opt-in)
-et **31 tests** Node (909 au total), répartis ci-dessous.
+**906 tests** Python (844 hors base et 62 contrats PostgreSQL locaux opt-in)
+et **32 tests** Node (938 au total), répartis ci-dessous.
 
 | Composant | Fichier | État |
 |---|---|---|
@@ -60,7 +60,8 @@ et **31 tests** Node (909 au total), répartis ci-dessous.
 | API — authentification | `app/api/security.py` | ✅ écrit |
 | API — routes | `app/api/main.py` | ✅ écrit |
 | API — lecture et contrôle | `app/api/service.py` | ✅ écrit |
-| Dashboard Node.js | `dashboard/server.js` | ✅ écrit (31 tests Node, zéro dépendance) |
+| Dashboard Node.js | `dashboard/server.js` | ✅ écrit (32 tests Node, zéro dépendance) |
+| Mémoire d’expérience PAPER | `app/learning/` | Simulations prospectives, relectures versionnées, service sans droit d’ordre |
 | Gestion des processus | `scripts/manage.sh` | ✅ écrit (start/stop/restart/status/logs) |
 | Backtest historique | `app/backtest/engine.py` | ✅ écrit |
 | Golden de régression | `tests/fixtures/backtest_golden.json` | ✅ 44 décisions figées |
@@ -69,7 +70,7 @@ et **31 tests** Node (909 au total), répartis ci-dessous.
 | Garde-fou de sortie LLM | `app/engine/exit_guard.py` | ✅ écrit |
 | Sonde de clé Kraken | `scripts/check_kraken.py` | ✅ lecture seule |
 | Lecture `.env` / `.env.local` | `app/core/env.py` | ✅ écrit |
-| Schéma SQL + migrations | `db/migrations/` | ✅ 13 migrations versionnées et appliquées sur trninja, empreintes vérifiées |
+| Schéma SQL + migrations | `db/migrations/` | ✅ 15 migrations versionnées ; vérification cible dans JOURNAL.md |
 | Coureur de migrations | `scripts/db_migrate.py` | ✅ status / apply / verify |
 | Démonstration du pare-feu | `scripts/demo_guardrails.py` | ✅ exécutable |
 | Sonde de clé exchange (lecture seule) | `scripts/check_exchange.py` | Sonde historique Binance ; utiliser check_kraken.py pour la cible actuelle |

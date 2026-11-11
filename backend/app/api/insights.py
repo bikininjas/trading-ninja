@@ -38,6 +38,20 @@ class SettingsPreview(BaseModel):
 
 def router(config, loader, session, get_repo, totp):
     api = APIRouter(dependencies=[Depends(session)])
+
+    @api.get('/api/insights/learning')
+    async def learning(repo=Depends(get_repo)):
+        from app.learning.status import learning_view
+        from app.api.service import jsonable
+        if config.execution_mode != 'PAPER':
+            return {'state':'PAPER_ONLY','run':None,'history':[],'simulations':{}}
+        method = getattr(repo,'learning_status',None)
+        if method is None:
+            raise HTTPException(status_code=503,detail='Mémoire indisponible')
+        try:
+            return jsonable(learning_view(await method()))
+        except Exception as exc:
+            raise HTTPException(status_code=503,detail='Mémoire indisponible : vérifier service et migrations') from exc
     research_slots = asyncio.Semaphore(1)
 
     def require(repo, name):

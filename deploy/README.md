@@ -19,7 +19,7 @@ Le script livré vérifie les dépendances puis prépare la release et les unit�
 
 ```bash
 bash deploy/install-wsl-paper.sh --check
-# Après configuration privée des cinq fichiers et go opérateur sur le WSL :
+# Après configuration privée des six fichiers et go opérateur sur le WSL :
 sudo bash deploy/install-wsl-paper.sh --install /chemin/vers/configurations-privees
 ```
 
@@ -47,14 +47,14 @@ privé doivent être configurés séparément avec le fichier livré avant la re
    accès SQL. La sonde reçoit une identité SQL de lecture distincte permettant
    `bot_state`, `protection_observations`, `decision_cycles` et `schema_migrations` ; le surveillant
    reçoit les seuls droits nécessaires à ses observations et HALT. La migration
-   `0014_paper_service_roles.sql` prépare les quatre groupes sans connexion ;
+   `0014_paper_service_roles.sql` prépare les quatre groupes sans connexion ; 0015 ajoute le groupe d’apprentissage ;
    leur matrice et la création privée des LOGIN sont décrites ci-dessous. Le dump
    initial reste optionnel selon D-084 ; ne pas le réintroduire comme porte.
 5. Générer les secrets admin avec les outils existants `hash_password.py` et
    `totp_setup.py`. Conserver le TOTP opérateur hors machine, exercer login et
    réautorisation. Ne jamais afficher ces secrets dans le dossier de preuves.
 6. Copier les fichiers systemd dans `/etc/systemd/system`, y compris le drop-in
-   `trading-ninja@engine.service.d/controlled-restart.conf`, puis `systemctl daemon-reload`.
+   `trading-ninja@engine.service.d/controlled-restart.conf` et `learning.conf`, puis `systemctl daemon-reload`.
    `systemctl cat trading-ninja@engine` doit annoncer `Restart=no`. Ne pas activer
    le moteur au boot avant la recette de reprise.
 
@@ -64,7 +64,7 @@ Il n'accepte pas de webhook dans argv. Les ports 8080/8081 restent sur loopback.
 
 ### Connexions SQL privées distinctes
 
-La migration 0014 crée des groupes **NOLOGIN, NOBYPASSRLS**, sans mot de passe :
+Les migrations 0014 et 0015 créent des groupes **NOLOGIN, NOBYPASSRLS**, sans mot de passe :
 
 | Composant | Groupe à accorder au LOGIN dédié | Portée |
 |---|---|---|
@@ -73,7 +73,7 @@ La migration 0014 crée des groupes **NOLOGIN, NOBYPASSRLS**, sans mot de passe 
 | Surveillant | `tn_paper_observer` | Lecture PAPER, observations/incidents, HALT sans reprise |
 | Sonde | `tn_paper_probe` | Quatre tables en lecture, aucune donnée d'ordre |
 
-Sur le stockage sécurisé du WSL, créer quatre LOGIN privés distincts, chacun
+Sur le stockage sécurisé du WSL, créer cinq LOGIN privés distincts, chacun
 NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOREPLICATION, NOBYPASSRLS, avec un secret
 aléatoire propre, et accorder uniquement le groupe correspondant. Utiliser une
 connexion d'administration privée pour cette opération ; aucun secret dans une
@@ -83,8 +83,8 @@ pas encore des identifiants de service utilisables : aucun LOGIN n'est créé ic
 
 `paper_component.py <composant> --env <fichier privé> --probe` refuse une identité
 administrateur, une appartenance multiple, un groupe inadéquat, CREATE sur le
-schéma, la maintenance privilégiée ou une lecture LIVE. Le moteur vérifie aussi
-cela automatiquement au démarrage. Exercer les quatre probes avant d'activer
+schéma, la maintenance privilégiée ou une lecture LIVE. Le moteur et le service de mémoire vérifient aussi
+cela automatiquement au démarrage. Exercer les cinq probes avant d'activer
 les services. La sonde conserve son comportement d'alerte en cas de panne SQL ;
 son lancement n'est pas bloqué par un prévol qui supprimerait cette notification.
 
@@ -104,6 +104,7 @@ Pour chaque composant, en utilisateur `trading-ninja`, depuis `backend` :
 .venv/bin/python scripts/paper_component.py api --env /etc/trading-ninja/api.env --probe
 .venv/bin/python scripts/paper_component.py observer --env /etc/trading-ninja/observer.env --probe
 .venv/bin/python scripts/paper_component.py watchdog --env /etc/trading-ninja/watchdog.env --probe
+.venv/bin/python scripts/paper_component.py learner --env /etc/trading-ninja/learner.env --probe
 ```
 
 Les probes lisent SQL et l'identité du modèle sans ordre ni écriture. Elles ne
@@ -123,7 +124,10 @@ Le cookie Secure est imposé, donc une connexion HTTP directe ne qualifie pas le
 1. Démarrer API, dashboard et Caddy ; vérifier l'accès TLS et le TOTP opérateur.
 2. Démarrer `trading-ninja-watchdog.timer`. Sans moteur/surveillant, une alerte de
    démarrage est attendue ; sa réception doit être réellement confirmée.
-3. Démarrer manuellement `trading-ninja@engine`. Conserver premier cycle, digest
+3. Démarrer manuellement `trading-ninja@engine`. Le drop-in `learning.conf` demande
+   aussi `trading-ninja@learner` ; vérifier séparément son état et son premier
+   `learning_runs` dans le dashboard. L’absence de résultats donne WAITING.
+   Conserver premier cycle, digest
    modèle, version et configuration expurgée ; aucun repli LLM ne vaut inférence.
 4. Après un premier cycle complet et un heartbeat courant, démarrer
    `trading-ninja@observer`. Vérifier le verdict et les deux files sous
@@ -179,3 +183,20 @@ est écrit seulement après succès. Les mots de passe des rôles se reconfigure
 séparément ; les configurations du fournisseur hors base ne sont pas exportées.
 Conserver toute archive réelle hors machine dans un stockage privé et en contrôler
 le téléchargement. La recette locale de l'outil ne vaut pas restauration de trninja.
+
+
+### Installation de la mémoire sur une release existante
+
+Appliquer 0015 avec le coureur de migrations puis créer le LOGIN privé membre du
+seul `tn_paper_learner`. Préparer `learner.env` depuis le gabarit, avec sa propre URL
+SQL TLS et l’endpoint Ollama. Vérifier `paper_component.py learner --probe`, installer
+le drop-in `learning.conf`, puis `systemctl daemon-reload`. Le service peut être
+lancé séparément avec `systemctl start trading-ninja@learner` ; le moteur ne nécessite
+aucun redémarrage pour relire les nouvelles leçons. Le code du moteur doit toutefois
+être mis à jour pour capturer les nouveaux contextes prospectifs.
+
+Un service de mémoire défaillant ne désarme pas les protections et n’entraîne
+aucun achat. Il possède sa propre connexion et ses propres verrous, avec un lot
+borné à 120 s. Ses appels à Ollama peuvent partager les ressources du moteur :
+mesurer la contention sur WSL pendant la recette. Aucun service n’a été activé
+sur la cible par la préparation de ce dépôt.

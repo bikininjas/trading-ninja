@@ -55,3 +55,14 @@ test('le client des observations est servi sous la politique CSP existante', asy
   assert.match(response.headers.get('content-security-policy'), /script-src 'self'/);
   assert.match(await response.text(), /textContent/);
 });
+
+test('la mémoire est privée et sa route ne permet pas de lancer un apprentissage', async () => {
+  assert.equal((await fetch(url + '/api/insights/learning')).status, 401);
+  assert.equal((await fetch(url + '/api/insights/learning', { headers: { cookie } })).status, 200);
+  const previous = calls.length;
+  assert.equal((await fetch(url + '/api/insights/learning', { method: 'POST', headers: { cookie } })).status, 404);
+  assert.equal(calls.length, previous);
+  const asset = await fetch(url + '/learning.js');
+  assert.equal(asset.status, 200);
+  assert.match(asset.headers.get('content-security-policy'), /script-src 'self'/);
+});

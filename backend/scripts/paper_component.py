@@ -18,14 +18,15 @@ BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
 from app.core.env import read_dotenv
 
-COMPONENTS = ("engine", "api", "dashboard", "observer", "watchdog")
+COMPONENTS = ("engine", "api", "dashboard", "observer", "watchdog", "learner")
 EXCHANGE_SECRETS = (
     "EXCHANGE_API_KEY", "EXCHANGE_SECRET", "KRAKEN_API_KEY", "KRAKEN_SECRET",
     "KRAKEN_SECRET_KEY", "BINANCE_API_KEY", "BINANCE_SECRET_KEY",
     "OBSERVER_API_KEY", "OBSERVER_SECRET",
 )
 SQL_ROLES = {'engine': 'tn_paper_engine', 'api': 'tn_paper_api',
-             'observer': 'tn_paper_observer', 'watchdog': 'tn_paper_probe'}
+             'observer': 'tn_paper_observer', 'watchdog': 'tn_paper_probe',
+             'learner': 'tn_paper_learner'}
 
 
 async def verify_sql_role(conn, component):
@@ -75,6 +76,7 @@ def launch_spec(component, values, inherited=None):
             raise ValueError(name + " HTTPS requis dans le fichier privé")
     commands = {
         "engine": [python, "-m", "app.main", "--serve"],
+        "learner": [python, "scripts/learning.py", "--serve"],
         "api": [python, "-m", "uvicorn", "app.api.main:create_app", "--factory",
                 "--host", "127.0.0.1", "--port", "8080"],
         "dashboard": [shutil.which("node") or "/usr/bin/node", str(BACKEND.parent / "dashboard/server.js")],
@@ -120,7 +122,7 @@ async def probe(component, env):
             result.update(database="VERIFIED", database_bytes=size, migrations=len(actual), sql_scope="ISOLATED_PAPER")
         finally:
             await conn.close(timeout=2)
-    if component == "engine":
+    if component in {"engine", "learner"}:
         settings = load_settings(overrides=env, use_environment=False)
         root = settings.llm.base_url.removesuffix("/v1").rstrip("/")
         async with httpx.AsyncClient(timeout=5) as client:
@@ -154,7 +156,7 @@ def main(argv=None):
         if args.check:
             print(f"{args.component}: configuration PAPER valide ; aucune connexion ni exécution")
             return 0
-        if args.component == "engine":
+        if args.component in {"engine", "learner"}:
             asyncio.run(probe(args.component, env))
         os.chdir(BACKEND)
         os.execve(command[0], command, env)

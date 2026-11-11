@@ -8,7 +8,7 @@ les améliorations restantes. Les preuves datées sont conservées dans
 confirme les quatorze migrations, les groupes et les contrôles d’intégrité.
 
 État vérifié : lots de sécurité, surveillance et préparation d'exploitation,
-878 tests Python dont 54 PostgreSQL sur base jetable, 31 Node ; CI à vérifier
+906 tests Python dont 62 PostgreSQL sur base jetable, 32 Node ; CI à vérifier
 pour chaque candidat.
 Supabase trninja est en
 0014, droits publics fermés et 324 250 bougies. Seb a retiré le 10 novembre la
@@ -25,6 +25,24 @@ observés en réel à budget constant. Le go live ne garantit ni rentabilité fu
 ni absence totale de panne.
 
 ## Ordre et responsabilités
+
+✅ **Apprentissage PAPER automatique — code et recette locale** *(11 novembre 2026)* :
+simulations prospectives, mémoire versionnée, worker horaire séparé, 20 résultats
+puis 5 nouveaux et 24 h entre relectures, statut et historique dans le dashboard.
+906 tests Python, 32 Node et Chromium vérifiés ; D-093.
+
+🟨 **Installation de la mémoire sur la cible** *(11 novembre 2026)* : migration
+0015 testée sur PostgreSQL jetable mais non appliquée à Supabase. La revue
+automatique refuse cette modification externe sans autorisation explicite.
+Après accord : migration, LOGIN privé `tn_paper_learner` et activation WSL.
+Aucun service activé par cette session.
+
+✅ **Dashboard v2 — refonte intégrale de l’interface** *(11 novembre 2026)* :
+nouvelle navigation en cinq espaces, identité graphite/vert, connexion et pilotage
+refaits, graphiques adaptatifs et accessibles au clavier, export CSV borné et
+conservation du dernier statut valide. Les 31 tests Node et la recette Chromium
+sur API factice passent à 320/390/768/1440 px. Intégration avec la base cible à
+qualifier : configuration SQL absente dans cet environnement. D-092.
 
 🟨 **Interface — profils expliqués aux débutants** *(commencé le 11 novembre 2026)* :
 explications des montants engagés et pertes prévues, exemple fictif en euros,

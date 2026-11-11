@@ -16,6 +16,77 @@
     return;
   }
 
+  // Chaque espace garde ses données et ses formulaires lors de la navigation.
+  const VIEWS = {
+    overview: ['Vue d’ensemble', 'Votre capital, votre bot et vos protections. L’essentiel, au même endroit.'],
+    portfolio: ['Portefeuille', 'Comprenez où se trouve votre capital et ce que rapportent vos transactions.'],
+    decisions: ['Décisions & IA', 'Du signal à la décision : comprenez les choix du bot et de ses protections.'],
+    activity: ['Activité', 'Retrouvez les signaux, les contrôles de risque, les ordres et les positions.'],
+    settings: ['Réglages', 'Choisissez un profil et comprenez ses limites avant de l’enregistrer.'],
+  };
+  const menuButton = $('menu-toggle');
+  const mobileNavigation = window.matchMedia('(max-width: 760px)');
+  function closeNavigation() {
+    document.body.classList.remove('nav-open');
+    menuButton?.setAttribute('aria-expanded', 'false');
+    $('sidebar-scrim').hidden = true;
+    $('sidebar').inert = mobileNavigation.matches;
+  }
+  function navigate(focus = false) {
+    const requested = window.location.hash.slice(1) || 'overview';
+    const key = Object.hasOwn(VIEWS, requested) ? requested : 'overview';
+    if (key !== requested) history.replaceState(null, '', `#${key}`);
+    for (const view of document.querySelectorAll('[data-view]')) view.hidden = view.dataset.view !== key;
+    for (const link of document.querySelectorAll('[data-nav]')) {
+      if (link.dataset.nav === key) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    }
+    const [title, description] = VIEWS[key];
+    $('page-title').replaceChildren(document.createTextNode(title));
+    const dot = document.createElement('span');
+    dot.className = 'title-dot'; dot.textContent = '.'; $('page-title').append(dot);
+    $('page-description').textContent = description;
+    $('breadcrumb-current').textContent = title;
+    document.title = `${title} · Trading Ninja`;
+    closeNavigation();
+    if (focus) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      $('main').focus({ preventScroll: true });
+    }
+  }
+  window.addEventListener('hashchange', () => navigate(true));
+  menuButton?.addEventListener('click', () => {
+    const open = !document.body.classList.contains('nav-open');
+    document.body.classList.toggle('nav-open', open);
+    $('sidebar').inert = !open && mobileNavigation.matches;
+    menuButton.setAttribute('aria-expanded', String(open));
+    $('sidebar-scrim').hidden = !open;
+    if (open) document.querySelector('[data-nav][aria-current="page"]')?.focus();
+  });
+  $('sidebar-scrim')?.addEventListener('click', closeNavigation);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && document.body.classList.contains('nav-open')) {
+      closeNavigation(); menuButton?.focus();
+    }
+    if (event.key === 'Tab' && document.body.classList.contains('nav-open')) {
+      const links = [...$('sidebar').querySelectorAll('a, button')];
+      const first = links[0], last = links[links.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+  });
+  mobileNavigation.addEventListener('change', closeNavigation);
+  document.querySelector('.skip-link')?.addEventListener('click', (event) => {
+    event.preventDefault(); $('main').focus();
+  });
+  document.querySelectorAll('[data-nav]').forEach((link) => link.addEventListener('click', closeNavigation));
+  const controlDialog = $('control-dialog');
+  for (const button of document.querySelectorAll('[data-open-controls]')) {
+    button.addEventListener('click', () => controlDialog?.showModal());
+  }
+  $('control-close')?.addEventListener('click', () => controlDialog?.close());
+  navigate();
+
   // ------------------------------------------------------------ constantes --
 
   const STATE_LABELS = {
@@ -210,6 +281,12 @@
     if (!element) return;
     element.textContent = message;
     element.dataset.kind = kind;
+    const global = $('global-feedback');
+    if (global) {
+      global.textContent = message;
+      global.dataset.kind = kind;
+      global.hidden = !message || Boolean($('control-dialog')?.open);
+    }
   }
 
   function setSettingsFeedback(message, kind = '') {
@@ -296,7 +373,8 @@
         at: new Date(point.at),
         equity: toNumber(point.equity),
       }))
-      .filter((point) => point.equity !== null && !Number.isNaN(point.at.getTime()));
+      .filter((point) => point.equity !== null && !Number.isNaN(point.at.getTime()))
+      .sort((a, b) => a.at - b.at);
 
     if (all.length === 0) {
       clearEquitySummary('Pas encore d’historique de capital.');
@@ -316,7 +394,7 @@
 
     box.replaceChildren();
 
-    const W = 900;
+    const W = Math.max(300, Math.min(900, box.clientWidth || 900));
     const H = 260;
     const PAD = { left: 68, right: 18, top: 22, bottom: 30 };
     const plotW = W - PAD.left - PAD.right;
@@ -336,7 +414,8 @@
     const svg = svgEl('svg', {
       viewBox: `0 0 ${W} ${H}`,
       role: 'img',
-      'aria-label': 'Évolution du capital',
+      tabindex: '0',
+      'aria-label': 'Évolution du capital. Utilisez les flèches pour explorer les points.',
     });
 
     const title = svgEl('title');
@@ -351,8 +430,8 @@
       id: 'equity-fill', x1: '0', y1: '0', x2: '0', y2: '1',
     });
     gradient.append(
-      svgEl('stop', { offset: '0%', 'stop-color': '#5cd6ff', 'stop-opacity': '0.3' }),
-      svgEl('stop', { offset: '100%', 'stop-color': '#5cd6ff', 'stop-opacity': '0' }),
+      svgEl('stop', { offset: '0%', 'stop-color': '#b7ef82', 'stop-opacity': '0.18' }),
+      svgEl('stop', { offset: '100%', 'stop-color': '#b7ef82', 'stop-opacity': '0' }),
     );
     defs.append(gradient);
     svg.append(defs);
@@ -445,7 +524,8 @@
       const svgRect = svg.getBoundingClientRect();
       const left = svgRect.left - shellRect.left + (x / W) * svgRect.width;
       const top = svgRect.top - shellRect.top + (y / H) * svgRect.height;
-      tooltip.style.left = `${clamp(left, 78, shellRect.width - 78)}px`;
+      const halfWidth = tooltip.getBoundingClientRect().width / 2;
+      tooltip.style.left = `${clamp(left, halfWidth + 6, shellRect.width - halfWidth - 6)}px`;
       tooltip.style.top = `${Math.max(4, top - 54)}px`;
     };
 
@@ -461,6 +541,15 @@
       showPoint(Math.round(ratio * (series.length - 1)));
     });
     svg.addEventListener('pointerleave', hidePoint);
+    let keyboardPoint = series.length - 1;
+    svg.addEventListener('keydown', (event) => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      keyboardPoint = event.key === 'Home' ? 0 : event.key === 'End' ? series.length - 1
+        : clamp(keyboardPoint + (event.key === 'ArrowLeft' ? -1 : 1), 0, series.length - 1);
+      showPoint(keyboardPoint);
+    });
+    svg.addEventListener('blur', hidePoint);
 
     box.append(svg);
     renderEquitySummary(series);
@@ -488,7 +577,7 @@
       return;
     }
 
-    const W = 900;
+    const W = Math.max(300, Math.min(900, box.clientWidth || 900));
     const H = 220;
     const PAD = { left: 52, right: 18, top: 22, bottom: 30 };
     const plotW = W - PAD.left - PAD.right;
@@ -541,7 +630,10 @@
         + `${day.trades} transaction(s), ${day.wins} gagnante(s)`;
       rect.append(rectTitle);
       svg.append(rect);
-      svg.append(svgText(center, H - 8, dayShort(day.at)));
+      const labelStep = Math.max(1, Math.ceil(series.length / (plotW / 55)));
+      if (index === series.length - 1 || (index % labelStep === 0 && index < series.length - labelStep / 2)) {
+        svg.append(svgText(center, H - 8, dayShort(day.at)));
+      }
     });
 
     box.append(svg);
@@ -662,10 +754,12 @@
   }
 
   let latestEquityPoints = [];
+  let latestDailyPoints = [];
 
   function renderStats(stats) {
     if (!stats || typeof stats !== 'object') return;
     latestEquityPoints = stats.equity_curve || [];
+    latestDailyPoints = stats.daily || [];
     const pnl = stats.pnl || {};
     setText('stat-pnl', money(pnl.net_pnl));
     setSign('stat-pnl', pnl.net_pnl);
@@ -686,7 +780,10 @@
     renderLessons(stats.lessons || {});
   }
 
+  let statsLoading = false;
   async function loadStats() {
+    if (statsLoading) return;
+    statsLoading = true;
     try {
       const response = await fetch('/api/stats', { headers: { Accept: 'application/json' } });
       if (response.status === 401) {
@@ -697,6 +794,8 @@
       renderStats(await response.json());
     } catch {
       /* le flux temps réel continue ; un graphique manquant n'arrête pas la page */
+    } finally {
+      statsLoading = false;
     }
   }
 
@@ -815,6 +914,7 @@
   let haltTarget = null;
   let lastStatusAt = 0;
   let latestStatus = null;
+  let statusSequence = 0;
   let latestSettings = null;
 
   function updateCountdown() {
@@ -900,8 +1000,14 @@
   }
 
   function render(status) {
-    if (!status || typeof status !== 'object') return;
+    if (!status || typeof status !== 'object' || Array.isArray(status)
+      || !['PAPER', 'LIVE', 'TESTNET'].includes(status.mode)
+      || !Object.hasOwn(STATE_LABELS, status.state)
+      || ['equity', 'free_quote', 'reserve_quote'].some((key) => toNumber(status[key]) === null)) {
+      throw new Error('Statut incomplet ou invalide');
+    }
     latestStatus = status;
+    statusSequence += 1;
 
     const badge = $('state');
     if (badge) {
@@ -914,7 +1020,8 @@
     setText('free', money(status.free_quote));
     setText('reserve', money(status.reserve_quote));
     setText('active-capital', money(status.active_equity ?? status.free_quote));
-    setText('growth-pot', money(status.growth_quote ?? '0'));
+    setText('growth-pot', money(status.growth_quote));
+    setText('growth-step', 'EUR · en attente d’un palier');
     if (status.capital_steps?.next_review_at) {
       setText('growth-step', `${status.capital_steps.promotions} palier(s) · ajout max. ${money(status.capital_steps.step_quote)} EUR, au plus tous les ${status.capital_steps.interval_days} jours`);
     }
@@ -931,48 +1038,74 @@
     if (resetButton) resetButton.hidden = status.state !== 'LOCKED_CIRCUIT_BREAKER';
     renderPosition(status.position);
     renderRisk(status, latestSettings);
+    setText('runtime-state', stateLabel(status.state));
+    const descriptions = {
+      IDLE: 'Le dernier statut indique une veille, sans achat en cours.',
+      EVALUATING: 'Le moteur analyse une opportunité avant tout engagement.',
+      EXECUTING: 'Une opération est en cours. Consultez l’activité pour son résultat.',
+      IN_POSITION: 'Une position est ouverte. Ses niveaux de protection sont détaillés ci-dessous.',
+      POST_TRADE_SWEEP: 'La transaction est terminée. Le moteur traite sa répartition.',
+      COOLDOWN: 'Le moteur marque une pause avant la prochaine analyse.',
+      LOCKED_CIRCUIT_BREAKER: 'Une protection ou une pause bloque les nouveaux achats.',
+      EMERGENCY_HALT: 'Le moteur est arrêté. Consultez le motif avant toute reprise.',
+    };
+    setText('runtime-description', descriptions[status.state]);
+    setText('runtime-position', status.position?.symbol || 'Aucune position');
+    setText('runtime-source', 'Statut API reçu');
     markStatus();
   }
 
+  let healthLoading = false;
   async function loadHealth() {
+    if (healthLoading) return;
+    healthLoading = true;
     try {
       const response = await fetch('/api/system/health', { headers: { Accept: 'application/json' } });
-      if (!response.ok) return;
+      if (!response.ok) throw new Error('Santé indisponible');
       const data = await response.json();
       const kraken = data.kraken || {};
       const ollama = data.ollama || {};
       const db = data.supabase || {};
       const krakenBadge = $('health-kraken');
       if (krakenBadge) {
-        krakenBadge.textContent = `Kraken ${kraken.status || '—'}`;
+        krakenBadge.textContent = `Kraken · ${kraken.status === 'CONNECTED' ? 'connecté' : 'à vérifier'}`;
         krakenBadge.dataset.health = kraken.status === 'CONNECTED' ? 'ok' : 'danger';
       }
       const ollamaBadge = $('health-ollama');
       if (ollamaBadge) {
-        ollamaBadge.textContent = `Ollama ${ollama.status || '—'}`;
+        ollamaBadge.textContent = `Modèle · ${ollama.status === 'UP' ? 'disponible' : 'à vérifier'}`;
         ollamaBadge.dataset.health = ollama.status === 'UP' ? 'ok' : 'danger';
       }
       const dbBadge = $('health-db');
       if (dbBadge) {
-        dbBadge.textContent = `DB ${db.status !== 'KNOWN' ? 'inconnue' : db.quota_alert_triggered ? 'alerte' : 'ok'}`;
+        dbBadge.textContent = `Base · ${db.status !== 'KNOWN' ? 'inconnue' : db.quota_alert_triggered ? 'alerte' : 'disponible'}`;
         dbBadge.dataset.health = db.status !== 'KNOWN' || db.quota_alert_triggered ? 'danger' : 'ok';
       }
     } catch {
-      /* télémétrie best-effort */
+      for (const [id, label] of [['health-kraken', 'Kraken'], ['health-ollama', 'Modèle'], ['health-db', 'Base']]) {
+        setText(id, `${label} · inconnu`);
+        if ($(id)) $(id).dataset.health = '';
+      }
+    } finally {
+      healthLoading = false;
     }
   }
 
   async function loadStatus() {
+    const sequence = statusSequence;
     try {
       const response = await fetch('/api/status', { headers: { Accept: 'application/json' } });
       if (response.status === 401) {
         window.location.href = '/login';
-        return;
+        return false;
       }
-      if (!response.ok) return;
-      render(await response.json());
+      if (!response.ok) return false;
+      const data = await response.json();
+      if (sequence === statusSequence) render(data);
+      return true;
     } catch {
       /* le flux SSE reste la source principale */
+      return false;
     }
   }
 
@@ -1067,6 +1200,7 @@
   $('panic')?.addEventListener('click', () => {
     const code = $('panic-code');
     if (code) code.value = '';
+    if ($('panic-keyword')) $('panic-keyword').value = '';
     dialog?.showModal();
   });
   $('panic-cancel')?.addEventListener('click', () => dialog?.close());
@@ -1206,6 +1340,7 @@
     if (entryRule) entryRule.checked = Boolean(settings.entry_rule_enabled);
     refreshSettingOutputs();
     const definition = settingsProfiles.find((profile) => profile.key === settings.profile);
+    setText('runtime-profile', definition?.label || settings.profile || 'Inconnu');
     const applied = settings.application;
     if (applied) {
       setText('settings-updated', `Demandés : ${applied.revision} · appliqués : ${applied.applied_revision ?? 'aucune preuve'}${applied.apply_error ? ` · ${applied.apply_error}` : ''}`);
@@ -1307,7 +1442,10 @@
         return;
       }
       renderSettings(data);
-      setSettingsFeedback('enregistré — appliqué au prochain cycle', 'ok');
+      const application = data.application;
+      setSettingsFeedback(application && application.applied_revision === application.revision
+        ? 'Réglages confirmés par le moteur.'
+        : 'Demande enregistrée. En attente de confirmation par le moteur.', 'ok');
       await loadStats();
     } catch (error) {
       setSettingsFeedback(`réseau : ${error.message}`, 'error');
@@ -1412,6 +1550,7 @@
   }
 
   function renderActivityError(message) {
+    if ($('activity-export')) $('activity-export').disabled = true;
     const body = $('activity-body');
     const config = ACTIVITY[activityTable];
     if (!body || !config) return;
@@ -1436,6 +1575,7 @@
     }
 
     body.replaceChildren();
+    if ($('activity-export')) $('activity-export').disabled = false;
     for (const data of rows) {
       const row = document.createElement('tr');
       for (const column of config.columns) {
@@ -1556,6 +1696,20 @@
 
   $('activity-limit')?.addEventListener('change', loadActivity);
   $('activity-refresh')?.addEventListener('click', loadActivity);
+  $('activity-export')?.addEventListener('click', () => {
+    // Neutraliser les formules de tableur, y compris dans les thèses du modèle.
+    const escape = (value) => {
+      let text = String(value).replace(/\r?\n/g, ' ');
+      if (/^[\s]*[=+\-@]/.test(text)) text = `'${text}`;
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+    const rows = [$('activity-head').querySelector('tr'), ...$('activity-body').querySelectorAll('tr')];
+    const csv = '\uFEFF' + rows.filter(Boolean).map((row) => [...row.children].map((cell) => escape(cell.textContent)).join(';')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url; link.download = `trading-ninja-${activityTable}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
 
   // ---------------------------------------------------------------- stream --
 
@@ -1564,16 +1718,25 @@
     if (!element) return;
     element.textContent = label;
     element.dataset.online = online ? 'true' : 'false';
+    document.body.dataset.connected = String(online);
+    const warning = $('data-warning');
+    if (warning) {
+      warning.hidden = online;
+      warning.textContent = latestStatus
+        ? 'Flux interrompu ou invalide. Les dernières données reçues restent affichées ; leur date est conservée.'
+        : 'En attente d’un statut valide. Vérifiez la connexion au moteur si l’attente persiste.';
+    }
   }
 
   const stream = new EventSource('/events');
-  stream.onopen = () => setConnection('en ligne', true);
+  stream.onopen = () => setConnection('attente du statut', false);
   stream.onerror = () => setConnection('hors ligne', false);
   stream.onmessage = (event) => {
     try {
       render(JSON.parse(event.data));
+      setConnection('en ligne', true);
     } catch {
-      /* un message tronqué ne doit pas casser le flux */
+      setConnection('statut invalide', false);
     }
   };
   stream.addEventListener('expired', () => {
@@ -1582,17 +1745,38 @@
 
   // ------------------------------------------------------------ démarrage --
 
+  $('prompt-close')?.addEventListener('click', () => $('prompt-dialog')?.close());
   for (const button of document.querySelectorAll('[data-range]')) {
     button.addEventListener('click', () => {
       currentRange = button.dataset.range || 'all';
-      $('prompt-close')?.addEventListener('click', () => $('prompt-dialog')?.close());
-  updateRangeButtons();
+      updateRangeButtons();
       // Le dernier jeu de points reste en mémoire : pas besoin de rappeler l'API.
       renderEquityChart(latestEquityPoints);
     });
   }
 
+  $('refresh-all')?.addEventListener('click', async () => {
+    const button = $('refresh-all');
+    button.disabled = true;
+    try {
+      await Promise.allSettled([loadStatus(), loadStats(), loadHealth(), loadActivity()]);
+      if (!$('view-decisions').hidden) $('insights-refresh')?.click();
+      setText('refresh-feedback', 'Actualisation terminée. Les données indisponibles conservent leur dernier état.');
+    } finally { button.disabled = false; }
+  });
+
   updateRangeButtons();
+  const chartWidths = new Map();
+  const chartResize = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const width = Math.round(entry.contentRect.width);
+      if (!width || chartWidths.get(entry.target) === width) continue;
+      chartWidths.set(entry.target, width);
+      if (entry.target.id === 'equity-chart') renderEquityChart(latestEquityPoints);
+      else if (latestDailyPoints) renderDailyChart(latestDailyPoints);
+    }
+  });
+  for (const id of ['equity-chart', 'daily-chart']) if ($(id)) chartResize.observe($(id));
   renderActivityHead();
   loadStatus();
   loadStats();
@@ -1612,5 +1796,6 @@
       ? `maj ${timeOnly(new Date(lastStatusAt))}`
       : `maj il y a ${age} s`;
     element.classList.toggle('stale', age > 10);
+    if (age > 10) setConnection('données anciennes', false);
   }, 1_000);
 })();

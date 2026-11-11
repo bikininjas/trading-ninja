@@ -23,6 +23,7 @@ import asyncpg
 
 from app.core.db import DatabaseConfig
 from app.insights.store import InsightsStore
+from app.learning.store import LearningStore
 from app.engine.capital import CapitalState, start_capital, allocate_close
 
 __all__ = [
@@ -84,7 +85,7 @@ def _drawdown(peak: Decimal, equity: Decimal) -> Decimal:
     return max(Decimal(0), Decimal(1) - equity / peak)
 
 
-class PostgresRepository(InsightsStore):
+class PostgresRepository(InsightsStore, LearningStore):
     def __init__(self, connection: asyncpg.Connection, *, lock_connection_factory=None):
         self._conn = connection
         self._lock_connection_factory = lock_connection_factory
@@ -474,18 +475,19 @@ class PostgresRepository(InsightsStore):
         take_profit_price: Decimal | None,
         risk_amount_quote: Decimal | None,
         plan_status: str,
+        simulation_context: dict | None = None,
     ) -> uuid.UUID:
         row = await self._conn.fetchrow(
             "INSERT INTO shadow_trades (mode, symbol, kind, action, signal_id, "
             "evaluation_id, rejection_code, rejection_details, decision_price, amount, "
             "notional_quote, stop_loss_price, take_profit_price, risk_amount_quote, "
-            "plan_status) VALUES ($1::execution_mode, $2, $3, $4::signal_action, $5, "
-            "$6, $7::risk_rejection_code, $8, $9, $10, $11, $12, $13, $14, $15) "
+            "plan_status,simulation_context) VALUES ($1::execution_mode, $2, $3, $4::signal_action, $5, "
+            "$6, $7::risk_rejection_code, $8, $9, $10, $11, $12, $13, $14, $15,$16::jsonb) "
             "RETURNING id",
             mode, symbol, kind, action, signal_id, evaluation_id,
             rejection_code, rejection_details, decision_price, amount,
             notional_quote, stop_loss_price, take_profit_price, risk_amount_quote,
-            plan_status,
+            plan_status, json.dumps(simulation_context or {}),
         )
         return row["id"]
 
@@ -494,6 +496,7 @@ class PostgresRepository(InsightsStore):
             "SELECT id, created_at, symbol, kind, plan_status, decision_price, amount, "
             "stop_loss_price, take_profit_price FROM shadow_trades "
             "WHERE mode = $1::execution_mode AND plan_status = 'OPEN' "
+            "AND simulation_context->>'version' IS DISTINCT FROM 'forward-v1' "
             "ORDER BY created_at LIMIT $2",
             mode, limit,
         )
@@ -584,8 +587,15 @@ class PostgresRepository(InsightsStore):
         prompt_version: str,
         valid_until: datetime | None,
         review_sha256: str,
+        expected_version: int | None = None,
     ) -> tuple[uuid.UUID, int]:
         async with self._conn.transaction():
+            await self._conn.execute('SELECT pg_advisory_xact_lock(1414416963,$1)',
+                                     {'PAPER':1,'TESTNET':2,'LIVE':3}[mode])
+            current = int(await self._conn.fetchval(
+                'SELECT COALESCE(MAX(version),0) FROM lessons WHERE mode=$1::execution_mode',mode))
+            if expected_version is not None and current != expected_version:
+                raise StateTransitionError('mémoire modifiée pendant la relecture')
             await self._conn.execute(
                 "UPDATE lessons SET active = FALSE "
                 "WHERE mode = $1::execution_mode AND active",
@@ -640,6 +650,7 @@ class PostgresRepository(InsightsStore):
             "decision_price, pnl_quote, outcome_reason, created_at "
             "FROM shadow_trades WHERE mode = $1::execution_mode "
             "AND plan_status IN ('STOP_LOSS', 'TAKE_PROFIT', 'END_OF_DATA') "
+            "AND (simulation_context->>'version' IS DISTINCT FROM 'forward-v1' OR simulation_context->>'eligible'='true') "
             "ORDER BY created_at DESC LIMIT $2",
             mode, limit,
         )

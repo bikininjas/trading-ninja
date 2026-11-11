@@ -14,7 +14,7 @@ dimensionne ou la refuse ; l'exécution passe par un exchange via CCXT — aujou
 **simulée en papier**. Le LLM peut déclencher, mais il ne dimensionne rien : taille,
 prix et stop sont toujours calculés par le code.
 
-## 2. État de reprise — 10 novembre 2026
+## 2. État de reprise — 11 novembre 2026
 
 - Le bot reste en **simulation spot long uniquement** ; aucun capital réel engagé.
   Le chemin live exige les trois verrous de configuration et une réconciliation
@@ -27,17 +27,24 @@ prix et stop sont toujours calculés par le code.
   cagnotte. Seul le capital actif dimensionne ; les pertes ne sont pas rechargées
   depuis la réserve ou la cagnotte. Voir le capital progressif dans
   `docs/OBSERVATION_ET_RECHERCHE.md`, D-069 et D-070.
-- Quatorze migrations sont versionnées, dont `0010_capital_ledger.sql` et
-  `0014_paper_service_roles.sql`. Les quatorze sont appliquées sur Supabase trninja
+- Quinze migrations sont versionnées, dont `0010_capital_ledger.sql` et
+  `0014_paper_service_roles.sql`. Les quatorze premières sont appliquées sur Supabase trninja
   et leurs empreintes vérifiées le 10 novembre 2026. Preuves et limites de sauvegarde :
   `docs/JOURNAL.md`.
-- 878 tests Python sont collectés, dont 54 contrats PostgreSQL locaux opt-in ;
-  31 tests Node et un contrôle navigateur complètent les preuves.
+- 906 tests Python sont collectés, dont 62 contrats PostgreSQL locaux opt-in ;
+  32 tests Node et un contrôle navigateur complètent les preuves.
 - Le statut reste **NO-GO** pour le réel. Les corrections intégrées et leurs
   preuves sont dans `docs/JOURNAL.md` ; le plan de passage est
   `docs/ROADMAP.md` (R0–R7). L’audit historique de 39db447 reste référencé dans
   `docs/audits/2026-11-09/README.md`. La cible est désormais en 0014, droits
   privilégiés fermés ; l’exploitation et l’économie restent à qualifier.
+- D-093 : la mémoire PAPER automatique est livrée dans `app/learning/`. Worker
+  distinct `scripts/learning.py --serve`, 20 résultats puis 5 nouveaux et 24 h,
+  sources prospectives causales et leçons versionnées. Le groupe NOLOGIN
+  `tn_paper_learner` n’a aucun droit d’ordre. La migration 0015 **n’est pas appliquée**
+  sur Supabase : revue automatique refusée faute d’autorisation de modification
+  de la base hébergée. Ne pas démarrer cette version sur 0014 ; demander cette
+  autorisation avant migration, puis préparer le LOGIN privé et le service WSL.
 - Les dix briefs I-01 à I-10 ont une première version implémentée (D-073) :
   journal/rejeu, diagnostics, suspension, politiques, expériences, coûts/classement,
   parcours, surveillance et scores. Guide : `docs/OBSERVATION_ET_RECHERCHE.md`.

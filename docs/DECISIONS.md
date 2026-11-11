@@ -2075,3 +2075,53 @@ absolue ou de rendement. Le nano affiche sa concentration élevée ; le comparat
 se transforme en fiches sur téléphone. Les minima refusés et les résultats
 perdants restent visibles. Enregistrer des limites ne vaut pas activation LIVE
 ni preuve que le moteur les a appliquées.
+
+---
+
+## D-092 — Dashboard v2 organisé par intention (2026-11-11)
+
+Seb demande une refonte intégrale. Remplacer la page empilée par cinq espaces à
+liens permanents : supervision synthétique, portefeuille, décisions/IA, activité
+et réglages. Une nouvelle identité graphite/vert et une connexion cohérente
+forment la v2. Les commandes sont regroupées dans un dialogue accessible depuis
+chaque espace. Les explications pour débutants restent près des réglages.
+
+Conserver Node et le navigateur natifs, sans dépendance ni build : le proxy,
+la session HttpOnly, les API et leurs protections restent les contrats de la v2.
+Les montants et décisions viennent du moteur ; aucun historique illustratif
+n’entre dans le produit. Un statut invalide ou interrompu conserve les dernières
+valeurs et leur date ; une réception HTTP ancienne ne remplace pas un SSE récent.
+L’export CSV ne contient que les lignes affichées et neutralise les formules.
+La refonte ne constitue ni une qualification du déploiement cible ni une
+autorisation de changement de mode financier.
+
+
+---
+
+## D-093 — Mémoire d’expérience PAPER, sans réentraînement des poids (2026-11-11)
+
+Seb demande de coder les achats fictifs et leur mémoire, puis commit et push sur
+master. Réutiliser `shadow_trades` et `lessons` ; 0015 ajoute `simulation_context`
+et `learning_runs`. Le moteur capture les hypothèses à la décision, le worker
+séparé `learning.py --serve` évalue les prix publics puis génère des observations.
+
+Ne pas inventer de résultat à la fin du téléchargement : stop, objectif ou horizon
+figé à 42 bougies. Exclure les trous et sorties ambiguës de la bougie d’entrée,
+sans PnL fictif. Les anciens résultats sans provenance ne nourrissent pas la boucle
+automatique. Ces plans fixes ne simulent pas les sorties suiveuses du moteur.
+
+20 résultats minimum, puis 5 nouveaux identifiants et 24 h entre relectures,
+au plus 30 sources de chaque catégorie. Ce sont des seuils de cadence, pas une
+validation statistique. Publication atomique de la mémoire et du passage, CAS
+sur la version, refus si le verrou est perdu ou le passage remplacé. Les leçons
+expirent après 30 jours. La protection et les règles financières restent courantes.
+
+Le groupe `tn_paper_learner` peut lire les résultats PAPER, mettre à jour les
+simulations et mémoires et écrire le journal ; aucun droit d’ordre, de réglage ou
+de changement d’état. Aucune clé exchange dans le worker. La mise en place systemd
+demande le service avec le moteur, sans l’activer sur une machine depuis ce dépôt.
+
+La revue automatique a refusé la migration hébergée : l’autorisation de coder et
+pousser n’autorise pas la modification externe de son schéma et de ses droits.
+0015 reste à appliquer après accord explicite ; aucun contournement par SQL direct.
+La performance avec cette mémoire reste à comparer hors des données de relecture.

@@ -550,3 +550,46 @@ Avant toute conclusion : plusieurs années et régimes, période hors calibratio
 frais effectifs, minimums respectés, comparaison au cash et au buy & hold. Exiger
 une espérance nette positive et une baisse maximale compatible avec le profil.
 Zéro trade et zéro perte ne suffisent jamais à valider une stratégie.
+
+
+<a id="memoire-paper"></a>
+
+## Mémoire d’expérience automatique en simulation
+
+Le moteur continue à produire les situations : achat refusé par le pare-feu ou
+attente du modèle sur une entrée détectée. Un plan reste soumis aux mêmes minima
+et règles : sans plan finançable, `NO_PLAN` n’est pas transformé en achat fictif.
+Les ordres PAPER exécutés continuent à vivre dans `positions`/`orders`. Les plans
+non pris restent dans `shadow_trades`, sans débit du portefeuille.
+
+Les nouvelles lignes portent `simulation_context.version=forward-v1` : date
+observée, période, horizon de 42 bougies, frais et glissement hypothétiques, identité
+de politique et modèle de sortie fixe. À la différence du rapport historique, le
+worker ne clôture pas à la simple fin d’un téléchargement. Il attend un stop,
+un objectif ou l’horizon défini à la décision. Les bougies futures/non clôturées
+sont exclues. Un trou d’historique ou une sortie impossible à dater dans la bougie
+d’entrée partielle produit un cas non exploitable, sans PnL inventé. Les deux
+niveaux touchés dans une bougie donnent priorité au stop. Ces plans fixes ne
+reproduisent pas le trailing ni toutes les sorties du moteur.
+
+`backend/scripts/learning.py --serve` fait un lot horaire, dans un processus séparé.
+Il relit au plus 30 transactions PAPER closes et 30 simulations éligibles, avec
+20 résultats minimum. Après une première version, il faut 5 nouveaux identifiants
+et 24 h avant une autre relecture. Chaque passage est journalisé dans `learning_runs`.
+Une panne de modèle, une annulation ou une mémoire modifiée en parallèle ne remplace
+pas l’ancienne version. Le changement de version et le succès du passage sont
+atomiques. Une mémoire expire après 30 jours. Ces effectifs organisent la cadence ;
+ils ne prouvent ni indépendance des observations ni fiabilité statistique.
+
+Le worker refuse LIVE avant accès à la base. Son groupe `tn_paper_learner` n’a
+aucun droit d’ordre, de changement d’état ou de réglage financier. Le constructeur
+exchange reçoit des clés vides et ne sert qu’aux OHLC publics. Les leçons PAPER
+ne sont pas promues vers LIVE. Les anciennes simulations sans provenance restent
+consultables mais sont exclues de la boucle automatique.
+
+Le dashboard distingue service non lancé, attente, passage en cours, leçons
+publiées, échec et preuve trop ancienne. `GET /api/insights/learning` est privé,
+PAPER uniquement et sans commande associée. L’historique conserve cinq versions.
+Pour mesurer l’effet de la mémoire, utiliser les expériences ou les mesures A/B
+existantes, sur un jeu distinct des résultats ayant servi aux leçons : aucune
+amélioration automatique de rentabilité n’est revendiquée.

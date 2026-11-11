@@ -182,8 +182,10 @@ test('la page de supervision est servie avec une session', async () => {
   const response = await fetch(`${dashUrl}/`, { headers: { cookie } });
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /TRADING NINJA/);
-  assert.match(html, /Panic-sell/);
+  assert.match(html, /Trading Ninja/i);
+  assert.match(html, /id="panic"/);
+  assert.match(html, /id="control-dialog"/);
+  assert.match(html, /data-view="overview"/);
 });
 
 test('les fichiers statiques sont servis avec le bon type', async () => {

@@ -7,7 +7,7 @@ from scripts.paper_component import EXCHANGE_SECRETS, engine_state_check, launch
 DB = "postgresql://postgres:test@127.0.0.1/trading_ninja_review?sslmode=disable"
 
 
-@pytest.mark.parametrize("component", ["engine", "api", "observer", "watchdog", "dashboard"])
+@pytest.mark.parametrize("component", ["engine", "api", "observer", "watchdog", "dashboard", "learner"])
 def test_all_services_force_paper_and_remove_inherited_trading_credentials(component):
     values = {"DATABASE_URL": DB, "TRADING_MODE": "live", "I_UNDERSTAND_REAL_MONEY": "true",
               "EXCHANGE_SANDBOX_MODE": "false", "OBSERVER_WEBHOOK_URL": "https://alerts.example",

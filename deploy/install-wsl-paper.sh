@@ -25,9 +25,9 @@ if [[ "$ACTION" == --check ]]; then
 fi
 [[ "$missing" == 0 ]] || exit 1
 [[ "$EUID" == 0 ]] || { echo 'Installation système : exécuter via sudo sur le WSL cible.' >&2; exit 2; }
-[[ -d "$CONFIG_DIR" ]] || { echo 'Répertoire privé des cinq configurations requis.' >&2; exit 2; }
+[[ -d "$CONFIG_DIR" ]] || { echo 'Répertoire privé des six configurations requis.' >&2; exit 2; }
 [[ -z "$(git -C "$SOURCE" status --porcelain)" ]] || { echo 'Checkout non propre : refuser une release différente de HEAD.' >&2; exit 1; }
-for component in engine api dashboard observer; do
+for component in engine api dashboard observer learner; do
   if systemctl is-active --quiet "trading-ninja@$component"; then
     echo "Service $component actif : effectuer un arrêt contrôlé avant mise à jour." >&2; exit 1
   fi
@@ -35,7 +35,7 @@ done
 if systemctl is-active --quiet trading-ninja-watchdog.timer; then
   echo 'Sonde planifiée active : prévoir la fenêtre de maintenance avant installation.' >&2; exit 1
 fi
-for component in engine api dashboard observer watchdog; do
+for component in engine api dashboard observer watchdog learner; do
   file="$CONFIG_DIR/$component.env"
   [[ -f "$file" ]] || { echo "Configuration absente : $component.env" >&2; exit 2; }
   mode="$(stat -c %a "$file")"
@@ -64,7 +64,7 @@ runuser -u trading-ninja -- env UV_PYTHON_INSTALL_DIR=/opt/trading-ninja/python 
   "$UV_BIN" venv "$RELEASE/backend/.venv" --python 3.13.17
 runuser -u trading-ninja -- env UV_CACHE_DIR=/var/cache/trading-ninja \
   "$UV_BIN" pip sync --python "$RELEASE/backend/.venv/bin/python" "$RELEASE/backend/requirements.lock"
-for component in engine api dashboard observer watchdog; do
+for component in engine api dashboard observer watchdog learner; do
   install -m 0600 -o trading-ninja -g trading-ninja "$CONFIG_DIR/$component.env" "/etc/trading-ninja/$component.env"
   runuser -u trading-ninja -- "$RELEASE/backend/.venv/bin/python" "$RELEASE/backend/scripts/paper_component.py" \
     "$component" --env "/etc/trading-ninja/$component.env" --check
@@ -76,6 +76,8 @@ install -m 0644 "$RELEASE/deploy/systemd/trading-ninja-watchdog.service" /etc/sy
 install -m 0644 "$RELEASE/deploy/systemd/trading-ninja-watchdog.timer" /etc/systemd/system/
 install -d -m 0755 /etc/systemd/system/trading-ninja@engine.service.d
 install -m 0644 "$RELEASE/deploy/systemd/trading-ninja@engine.service.d/controlled-restart.conf" \
+  /etc/systemd/system/trading-ninja@engine.service.d/
+install -m 0644 "$RELEASE/deploy/systemd/trading-ninja@engine.service.d/learning.conf" \
   /etc/systemd/system/trading-ninja@engine.service.d/
 systemctl daemon-reload
 [[ "$(systemctl show trading-ninja@engine -p Restart --value)" == no ]] || { echo 'Restart moteur incorrect.' >&2; exit 1; }

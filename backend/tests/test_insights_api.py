@@ -259,3 +259,14 @@ def test_invalid_experiment_never_starts_a_financial_action(api):
         json={"schema_version": 1, "variants": []},
     )
     assert result.status_code == 422 and ledger.position is None and ledger.orders == []
+
+
+def test_learning_status_is_private_read_only_and_tracks_service_freshness(api):
+    client,ledger,settings,headers=api
+    assert client.get('/api/insights/learning').status_code==401
+    async def status():return {'run':None,'simulations':{'total':0},'history':[]}
+    ledger.learning_status=status
+    response=client.get('/api/insights/learning',headers=headers)
+    assert response.status_code==200 and response.json()['state']=='NOT_STARTED'
+    assert response.json()['policy']['min_samples']==20
+    assert client.post('/api/insights/learning',headers=headers).status_code==405

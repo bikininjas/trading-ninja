@@ -15,7 +15,7 @@ from tests.test_insights import config, historical_data
 from scripts.paper_component import verify_sql_role, SQL_ROLES
 
 pytestmark = [pytest.mark.postgres_integration, pytest.mark.asyncio]
-ROLES = ('tn_paper_engine', 'tn_paper_api', 'tn_paper_observer', 'tn_paper_probe')
+ROLES = ('tn_paper_engine', 'tn_paper_api', 'tn_paper_observer', 'tn_paper_probe', 'tn_paper_learner')
 
 
 @pytest_asyncio.fixture
@@ -41,7 +41,7 @@ async def test_roles_cannot_login_bypass_rls_see_live_or_change_schema(connectio
     with pytest.raises(ValueError, match='isolée'):
         await verify_sql_role(conn, 'api' if component != 'api' else 'engine')
     assert await conn.fetchval("SELECT count(*) FROM bot_state WHERE mode<>'PAPER'") == 0
-    assert await conn.fetchval('SELECT count(*) FROM schema_migrations') == 14
+    assert await conn.fetchval('SELECT count(*) FROM schema_migrations') == len(list((__import__('pathlib').Path(__file__).parents[1]/'db/migrations').glob('*.sql')))
     assert not await conn.fetchval("SELECT has_schema_privilege(current_user,'public','CREATE')")
     assert not await conn.fetchval("SELECT has_function_privilege(current_user,'ensure_partitions(integer)','EXECUTE')")
     assert not await conn.fetchval("SELECT has_table_privilege(current_user,'llm_signals_default','INSERT')")

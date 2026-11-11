@@ -354,6 +354,15 @@ class Orchestrator:
                 forced.effective_risk_quote or forced.intended_risk_quote
             ) if has_plan else None,
             plan_status="OPEN" if has_plan else "NO_PLAN",
+            simulation_context={
+                'version':'forward-v1', 'observed_at':self._now().isoformat(),
+                'timeframe':self._settings.exchange.daily_timeframe_decision,
+                'horizon_bars':42,
+                'taker_fee':str(self._settings.exchange.taker_fee),
+                'slippage_bps':self._settings.paper_slippage_bps,
+                'policy_id':position_policy(self._settings)['id'],
+                'exit_model':'FIXED_STOP_TP',
+            },
         )
 
     async def _force_halt(self, machine: StateMachine, report: CycleReport,

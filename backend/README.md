@@ -18,9 +18,9 @@ Les migrations 0001–0013 sont appliquées sur trninja, vérifiées le 10 novem
 Sur une autre base, vérifier les migrations avant de démarrer l’instrumentation.
 
 Les tests n’utilisent aucune clé du shell et interdisent les connexions externes.
-La suite normale collecte 878 tests : 824 passent hors base, 54 contrats SQL sont
+La suite normale collecte 906 tests : 844 passent hors base, 62 contrats SQL sont
 ignorés sans base jetable. Pour tout vérifier, démarrer PostgreSQL 17 local avec
-les rôles `anon`/`authenticated`, appliquer les quatorze migrations et utiliser :
+les rôles `anon`/`authenticated`, appliquer les quinze migrations et utiliser :
 
 ```bash
 TN_TEST_DATABASE_URL="$TN_REVIEW_DSN" .venv/bin/python -m pytest \
@@ -59,7 +59,7 @@ Le profil papier `progressif` et le comparatif de budgets sont décrits dans
 virtuels ; il ne modifie pas les réglages locaux existants.
 
 ```bash
-.venv/bin/python -m pytest                     # 878 tests collectés ; 54 PostgreSQL opt-in, voir ci-dessous
+.venv/bin/python -m pytest                     # 906 tests collectés ; 62 PostgreSQL opt-in, voir ci-dessous
 .venv/bin/python -m app.main --once            # un cycle papier complet (données réelles)
 .venv/bin/python -m app.main --serve           # une évaluation par bougie H4 clôturée
 .venv/bin/python -m app.main --status          # état + 3 dernières lignes par table
@@ -169,3 +169,25 @@ Ce contrôle sert une interface avec réponses factices : aucun serveur de tradi
 compte réel ou ordre. Il est exécuté par la CI, séparément de `scripts/check.sh`.
 Les règles d’enveloppes sont dans [Capital progressif](../docs/OBSERVATION_ET_RECHERCHE.md#capital-progressif-paper) ;
 les évolutions encore ouvertes dans les [briefs](../docs/ROADMAP.md#ameliorations).
+
+
+## Mémoire d’expérience PAPER
+
+La migration `0015_paper_learning.sql` ajoute la provenance des simulations et
+leur journal de traitement. Les achats fictifs restent dans `shadow_trades`, les
+observations versionnées dans `lessons` ; `learning_runs` trace chaque passage.
+Le processus distinct `scripts/learning.py --serve` évalue les résultats toutes
+les heures et peut générer une mémoire quotidienne. Il ne possède aucune clé
+exchange et son groupe SQL `tn_paper_learner` ne peut écrire aucun ordre.
+
+```bash
+.venv/bin/python scripts/learning.py          # un seul lot
+.venv/bin/python scripts/learning.py --serve  # lots horaires
+```
+
+Le lanceur PAPER privé et les unités systemd installent ce service avec le moteur ;
+voir [déploiement](../deploy/README.md) et
+[fonctionnement détaillé](../docs/OBSERVATION_ET_RECHERCHE.md#memoire-paper).
+Les 20 premiers résultats, puis au moins 5 nouveaux cas et un délai de 24 h,
+sont nécessaires avant une relecture. Ce seuil ne démontre aucune significativité
+statistique. Les leçons ne modifient pas les poids du modèle ni les plafonds.

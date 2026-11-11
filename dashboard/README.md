@@ -1,6 +1,6 @@
-# Dashboard — supervision et pilotage
+# Dashboard v2 — supervision et pilotage
 
-État au 10 novembre 2026. Le plan de déploiement et de passage au réel est
+État au 11 novembre 2026. Le plan de déploiement et de passage au réel est
 [ROADMAP.md](../docs/ROADMAP.md).
 
 Le dashboard est une **interface d'administration**, pas un produit grand public. Il
@@ -59,32 +59,48 @@ Une session expirée produit un événement SSE `expired` ; la page renvoie vers
 `/login`. Si le flux tombe, le bandeau de connexion passe à « hors ligne » mais les
 dernières données restent lisibles.
 
-## 3. Panneaux
+## 3. Les cinq espaces du dashboard v2
 
-| Panneau | Contenu | Source |
-|---|---|---|
-| En-tête | mode (`PAPER`, `TESTNET`, `LIVE`), état, connexion, dernière mise à jour | `/api/status`, SSE |
-| Bandeau d'arrêt | raison de l'arrêt (modèle, panic ou coupe-circuit), échéance ou reprise manuelle, bouton « Reprendre maintenant » | `/api/status`, `/api/control/resume` |
-| Capital | équité, disponible, réserve, drawdown depuis le plus haut | `/api/status` |
-| Résultats | PnL net, transactions gagnantes / total, pertes, taux de réussite, R multiple, frais | `/api/stats` |
-| Risque | drawdown jour / semaine / depuis le plus haut, pertes consécutives, ordres sur une heure, avec plafond et jauge | `/api/status` + `/api/settings` |
-| Position | entrée, quantité, stop, take-profit, risque brut et perte nette estimée au stop | `/api/status` |
-| Commandes | pause, reprise, panic-sell avec TOTP frais | `/api/control/*` |
-| Courbe du capital | 24 h / 7 j / 30 j / tout, infobulle au survol, plus haut et plus bas de la période | `/api/stats` |
-| Gain/perte par jour | 14 derniers jours, barres positives/négatives, infobulle par jour | `/api/stats` |
-| Modèle | dernière action, conviction, latence, répartition 24 h, replis dégradés, thèse | `/api/stats` |
-| Refus du pare-feu | nombre et pourcentage par code de rejet, libellés en français | `/api/stats` |
-| Achats non pris | shadow trades : refus, HOLD sur setup, plans finançables, résultat simulé | `/api/stats` |
-| Leçons | leçons actives, version et nombre de résultats source | `/api/stats` |
-| Réglages | profil, part par achat, perte journalière, ordres/heure, conviction, reprise auto, règle d'entrée | `/api/settings` |
-| Comprendre les décisions | suspension des achats, parcours, coûts/classement, export/rejeu, diagnostics, politiques, expériences, confiance et incidents | `/api/insights/*`, guide dédié |
-| Activité | onglets Signaux, Pare-feu, Ordres, Positions ; 10/25/50 lignes ; rafraîchissement | `/api/history/{table}` |
+La navigation latérale remplace la page unique. Chaque espace possède un lien
+permanent (`/#overview`, `/#portfolio`, `/#decisions`, `/#activity`, `/#settings`).
+Le navigateur conserve ses formulaires et données entre deux espaces. Sur mobile,
+un menu repliable garde la même navigation ; Échap le ferme et le focus est géré
+au clavier.
 
-Le panneau d’observation se rafraîchit à la demande. Les erreurs et données absentes
-restent explicites. La réautorisation des achats et l’adoption de règles historiques
-exigent un nouveau TOTP. Le formulaire de réglages prévisualise l’impact et montre
-les révisions demandée/appliquée ; une réponse d’enregistrement ne vaut pas une
-application confirmée par le moteur. Contrat détaillé et limites dans
+| Espace | Contenu |
+|---|---|
+| Vue d’ensemble | Capital total, résultat net, taux de réussite, recul du capital, courbe interactive, état du bot, jauges de risque et position ouverte |
+| Portefeuille | Disponible, capital actif, réserve, cagnotte, solde engagé, statistiques de transactions et résultats quotidiens |
+| Décisions & IA | Dernière analyse du modèle, refus du pare-feu, parcours des cycles, rejeu, diagnostics, politiques, expériences, scores, protections, achats non pris et leçons |
+| Activité | Signaux, pare-feu, ordres et positions ; limite 10/25/50 et export CSV des lignes affichées |
+| Réglages | Profil, limites modifiables, révisions demandée/appliquée, exemples fictifs en euros, comparaison et glossaire |
+
+Le bouton **Piloter le bot**, accessible dans chaque espace, ouvre les commandes :
+pause, reprise, liquidation, suspension des achats, réconciliation et réinitialisation
+du coupe-circuit. La liquidation conserve la confirmation `PANIC` et le TOTP frais.
+La pause complète est refusée si une position est ouverte ; la suspension des achats
+conserve la gestion des positions. Le bandeau d’arrêt reste visible dans chaque espace.
+
+**Actualiser** relit le statut, les statistiques, la santé et l’activité. Dans
+Décisions & IA, il relance également les observations. Les réglages en cours de saisie
+ne sont pas écrasés : leur bouton **Recharger** est explicite. L’enregistrement
+indique une demande en attente tant que le moteur n’a pas confirmé sa révision.
+
+Les graphiques se redimensionnent selon leur largeur réelle. La courbe du capital
+se parcourt au pointeur ou avec les touches gauche/droite, Début et Fin. Les états
+vides restent explicites et aucune série factice n’est ajoutée au produit. Un statut
+incomplet ou un flux coupé conserve les dernières valeurs et leur date de réception.
+Un statut de plus de dix secondes est signalé comme ancien. Une réponse HTTP de
+statut commencée avant un événement SSE ne peut pas écraser ce dernier. Les appels
+de statistiques et de santé ne se chevauchent pas.
+
+L’export CSV est local, limité aux lignes affichées et neutralise les cellules
+susceptibles d’être interprétées comme des formules par un tableur. Il n’ajoute
+aucune route d’extraction ni aucun accès à la base.
+
+La connexion reprend le langage visuel de la v2. Les sessions, la CSP et les
+contrats API sont conservés. Le panneau d’observation conserve les contrôles de
+révision et les confirmations TOTP décrits dans
 [OBSERVATION_ET_RECHERCHE.md](../docs/OBSERVATION_ET_RECHERCHE.md).
 
 ### Jauges de risque
@@ -212,8 +228,9 @@ cd dashboard && node server.js     # http://127.0.0.1:8081
 Tests :
 
 ```bash
-cd dashboard && node --test test/       # 31 tests Node
-cd backend && .venv/bin/python -m pytest  # 744 collectés, dont 35 PostgreSQL opt-in
+cd dashboard && npm test               # 32 tests Node
+cd backend && .venv/bin/python -m pytest  # 906 collectés, dont 62 PostgreSQL opt-in
+python scripts/check_dashboard_browser.py /tmp/tn-dashboard-v2
 bash scripts/check.sh                   # vérification globale
 ```
 
@@ -275,8 +292,9 @@ nécessaires. Vérifier avec `ss -ltn` que l'écoute est bien sur `0.0.0.0:8081`
 ## 8. Limites connues
 
 - Le contrôle Playwright/Chromium est automatisé dans la CI, séparément de
-  `scripts/check.sh`. Il couvre capital, suspension/TOTP, rejeu, diagnostics et
-  mobile sans débordement avec une API factice ; ce n’est pas une recette du
+  `scripts/check.sh`. Il couvre les cinq espaces, les flux invalides/coupés, le capital, la
+  suspension/TOTP, le rejeu, les diagnostics, les profils, le prompt, l’export CSV,
+  la connexion et quatre largeurs sans débordement avec une API factice ; ce n’est pas une recette du
   déploiement cible ni de tous les scénarios de flux.
 - Les réglages ne demandent pas de TOTP frais : la session 2FA suffit. La question
   reste ouverte dans la feuille de route.
@@ -294,3 +312,13 @@ nécessaires. Vérifier avec `ss -ltn` que l'écoute est bien sur `0.0.0.0:8081`
 - D-044 — réglages d'exécution en base.
 - D-045 — session de 7 jours.
 - D-062 — historique en liste blanche et plafonds de risque en lecture seule.
+
+
+### Mémoire d’expérience
+
+Dans **Décisions & IA**, le panneau Mémoire d’expérience montre le dernier passage
+du service, ses motifs d’attente, les situations enregistrées, les résultats
+exploitables, les simulations ouvertes, les cas écartés et les versions de la
+mémoire. La route privée `GET /api/insights/learning` est uniquement en lecture.
+Un passage trop ancien ou une actualisation en panne ne reste pas présenté comme
+courant. L’interface n’envoie aucune commande d’apprentissage ni de trading.

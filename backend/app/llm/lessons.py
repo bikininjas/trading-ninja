@@ -18,6 +18,7 @@ Invariants :
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -103,6 +104,13 @@ def build_digest(positions: list[dict], shadows: list[dict]) -> str:
     for row in shadows:
         kind = str(row.get("kind") or "")
         label = labels.get(kind, kind or "—")
+        context = row.get('simulation_context') or {}
+        if isinstance(context,str):
+            context = json.loads(context)
+        if context.get('version')=='forward-v1':
+            label += (f" · plan fixe {context['timeframe']}, horizon {context['horizon_bars']} bougies"
+                      f" · frais hypothétiques {context['taker_fee']}, glissement {context['slippage_bps']} bps"
+                      " · ne reproduit pas les sorties suiveuses")
         lines.append(
             f"- {row.get('created_at')} {row.get('symbol')} · {label} · "
             f"modèle {row.get('action') or '—'} · rejet {row.get('rejection_code') or 'NONE'} · "
@@ -163,11 +171,15 @@ def lessons_block(lessons: list[str] | None) -> str | None:
 
 async def review_lessons(
     repo, client, settings, *, force: bool = False, max_samples: int = 30,
+    source_rows: tuple[list[dict], list[dict]] | None = None,
 ) -> LessonsReview:
     """Lit les résultats, appelle le modèle une fois, rend les leçons validées."""
     mode = settings.execution_mode
-    positions = await repo.closed_positions_for_lessons(mode, max_samples)
-    shadows = await repo.shadow_outcomes_for_lessons(mode, max_samples)
+    if source_rows is None:
+        positions = await repo.closed_positions_for_lessons(mode, max_samples)
+        shadows = await repo.shadow_outcomes_for_lessons(mode, max_samples)
+    else:
+        positions, shadows = source_rows
     source_count = len(positions) + len(shadows)
     if source_count < MIN_SAMPLES and not force:
         raise LessonsRefused(

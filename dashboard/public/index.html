@@ -1,38 +1,26 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#070a0f">
-  <title>Trading Ninja — supervision</title>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark"><meta name="theme-color" content="#101213">
+<title>Vue d’ensemble · Trading Ninja</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css">
 </head>
-<body>
-  <a class="skip-link" href="#main">Aller au contenu</a>
-
-  <header>
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true"></span>
-      TRADING NINJA <span class="muted">supervision</span>
-    </div>
-    <div class="head-right">
-      <span id="conn" class="conn" data-online="false" role="status" aria-live="polite">connexion…</span>
-      <span id="last-update" class="conn sub">maj —</span>
-      <span id="mode-badge" class="badge mode-badge" data-mode="">—</span>
-      <span id="health-kraken" class="badge" data-health="">Kraken —</span>
-      <span id="health-ollama" class="badge" data-health="">Ollama —</span>
-      <span id="health-db" class="badge" data-health="">DB —</span>
-      <span id="state" class="badge" data-state="">—</span>
-      <form method="post" action="/logout">
-        <button class="ghost" type="submit">Déconnexion</button>
-      </form>
-    </div>
-  </header>
-
-  <main id="main">
-    <section id="halt-banner" class="panel halt-banner" hidden>
+<body class="dashboard-page">
+<a class="skip-link" href="#main">Aller au contenu</a>
+<button class="sidebar-scrim" id="sidebar-scrim" type="button" aria-label="Fermer la navigation" hidden></button>
+<aside class="sidebar" id="sidebar" aria-label="Navigation principale">
+<a class="brand" href="#overview" aria-label="Trading Ninja, vue d’ensemble"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M7 24V8l18 16V8" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="m19 8 6 6" stroke="currentColor" stroke-width="4"/></svg></span><span>trading<span class="brand-light">ninja</span><small>VOTRE POSTE DE PILOTAGE</small></span></a>
+<div class="workspace"><span class="workspace-avatar">TN</span><div><strong>Espace personnel</strong><small>Crypto · Spot · Long</small></div><span class="version">v2</span></div>
+<p class="nav-label">ESPACE DE TRAVAIL</p><nav><a href="#overview" class="nav-link" data-nav="overview" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Vue d’ensemble</span><span class="nav-indicator"></span></a><a href="#portfolio" class="nav-link" data-nav="portfolio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 9h18M16 13h5M7 5V3h10"/></svg><span>Portefeuille</span><span class="nav-indicator"></span></a><a href="#decisions" class="nav-link" data-nav="decisions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.5 5 5.5 1-4 4 1 6-5-3-5 3 1-6-4-4 5.5-1L12 3Z"/></svg><span>Décisions & IA</span><span class="nav-indicator"></span></a><a href="#activity" class="nav-link" data-nav="activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10"/><circle cx="19" cy="19" r="2"/></svg><span>Activité</span><span class="nav-indicator"></span></a><a href="#settings" class="nav-link" data-nav="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg><span>Réglages</span><span class="nav-indicator"></span></a></nav>
+<div class="sidebar-bottom"><div class="system-card"><div class="system-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/></svg><strong>État des services</strong></div><div class="service-list"><span id="health-kraken" class="badge" data-health="">Kraken —</span><span id="health-ollama" class="badge" data-health="">Ollama —</span><span id="health-db" class="badge" data-health="">DB —</span></div><small>Les états inconnus restent à vérifier.</small></div>
+<div class="account"><span class="account-avatar">S</span><div><strong>Mon compte</strong><small>Administration privée</small></div><form method="post" action="/logout"><button class="icon-button" type="submit" title="Déconnexion" aria-label="Déconnexion"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 5H5v14h5M10 12h11m-4-4 4 4-4 4"/></svg></button></form></div></div>
+</aside>
+<div class="app-shell">
+<header class="topbar"><div class="breadcrumb"><button type="button" id="menu-toggle" class="icon-button menu-toggle" aria-label="Ouvrir la navigation" aria-controls="sidebar" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><span class="breadcrumb-home">Espace de travail</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg><span id="breadcrumb-current">Vue d’ensemble</span></div><div class="topbar-right"><span id="conn" class="conn" data-online="false" role="status" aria-live="polite">connexion…</span><span id="mode-badge" class="badge mode-badge" data-mode="">Mode —</span><span class="topbar-avatar" aria-label="Compte personnel">S</span></div></header>
+<main id="main" tabindex="-1">
+<div class="page-heading"><div><p class="eyebrow">SUPERVISION & PILOTAGE</p><h1 id="page-title">Vue d’ensemble<span class="title-dot">.</span></h1><p id="page-description" class="page-description">Votre capital, votre bot et vos protections. L’essentiel, au même endroit.</p></div><div class="page-actions"><button class="ghost refresh-button" id="refresh-all" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1"/></svg><span>Actualiser</span></button><button class="primary" type="button" data-open-controls><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v9M6.3 5.8a8 8 0 1 0 11.4 0"/></svg><span>Piloter le bot</span></button></div></div>
+<div id="global-feedback" class="feedback global-feedback" role="status" aria-live="polite" hidden></div>
+<div id="data-warning" class="data-warning" role="status" hidden>Connexion interrompue. Les dernières données reçues restent affichées.</div>
+<section id="halt-banner" class="panel halt-banner" hidden>
       <div class="panel-head">
         <h2>Arrêt du bot</h2>
         <span id="halt-badge" class="badge danger-badge">EMERGENCY_HALT</span>
@@ -44,81 +32,38 @@
         <button id="halt-resume" class="ok" type="button">Reprendre maintenant</button>
       </div>
     </section>
-
-    <section class="cards" aria-label="Résumé du compte">
-      <article class="card primary">
-        <h2>Capital total</h2>
-        <p id="equity" class="value">—</p>
-        <p id="equity-sub" class="sub">EUR · équité virtuelle du mode papier</p>
-      </article>
-      <article class="card">
-        <h2>Argent disponible</h2>
-        <p id="free" class="value">—</p>
-        <p class="sub">EUR</p>
-      </article>
-      <article class="card">
-        <h2>Réserve protégée</h2>
-        <p id="reserve" class="value">—</p>
-        <p class="sub">EUR</p>
-      </article>
-      <article class="card">
-        <h2>Capital actif</h2>
-        <p id="active-capital" class="value">—</p>
-        <p class="sub">EUR · enveloppe autorisée pour les achats</p>
-      </article>
-      <article class="card">
-        <h2>Cagnotte de croissance</h2>
-        <p id="growth-pot" class="value">—</p>
-        <p id="growth-step" class="sub">EUR · en attente d'un palier</p>
-      </article>
-      <article class="card">
-        <h2>Baisse depuis le plus haut</h2>
-        <p id="drawdown" class="value">—</p>
-        <p class="sub">% · plafond visible dans la marge de risque</p>
-      </article>
-      <article class="card">
-        <h2>Gain / perte cumulé</h2>
-        <p id="stat-pnl" class="value small">—</p>
-        <p class="sub">EUR net de frais</p>
-      </article>
-      <article class="card">
-        <h2>Transactions terminées</h2>
-        <p id="stat-trades" class="value small">—</p>
-        <p class="sub">gagnantes / total · <span id="stat-losses">—</span></p>
-      </article>
-      <article class="card">
-        <h2>Transactions gagnantes</h2>
-        <p id="stat-winrate" class="value small">—</p>
-        <p class="sub">%</p>
-      </article>
-      <article class="card">
-        <h2>R moyen par transaction</h2>
-        <p id="stat-r" class="value small">—</p>
-        <p class="sub">multiple du risque engagé</p>
-      </article>
-      <article class="card">
-        <h2>Frais payés</h2>
-        <p id="stat-fees" class="value small">—</p>
-        <p class="sub">EUR</p>
-      </article>
-      <article class="card">
-        <h2>Payoff ratio</h2>
-        <p id="stat-payoff" class="value small">—</p>
-        <p class="sub">gain moyen / perte moyenne</p>
-      </article>
-      <article class="card">
-        <h2>Profit factor net</h2>
-        <p id="stat-profit-factor" class="value small">—</p>
-        <p class="sub">frais déduits</p>
-      </article>
-      <article class="card">
-        <h2>Solde engagé</h2>
-        <p id="capital-engaged" class="value small">—</p>
-        <p class="sub">EUR · position en cours</p>
-      </article>
-    </section>
-
-    <section class="panel risk-panel">
+<section class="view" id="view-overview" data-view="overview" aria-label="Vue d’ensemble">
+<div class="overview-caption"><span class="overview-label"><span class="status-indicator"></span>Votre compte en un regard</span><span id="last-update" class="muted">En attente des données</span></div>
+<div class="metrics-grid"><article class="metric metric-featured"><div class="metric-top"><h2>Capital total</h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 9h18M16 13h5M7 5V3h10"/></svg></div><p class="metric-value" id="equity">—</p><p class="metric-sub"><span id="equity-sub">EUR · en attente du compte</span></p></article><article class="metric "><div class="metric-top"><h2>Résultat net</h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16M7 14l4-4 4 2 5-7"/></svg></div><p class="metric-value" id="stat-pnl">—</p><p class="metric-sub">EUR · après déduction des frais</p></article><article class="metric "><div class="metric-top"><h2>Taux de réussite</h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.5 5 5.5 1-4 4 1 6-5-3-5 3 1-6-4-4 5.5-1L12 3Z"/></svg></div><p class="metric-value" id="stat-winrate">—</p><p class="metric-sub"><span id="stat-trades">—</span> gagnantes / terminées</p></article><article class="metric "><div class="metric-top"><h2>Recul du capital</h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/></svg></div><p class="metric-value" id="drawdown">—</p><p class="metric-sub">Depuis le plus haut enregistré</p></article></div>
+<div class="overview-grid"><section class="panel equity-panel">
+      <div class="panel-head">
+        <div><p class="eyebrow">VOTRE CAPITAL DANS LE TEMPS</p><h2>Évolution du capital</h2></div>
+        <div class="panel-tools">
+          <div class="range-switch" role="group" aria-label="Période du graphique">
+            <button type="button" data-range="24h" aria-pressed="false">24 h</button>
+            <button type="button" data-range="7d" aria-pressed="false">7 j</button>
+            <button type="button" data-range="30d" aria-pressed="false">30 j</button>
+            <button type="button" data-range="all" class="is-active" aria-pressed="true">Tout</button>
+          </div>
+        </div>
+      </div>
+      <div id="equity-summary" class="chart-summary" aria-live="polite">
+        <span>Courant <strong id="chart-current">—</strong></span>
+        <span>Variation <strong id="chart-change">—</strong></span>
+        <span>Plus haut <strong id="chart-high">—</strong></span>
+        <span>Plus bas <strong id="chart-low">—</strong></span>
+        <span id="chart-period" class="muted"></span>
+      </div>
+      <div class="chart-shell">
+        <div id="equity-chart" class="chart"><p class="muted empty-state">Chargement de l’historique du capital…</p></div>
+        <div id="equity-tooltip" class="chart-tooltip" hidden></div>
+      </div>
+      <p class="muted note">Historique des instantanés · survolez la courbe pour explorer.</p>
+    </section><section class="panel runtime-panel" aria-labelledby="runtime-title"><div class="panel-head"><h2 id="runtime-title">Le bot, maintenant</h2><span class="live-dot" aria-hidden="true"></span></div>
+<div class="runtime-orbit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.5 5 5.5 1-4 4 1 6-5-3-5 3 1-6-4-4 5.5-1L12 3Z"/></svg></div><p id="runtime-state" class="runtime-state">Connexion au moteur</p><p id="runtime-description" class="muted">Le statut s’affichera dès que le moteur aura répondu.</p>
+<div class="runtime-details"><div class="kv"><span>Position</span><strong id="runtime-position">—</strong></div><div class="kv"><span>Profil demandé</span><strong id="runtime-profile">—</strong></div><div class="kv"><span>Source</span><strong id="runtime-source">En attente</strong></div></div>
+<button class="ghost full-width" type="button" data-open-controls>Ouvrir le pilotage <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></button></section></div>
+<section class="panel risk-panel risk-panel">
       <div class="panel-head">
         <h2>Marge de risque</h2>
         <span class="muted">seuils du profil actif</span>
@@ -150,17 +95,11 @@
           <small id="risk-orders-limit">plafond —</small>
         </div>
       </div>
-      <p class="muted note">
-        Le dashboard modifie le plafond journalier et le nombre d'ordres par heure.
-        Les plafonds hebdomadaire, depuis le plus haut et les pertes consécutives
-        restent en lecture seule ici.
-      </p>
+      <p class="muted note">Les jauges indiquent la part utilisée des plafonds de sécurité du profil actif.</p>
     </section>
-
-    <div class="split">
-      <section class="panel">
+<div class="overview-bottom"><section class="panel position-panel">
         <div class="panel-head">
-          <h2>Position</h2>
+          <h2>Position en cours</h2>
           <span id="position-symbol" class="muted"></span>
         </div>
         <div id="position" class="position empty">Aucune position ouverte.</div>
@@ -168,60 +107,30 @@
           Le risque brut exclut les frais d'achat et de vente. La perte au stop les
           inclut, au tarif taker configuré.
         </p>
-      </section>
-
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Commandes</h2>
-          <span class="muted">journalisées en base</span>
-        </div>
-        <div class="controls">
-          <button id="pause" class="warn" type="button">Pause</button>
-          <button id="resume" class="ok" type="button">Reprendre</button>
-          <button id="panic" class="danger" type="button">Panic-sell</button>
-          <button id="kill-switch" class="danger" type="button">Kill-switch</button>
-          <button id="reconcile" class="ghost" type="button">Réconcilier</button>
-          <button id="reset-cb" class="ghost" type="button" hidden>Réinitialiser coupe-circuit</button>
-        </div>
-        <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
-      </section>
-    </div>
-
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Évolution du capital</h2>
-        <div class="panel-tools">
-          <div class="range-switch" role="group" aria-label="Période du graphique">
-            <button type="button" data-range="24h" aria-pressed="false">24 h</button>
-            <button type="button" data-range="7d" aria-pressed="false">7 j</button>
-            <button type="button" data-range="30d" aria-pressed="false">30 j</button>
-            <button type="button" data-range="all" class="is-active" aria-pressed="true">Tout</button>
-          </div>
-        </div>
-      </div>
-      <div id="equity-summary" class="chart-summary" aria-live="polite">
-        <span>Courant <strong id="chart-current">—</strong></span>
-        <span>Variation <strong id="chart-change">—</strong></span>
-        <span>Plus haut <strong id="chart-high">—</strong></span>
-        <span>Plus bas <strong id="chart-low">—</strong></span>
-        <span id="chart-period" class="muted"></span>
-      </div>
-      <div class="chart-shell">
-        <div id="equity-chart" class="chart"></div>
-        <div id="equity-tooltip" class="chart-tooltip" hidden></div>
-      </div>
-      <p class="muted note">Survoler la courbe pour lire un point. Le graphique est calculé depuis les instantanés de capital.</p>
-    </section>
-
-    <section class="panel">
+      </section><section class="panel next-panel"><div class="panel-head"><h2>Comprendre ce qui se passe</h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.5 5 5.5 1-4 4 1 6-5-3-5 3 1-6-4-4 5.5-1L12 3Z"/></svg></div><p>Chaque décision a une explication.</p><span class="muted">Explorez les analyses du modèle, les achats refusés et les protections de votre capital.</span><a class="text-link" href="#decisions">Explorer les décisions <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></a><a class="secondary-link" href="#activity">Consulter le journal d’activité <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></a></section></div>
+</section>
+<section class="view" id="view-portfolio" data-view="portfolio" aria-label="Portefeuille" hidden><div class="section-intro"><h2>Répartition de votre capital</h2><p class="muted">Les enveloppes du compte, telles que rapportées par le moteur.</p></div><div class="wallet-grid"><article class="metric "><div class="metric-top"><h2>Disponible</h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15 8a4 4 0 1 0 0 8M6 10h7M6 14h7"/></svg></div><p class="metric-value" id="free">—</p><p class="metric-sub">EUR · solde libre</p></article><article class="metric "><div class="metric-top"><h2>Capital actif</h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 9h18M16 13h5M7 5V3h10"/></svg></div><p class="metric-value" id="active-capital">—</p><p class="metric-sub">EUR · enveloppe autorisée pour les achats</p></article><article class="metric "><div class="metric-top"><h2>Réserve protégée</h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/></svg></div><p class="metric-value" id="reserve">—</p><p class="metric-sub">EUR · conservés à part</p></article><article class="metric "><div class="metric-top"><h2>Cagnotte de croissance</h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16M7 14l4-4 4 2 5-7"/></svg></div><p class="metric-value" id="growth-pot">—</p><p class="metric-sub"><span id="growth-step">EUR · en attente d’un palier</span></p></article><article class="metric "><div class="metric-top"><h2>Solde engagé</h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 9h18M16 13h5M7 5V3h10"/></svg></div><p class="metric-value" id="capital-engaged">—</p><p class="metric-sub">EUR · dans la position en cours</p></article></div><section class="panel"><div class="panel-head"><h2>Résultats des transactions</h2><span class="muted">Historique du compte · net de frais</span></div><div class="performance-grid"><div class="kv"><span>Transactions perdantes</span><strong id="stat-losses">—</strong></div><div class="kv"><span>Frais payés · EUR</span><strong id="stat-fees">—</strong></div><div class="kv"><span>Résultat moyen / risque engagé</span><strong id="stat-r">—</strong></div><div class="kv"><span>Gain moyen / perte moyenne</span><strong id="stat-payoff">—</strong></div><div class="kv"><span>Profit factor net</span><strong id="stat-profit-factor">—</strong></div></div></section><section class="panel">
       <div class="panel-head">
         <h2>Gain / perte par jour</h2>
         <span id="daily-total" class="muted">14 derniers jours</span>
       </div>
       <div id="daily-chart" class="chart"></div>
-    </section>
-
-    <section class="panel">
+    </section></section>
+<section class="view" id="view-decisions" data-view="decisions" aria-label="Décisions et intelligence artificielle" hidden><section class="panel learning-panel" id="learning-panel" aria-labelledby="learning-title">
+  <div class="panel-head"><div><p class="eyebrow">OBSERVER · SIMULER · MÉMORISER</p><h2 id="learning-title">Mémoire d’expérience</h2></div><button type="button" class="ghost" id="learning-refresh">Actualiser la mémoire</button></div>
+  <p id="learning-state" role="status" aria-live="polite" class="muted">Chargement de la mémoire…</p>
+  <p class="muted note" id="learning-reason"></p>
+  <div class="learning-metrics">
+    <div class="kv"><span>Situations non prises</span><strong id="learning-total">—</strong></div>
+    <div class="kv"><span>Simulations exploitables</span><strong id="learning-eligible">—</strong></div>
+    <div class="kv"><span>Simulations en attente</span><strong id="learning-pending">—</strong></div>
+    <div class="kv"><span>Ambiguës ou incomplètes</span><strong id="learning-excluded">—</strong></div>
+    <div class="kv"><span>Sans plan finançable</span><strong id="learning-no-plan">—</strong></div>
+  </div>
+  <p id="learning-progress" class="muted note"></p><p id="learning-updated" class="muted note"></p>
+  <details><summary>Dernières versions de la mémoire</summary><div id="learning-history"></div></details>
+  <p class="muted note">Compte d’entraînement PAPER. La relecture associe les transactions PAPER closes aux simulations exploitables. Les résultats des achats non pris restent distincts du portefeuille. Les simulations utilisent un plan fixe et des coûts figés ; elles ne reproduisent pas les sorties suiveuses du moteur. Les leçons ajoutent du contexte à l’IA et ne changent pas les protections. Leur effet sur la performance reste à mesurer.</p>
+</section><div class="two-col"><section class="panel model-panel">
       <div class="panel-head">
         <h2>Modèle</h2>
         <span id="llm-model" class="muted"></span>
@@ -235,9 +144,7 @@
         <div class="kv"><span>Replis techniques</span><strong id="llm-degraded">—</strong></div>
       </div>
       <p id="llm-thesis" class="muted thesis"></p>
-    </section>
-
-    <section class="panel">
+    </section><section class="panel">
       <div class="panel-head">
         <h2>Refus du pare-feu</h2>
         <span id="rejections-total" class="muted"></span>
@@ -245,9 +152,34 @@
       <div id="rejections-list" class="rejection-list" hidden></div>
       <p id="rejections-empty" class="muted empty-state">Aucun refus enregistré.</p>
       <p class="muted note">Chaque refus est une décision du Risk Gateway : le code n'a pas laissé passer l'ordre.</p>
-    </section>
-
-    <section class="panel">
+    </section></div><section id="insights-panel" class="panel insights-panel" aria-labelledby="insights-title">
+      <div class="panel-head"><h2 id="insights-title">Comprendre les décisions</h2><button id="insights-refresh" class="ghost" type="button">Actualiser</button></div>
+      <p id="insights-status" class="muted" role="status" aria-live="polite">Chargement des observations…</p>
+      <div class="controls">
+        <button id="entries-toggle" class="ghost" type="button" disabled>Suspendre les nouveaux achats</button>
+        <span id="entries-status" class="muted"></span>
+      </div>
+      <p class="muted">La suspension des achats conserve la gestion des positions et leurs protections.</p>
+      <div class="opportunity-summary" id="opportunity-summary"></div>
+      <details><summary>Derniers cycles et rejeu hors ligne</summary><div id="insights-cycles"></div></details>
+      <details><summary>Comprendre une position</summary>
+        <form id="diagnostic-form" class="controls"><label>Identifiant de position <input id="diagnostic-id" required placeholder="Identifiant dans l’activité Positions"></label><button type="submit" class="ghost">Analyser</button></form>
+        <div id="trade-diagnostics"></div>
+      </details>
+      <details><summary>Règles de gestion des positions</summary><div id="position-policies"></div></details>
+      <details><summary>Expériences en simulation</summary>
+        <p class="muted">Comparer jusqu’à trois politiques sur le même historique, avec des portefeuilles séparés. Aucune promotion automatique.</p>
+        <label>Fichier d’expérience JSON <input id="experiment-file" type="file" accept="application/json,.json"></label>
+        <button id="experiment-run" class="ghost" type="button">Comparer en simulation</button>
+        <div id="experiment-results"></div>
+      </details>
+      <details><summary>Fiabilité des scores du modèle</summary><button id="confidence-load" class="ghost" type="button">Analyser les 90 derniers jours</button><div id="confidence-results"></div></details>
+      <details><summary>Surveillance des protections</summary><div id="protection-results"></div></details>
+      <details><summary>Importer un cycle pour le rejouer</summary>
+        <label>Paquet JSON <input id="replay-file" type="file" accept="application/json,.json"></label>
+        <button id="replay-run" class="ghost" type="button">Rejouer hors ligne</button><div id="replay-results"></div>
+      </details>
+    </section><div class="two-col"><section class="panel">
       <div class="panel-head">
         <h2>Achats refusés</h2>
         <span id="shadow-total" class="muted"></span>
@@ -262,20 +194,55 @@
         <div class="kv"><span>En attente</span><strong id="shadow-open">—</strong></div>
       </div>
       <p id="shadow-note" class="muted thesis"></p>
-    </section>
-
-    <section class="panel">
+    </section><section class="panel">
       <div class="panel-head">
         <h2>Leçons</h2>
         <span id="lessons-meta" class="muted"></span>
       </div>
       <ul id="lessons-list" class="lessons" hidden></ul>
       <p id="lessons-empty" class="muted thesis">
-        Aucune leçon active. La relecture attend au moins 5 résultats.
+        Aucune mémoire active. Les leçons apparaîtront après une relecture des résultats.
       </p>
-    </section>
-
-    <section class="panel">
+    </section></div></section>
+<section class="view" id="view-activity" data-view="activity" aria-label="Activité" hidden><section class="panel activity-view">
+      <div class="panel-head">
+        <h2>Activité récente</h2>
+        <span id="activity-meta" class="muted"></span>
+      </div>
+      <div class="activity-toolbar">
+        <div class="tabs" role="tablist" aria-label="Type d'activité">
+          <button type="button" role="tab" id="tab-llm_signals" aria-selected="true"
+                  aria-controls="activity-panel" data-table="llm_signals">Signaux</button>
+          <button type="button" role="tab" id="tab-risk_evaluations" aria-selected="false"
+                  aria-controls="activity-panel" data-table="risk_evaluations" tabindex="-1">Pare-feu</button>
+          <button type="button" role="tab" id="tab-orders" aria-selected="false"
+                  aria-controls="activity-panel" data-table="orders" tabindex="-1">Ordres</button>
+          <button type="button" role="tab" id="tab-positions" aria-selected="false"
+                  aria-controls="activity-panel" data-table="positions" tabindex="-1">Positions</button>
+        </div>
+        <label class="inline-field">
+          Lignes
+          <select id="activity-limit">
+            <option value="10">10</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+          </select>
+        </label>
+        <button id="activity-export" class="ghost" type="button" disabled>Exporter CSV</button><button id="activity-refresh" class="ghost" type="button">Rafraîchir</button>
+      </div>
+      <div id="activity-panel" role="tabpanel" aria-labelledby="tab-llm_signals">
+        <div class="table-wrap">
+          <table>
+            <caption class="sr-only">Dernières lignes d'activité</caption>
+            <thead id="activity-head"></thead>
+            <tbody id="activity-body">
+              <tr><td class="muted">Chargement…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section><p class="muted note">Les vues affichent les 50 dernières lignes au maximum. L’export CSV contient uniquement les lignes affichées.</p></section>
+<section class="view" id="view-settings" data-view="settings" aria-label="Réglages" hidden><section class="panel settings-panel">
       <div class="panel-head">
         <h2>Réglages</h2>
         <span id="settings-updated" class="muted"></span>
@@ -287,37 +254,7 @@
           <small id="set-profile-help" class="muted"></small>
         </label>
 
-        <div class="profile-guide">
-          <h3>Comprendre le profil choisi</h3>
-          <p>Un profil fixe des limites. Il ne garantit aucun gain et n'oblige pas le bot à acheter.
-            « Simulation » signifie que les achats et les pertes sont fictifs.</p>
-          <label for="profile-example-capital">Exemple avec un capital fictif en euros</label>
-          <input id="profile-example-capital" type="text" value="9,37" inputmode="decimal" maxlength="20" aria-describedby="profile-example-note">
-          <small id="profile-example-note">Ce chiffre sert seulement à comprendre. Il ne change ni ton solde, ni le budget du bot, ni ses réglages.</small>
-          <div id="profile-example" aria-live="polite"></div>
-          <p id="profile-concentration" class="profile-caution" hidden></p>
-          <details>
-            <summary>Comparer tous les profils</summary>
-            <div class="profile-comparison"><table>
-              <caption>Limites par défaut, avant tes modifications des curseurs</caption>
-              <thead><tr><th>Profil</th><th>Part du capital engagée</th><th>Perte prévue par achat</th><th>À comprendre</th></tr></thead>
-              <tbody id="profile-comparison-body"></tbody>
-            </table></div>
-          </details>
-          <details>
-            <summary>Les mots utiles, sans jargon</summary>
-            <dl>
-              <dt>Argent engagé, ou exposition</dt><dd>Les euros utilisés pour acheter une crypto. Ils ne sont plus disponibles en espèces tant que la position reste ouverte.</dd>
-              <dt>Perte prévue et stop</dt><dd>Le stop est une vente de protection prévue si le prix baisse. La perte calculée à ce niveau n'est pas une perte maximale garantie : chute brutale, panne ou manque d'acheteurs peuvent coûter davantage.</dd>
-              <dt>Frais et différence de prix</dt><dd>La plateforme facture l'achat et la vente. Le prix réellement obtenu peut aussi être moins bon que celui affiché. Ces coûts réduisent les gains et augmentent les pertes.</dd>
-              <dt>Objectif de vente</dt><dd>Un niveau de hausse visé, pas une prévision. Éloigner cet objectif ne rend pas une stratégie rentable à lui seul.</dd>
-              <dt>Conviction du modèle</dt><dd>Une note donnée par le modèle. Une note de 80 % ne signifie pas 80 % de chances de gagner.</dd>
-              <dt>Arrêts de sécurité</dt><dd>Les seuils de journée, de semaine et de recul depuis le plus haut bloquent de nouveaux achats quand le compte a trop baissé. Un arrêt n'est pas une promesse de vendre immédiatement toute la crypto ni de récupérer l'argent perdu.</dd>
-            </dl>
-          </details>
-          <p>Un achat peut être refusé : montant minimum de la plateforme trop élevé, frais trop lourds, marché défavorable ou protection active. Avec 3 € ou moins, BTC, ETH et SOL étaient tous refusés lors du diagnostic conservé. Le bot garde alors les euros ; il n'augmente pas le risque pour forcer l'achat.</p>
-          <p><strong>Les petits profils ne sont pas validés comme rentables.</strong> Le test sur des prix passés de Micro budget et Nano budget a produit deux achats revendus à perte par profil, puis un arrêt de sécurité. Ce test utilisait des décisions automatiques fixes ; il n'évalue pas la performance de l'IA.</p>
-        </div>
+
 
         <label>
           <span>Combien le bot peut mettre sur un achat</span>
@@ -363,84 +300,57 @@
           <span id="settings-feedback" class="feedback" role="status" aria-live="polite"></span>
         </div>
       </form>
+        <aside class="profile-guide" aria-label="Comprendre les réglages">
+          <h3>Comprendre le profil choisi</h3>
+          <p>Un profil fixe des limites. Il ne garantit aucun gain et n'oblige pas le bot à acheter.
+            « Simulation » signifie que les achats et les pertes sont fictifs.</p>
+          <label for="profile-example-capital">Exemple avec un capital fictif en euros</label>
+          <input id="profile-example-capital" type="text" value="9,37" inputmode="decimal" maxlength="20" aria-describedby="profile-example-note">
+          <small id="profile-example-note">Ce chiffre sert seulement à comprendre. Il ne change ni ton solde, ni le budget du bot, ni ses réglages.</small>
+          <div id="profile-example" aria-live="polite"></div>
+          <p id="profile-concentration" class="profile-caution" hidden></p>
+          <details>
+            <summary>Comparer tous les profils</summary>
+            <div class="profile-comparison"><table>
+              <caption>Limites par défaut, avant tes modifications des curseurs</caption>
+              <thead><tr><th>Profil</th><th>Part du capital engagée</th><th>Perte prévue par achat</th><th>À comprendre</th></tr></thead>
+              <tbody id="profile-comparison-body"></tbody>
+            </table></div>
+          </details>
+          <details>
+            <summary>Les mots utiles, sans jargon</summary>
+            <dl>
+              <dt>Argent engagé, ou exposition</dt><dd>Les euros utilisés pour acheter une crypto. Ils ne sont plus disponibles en espèces tant que la position reste ouverte.</dd>
+              <dt>Perte prévue et stop</dt><dd>Le stop est une vente de protection prévue si le prix baisse. La perte calculée à ce niveau n'est pas une perte maximale garantie : chute brutale, panne ou manque d'acheteurs peuvent coûter davantage.</dd>
+              <dt>Frais et différence de prix</dt><dd>La plateforme facture l'achat et la vente. Le prix réellement obtenu peut aussi être moins bon que celui affiché. Ces coûts réduisent les gains et augmentent les pertes.</dd>
+              <dt>Objectif de vente</dt><dd>Un niveau de hausse visé, pas une prévision. Éloigner cet objectif ne rend pas une stratégie rentable à lui seul.</dd>
+              <dt>Conviction du modèle</dt><dd>Une note donnée par le modèle. Une note de 80 % ne signifie pas 80 % de chances de gagner.</dd>
+              <dt>Arrêts de sécurité</dt><dd>Les seuils de journée, de semaine et de recul depuis le plus haut bloquent de nouveaux achats quand le compte a trop baissé. Un arrêt n'est pas une promesse de vendre immédiatement toute la crypto ni de récupérer l'argent perdu.</dd>
+            </dl>
+          </details>
+          <p>Un achat peut être refusé : montant minimum de la plateforme trop élevé, frais trop lourds, marché défavorable ou protection active. Avec 3 € ou moins, BTC, ETH et SOL étaient tous refusés lors du diagnostic conservé. Le bot garde alors les euros ; il n'augmente pas le risque pour forcer l'achat.</p>
+          <p><strong>Les petits profils ne sont pas validés comme rentables.</strong> Le test sur des prix passés de Micro budget et Nano budget a produit deux achats revendus à perte par profil, puis un arrêt de sécurité. Ce test utilisait des décisions automatiques fixes ; il n'évalue pas la performance de l'IA.</p>
+        </aside>
       <p class="note">Choisir un profil prépare les valeurs du formulaire. « Enregistrer » demande leur application au bot ; cela n'active pas l'argent réel. Le bot doit ensuite confirmer les réglages appliqués. Changer de profil remet ses limites par défaut ; les valeurs des curseurs peuvent les modifier.</p>
       <p id="settings-limits" class="muted note"></p>
-    </section>
-
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Activité récente</h2>
-        <span id="activity-meta" class="muted"></span>
-      </div>
-      <div class="activity-toolbar">
-        <div class="tabs" role="tablist" aria-label="Type d'activité">
-          <button type="button" role="tab" id="tab-llm_signals" aria-selected="true"
-                  aria-controls="activity-panel" data-table="llm_signals">Signaux</button>
-          <button type="button" role="tab" id="tab-risk_evaluations" aria-selected="false"
-                  aria-controls="activity-panel" data-table="risk_evaluations" tabindex="-1">Pare-feu</button>
-          <button type="button" role="tab" id="tab-orders" aria-selected="false"
-                  aria-controls="activity-panel" data-table="orders" tabindex="-1">Ordres</button>
-          <button type="button" role="tab" id="tab-positions" aria-selected="false"
-                  aria-controls="activity-panel" data-table="positions" tabindex="-1">Positions</button>
+    </section></section>
+<footer class="footer"><span>Trading Ninja <span class="footer-version">/ v2</span><span class="footer-separator">·</span><span id="mode">—</span> · <span id="footer-note">En attente du moteur</span></span><span>Dernier statut reçu <span id="updated-footer">—</span><span id="refresh-feedback" class="sr-only" role="status" aria-live="polite"></span></span></footer>
+</main></div>
+<dialog id="control-dialog" aria-labelledby="control-title"><div class="dialog-top"><span class="eyebrow">CENTRE DE CONTRÔLE</span><button type="button" class="icon-button" id="control-close" aria-label="Fermer le pilotage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div><div class="control-state"><span id="state" class="badge" data-state="">État inconnu</span></div><section class="panel control-panel">
+        <div class="panel-head">
+          <h2 id="control-title">Piloter le bot</h2>
+          <span class="muted">journalisées en base</span>
         </div>
-        <label class="inline-field">
-          Lignes
-          <select id="activity-limit">
-            <option value="10">10</option>
-            <option value="25" selected>25</option>
-            <option value="50">50</option>
-          </select>
-        </label>
-        <button id="activity-refresh" class="ghost" type="button">Rafraîchir</button>
-      </div>
-      <div id="activity-panel" role="tabpanel" aria-labelledby="tab-llm_signals">
-        <div class="table-wrap">
-          <table>
-            <caption class="sr-only">Dernières lignes d'activité</caption>
-            <thead id="activity-head"></thead>
-            <tbody id="activity-body">
-              <tr><td class="muted">Chargement…</td></tr>
-            </tbody>
-          </table>
+        <p class="muted control-intro">Les commandes sont journalisées. La suspension des achats conserve la gestion des positions. La pause complète est refusée lorsqu’une position est ouverte.</p><div class="controls">
+          <button id="pause" class="warn" type="button">Pause</button>
+          <button id="resume" class="ok" type="button">Reprendre</button>
+          <button id="panic" class="danger" type="button">Liquider la position</button>
+          <button id="kill-switch" class="danger" type="button">Suspendre les achats</button>
+          <button id="reconcile" class="ghost" type="button">Réconcilier</button>
+          <button id="reset-cb" class="ghost" type="button" hidden>Réinitialiser coupe-circuit</button>
         </div>
-      </div>
-    </section>
-
-    <section id="insights-panel" class="panel" aria-labelledby="insights-title">
-      <div class="panel-head"><h2 id="insights-title">Comprendre les décisions</h2><button id="insights-refresh" class="ghost" type="button">Actualiser</button></div>
-      <p id="insights-status" class="muted" role="status" aria-live="polite">Chargement des observations…</p>
-      <div class="controls">
-        <button id="entries-toggle" class="ghost" type="button" disabled>Suspendre les nouveaux achats</button>
-        <span id="entries-status" class="muted"></span>
-      </div>
-      <p class="muted">La suspension des achats conserve la gestion des positions et leurs protections.</p>
-      <div class="cards" id="opportunity-summary"></div>
-      <details><summary>Derniers cycles et rejeu hors ligne</summary><div id="insights-cycles"></div></details>
-      <details><summary>Comprendre une position</summary>
-        <form id="diagnostic-form" class="controls"><label>Identifiant de position <input id="diagnostic-id" required placeholder="Identifiant dans l’activité Positions"></label><button type="submit" class="ghost">Analyser</button></form>
-        <div id="trade-diagnostics"></div>
-      </details>
-      <details><summary>Règles de gestion des positions</summary><div id="position-policies"></div></details>
-      <details><summary>Expériences en simulation</summary>
-        <p class="muted">Comparer jusqu’à trois politiques sur le même historique, avec des portefeuilles séparés. Aucune promotion automatique.</p>
-        <label>Fichier d’expérience JSON <input id="experiment-file" type="file" accept="application/json,.json"></label>
-        <button id="experiment-run" class="ghost" type="button">Comparer en simulation</button>
-        <div id="experiment-results"></div>
-      </details>
-      <details><summary>Fiabilité des scores du modèle</summary><button id="confidence-load" class="ghost" type="button">Analyser les 90 derniers jours</button><div id="confidence-results"></div></details>
-      <details><summary>Surveillance des protections</summary><div id="protection-results"></div></details>
-      <details><summary>Importer un cycle pour le rejouer</summary>
-        <label>Paquet JSON <input id="replay-file" type="file" accept="application/json,.json"></label>
-        <button id="replay-run" class="ghost" type="button">Rejouer hors ligne</button><div id="replay-results"></div>
-      </details>
-    </section>
-
-    <p class="footer">
-      Mode <span id="mode">—</span> · <span id="footer-note">—</span> ·
-      flux <span id="updated-footer">—</span>
-    </p>
-  </main>
-
+        <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
+      </section></dialog>
   <dialog id="panic-dialog" aria-labelledby="panic-title" aria-describedby="panic-help">
     <form id="panic-form">
       <h2 id="panic-title">Liquider la position</h2>
@@ -450,7 +360,7 @@
       </p>
       <label>
         Confirmation
-        <input id="panic-keyword" type="text" placeholder="PANIC" autocomplete="off" required>
+        <input id="panic-keyword" type="text" pattern="PANIC" title="Saisissez PANIC en majuscules" placeholder="PANIC" autocomplete="off" required>
       </label>
       <input id="panic-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
              placeholder="123456" autocomplete="one-time-code" required>
@@ -490,7 +400,6 @@
     </div>
   </dialog>
 
-  <script src="/app.js" defer></script>
-  <script src="/insights.js" defer></script>
-</body>
-</html>
+
+<script src="/app.js" defer></script><script src="/insights.js" defer></script><script src="/learning.js" defer></script>
+</body></html>

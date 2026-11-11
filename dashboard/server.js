@@ -46,6 +46,7 @@ const ASSETS = {
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
   '/favicon.svg': ['favicon.svg', 'image/svg+xml'],
   '/insights.js': ['insights.js', 'text/javascript; charset=utf-8'],
+  '/learning.js': ['learning.js', 'text/javascript; charset=utf-8'],
 };
 
 const SECURITY_HEADERS = {
@@ -316,7 +317,7 @@ export function createDashboardServer(options = {}) {
     const idPart = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
     const insightGet = new Set(['/api/insights/overview', '/api/insights/cycles',
       '/api/insights/experiments', '/api/insights/confidence', '/api/insights/protection',
-      '/api/insights/policy', '/api/diagnostics/opportunities']);
+      '/api/insights/policy', '/api/insights/learning', '/api/diagnostics/opportunities']);
     const insightPost = new Set(['/api/control/entries', '/api/settings/preview',
       '/api/insights/replay', '/api/insights/experiments']);
     const insightRead = method === 'GET' && (insightGet.has(pathname)

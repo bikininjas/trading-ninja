@@ -6,6 +6,113 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-11 — Mémoire PAPER automatique : code et recette locale livrés
+
+D-093 : nouveaux plans prospectifs dans `shadow_trades`, coûts/période/horizon
+figés à la décision et journal `learning_runs`. Le worker indépendant évalue les
+OHLC publics, exclut les cas ambigus/incomplets et ne clôture qu’au stop, objectif
+ou horizon prévu. Les leçons PAPER sont relues au cycle suivant par le moteur.
+Leurs sources, version, modèle et empreinte restent traçables. Échantillon de
+20 résultats puis 5 nouveaux, cadence maximale quotidienne et expiration à 30 j.
+
+Le worker refuse LIVE avant accès SQL. Le nouveau groupe NOLOGIN n’a aucun droit
+d’ordre ou de réglage. Verrous distincts du moteur, protection contre doublons,
+CAS de mémoire et publication atomique mémoire/journal ; perte de verrou ou
+passage remplacé refusent la publication. CLI et service systemd préparés, aucun
+service activé. Le dashboard montre état daté, résultats exploitables, cas exclus,
+attentes et historique ; la route privée reste en lecture seule.
+
+Preuves locales, Python **3.13.17** avec `requirements.lock`, PostgreSQL **17**
+Docker jetable `trading_ninja_review`, boucle locale 55432 :
+
+- Les quinze migrations s’appliquent ; `db_migrate.py verify` valide le schéma,
+  RLS, droits publics et écritures annulées (45 relations, 6 vues, 16 partitions).
+- Suite complète : 898 succès et 6 contrats d’enveloppes initialement sautés faute
+  de `TN_TEST_DATABASE_URL`, puis ces 6 contrats réussis avec leur opt-in. Deux
+  contrats supplémentaires couvrent la perte du verrou et un passage remplacé.
+  Validation finale avec les deux opt-ins : **906 succès, aucun test sauté**,
+  dont 62 contrats PostgreSQL, en 20,10 s sur Python 3.13.17.
+- `DATABASE_URL=<base locale jetable> bash scripts/check.sh` → TOUT EST VERT :
+  844 tests hors base + 62 opt-in collectés, quinze migrations locales vérifiées,
+  drawdowns annulés, documentation/index/secrets cohérents et 32 Node réussis.
+- Golden `scripts/backtest.py replay` identique : net -34,8828 EUR, aucune
+  bénédiction ni changement de risque. 32 tests Node réussis.
+- Chromium : cinq espaces, mémoire non démarrée/publiée/ancienne, panne conservée,
+  historique texte hostile non interprété, TOTP, profils, export et quatre largeurs
+  sans débordement. Captures `/tmp/tn-learning-browser/`.
+
+**Migration hébergée bloquée** : la revue automatique a refusé
+`supabase.apply_migration` car l’autorisation de coder et pousser ne couvre pas
+la modification externe du schéma, d’un rôle et des droits/RLS. Aucun contournement.
+La base trninja reste en 0014 ; 0015 attend l’accord explicite de Seb. Les quinze
+migrations locales sont conservées sans éditer les quatorze déjà appliquées.
+Advisors avant migration : 17 notices INFO sur les partitions privées sans policy,
+situation attendue car accès via parents uniquement ; aucune nouvelle table hébergée.
+Référence : https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
+
+---
+
+## 2026-11-11 — Apprentissage PAPER automatique : lot commencé
+
+Seb demande l’implémentation puis commit et push sur master. Réutiliser les tables
+`shadow_trades` et `lessons` : automatiser évaluation, mémorisation et statut sans
+dupliquer le portefeuille. Le worker doit refuser LIVE, éviter les relectures des
+mêmes résultats et conserver une provenance explicite des simulations. Recette
+du worker, des requêtes, du dashboard et golden de régression avant publication.
+
+---
+
+## 2026-11-11 — Dashboard v2 : interface refaite et recette vérifiée
+
+D-092 : remplacement du HTML, de la feuille de styles, de la connexion et de
+l’identité visuelle. Navigation par liens permanents vers cinq espaces : vue
+d’ensemble, portefeuille, décisions/IA, activité et réglages. Résumé limité à
+quatre indicateurs, courbe de capital, état du bot, plafonds et position ; les
+outils détaillés sont rangés dans leurs espaces. Le pilotage est disponible dans
+un dialogue dédié, avec les confirmations existantes. Exemples et glossaire des
+profils conservés, explication déplacée à côté du formulaire.
+
+Graphiques redimensionnés selon le conteneur, exploration au clavier de la courbe,
+menu mobile avec gestion du focus, textes de santé en français, export local CSV
+des seules lignes affichées avec neutralisation des formules. Un statut invalide
+ou une coupure ne remplace plus les valeurs et leur date de réception. Une réponse
+HTTP commencée avant un statut SSE n’écrase pas celui-ci. Statistiques et santé
+sans chevauchement. Le dialogue de prompt se ferme sans interaction préalable
+avec le graphique. L’enregistrement des réglages distingue demande et application
+confirmée.
+
+Vérifications réelles :
+
+- `npm test --prefix dashboard` → 31 réussis ; cookie, CSP, proxy, TOTP et SSE.
+- `python scripts/check_dashboard_browser.py /tmp/tn-dashboard-v2` → succès sous
+  Chromium avec API factice : navigation, flux invalide/coupé, capital, expiration
+  des protections, suspension/réautorisation TOTP, rejeu, diagnostics, profils,
+  prompt, export CSV neutralisé, commandes ouvertes/annulées sans mutation,
+  deep links, graphique au clavier et 320/390/768/1440 px sans débordement.
+- `bash scripts/check.sh` hors du bac à sable → 824 tests Python réussis,
+  54 contrats PostgreSQL opt-in sautés, 31 Node réussis. Le contrôle global reste
+  rouge sur la vérification SQL : `DATABASE_URL` et `NEXT_PUBLIC_SUPABASE_URL`
+  absents. Aucune recette de base ni de déploiement réel revendiquée.
+
+Le premier contrôle dans le bac à sable bloquait sur les serveurs locaux ; arrêté,
+puis relancé hors du bac à sable. La recette a aussi révélé des attentes de
+navigation trop immédiates et un contrôle Node attaché aux anciens libellés :
+ils suivent maintenant les espaces visibles et les identifiants des commandes.
+Captures locales dans `/tmp/tn-dashboard-v2/`. Aucun changement du moteur, du
+schéma, de la configuration financière ou des données réelles.
+
+---
+
+## 2026-11-11 — Dashboard v2 : refonte commencée
+
+Seb demande de repartir intégralement de zéro. Refonte de l’interface et de son
+organisation en cinq espaces, avec supervision synthétique, pilotage explicite,
+réglages accompagnés et adaptation mobile. Conservation du proxy de session,
+des contrats API et des confirmations existantes. Vérification initiale lancée
+avec `bash scripts/check.sh` ; recette navigateur à effectuer après réalisation.
+
+---
+
 ## 2026-11-11 — Profils expliqués dans l'interface, recette débutant vérifiée
 
 D-091 livrée : aide visible dans Réglages, comparatif de tous les profils,

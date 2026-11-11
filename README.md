@@ -5,7 +5,8 @@ dimensionne les ordres. Le dashboard permet de suivre et piloter le bot.
 
 **Simulation uniquement.** Le chemin LIVE est écrit, mais le passage au réel reste
 NO-GO : exploitation, sauvegarde complète et validation économique à qualifier.
-Supabase est à jour jusqu’à la migration `0013` (vérifié le 10 novembre 2026).
+Supabase reste en `0014`. La migration `0015` de la mémoire PAPER est testée
+localement et attend l’autorisation d’application sur la base hébergée.
 
 ## Démarrage
 
