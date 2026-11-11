@@ -3,18 +3,18 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `5a83fd7036e19fc1`
+Empreinte des sources : `42e20c2b7aa493fa`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
-| Modules Python | 154 |
-| Lignes Python | 34571 |
+| Modules Python | 155 |
+| Lignes Python | 34701 |
 | Classes | 148 |
-| Fonctions et méthodes | 1122 |
-| Cas de test collectés par pytest | 861 |
-| Fonctions de test (comptage statique) | 666 |
+| Fonctions et méthodes | 1129 |
+| Cas de test collectés par pytest | 878 |
+| Fonctions de test (comptage statique) | 672 |
 | Migrations SQL | 14 |
 | Scripts shell | 3 |
 
@@ -28,7 +28,7 @@ Empreinte des sources : `5a83fd7036e19fc1`
 | `backend/app/api/main.py` | 674 | API d'administration — observation, pause, reprise, panic-sell. |
 | `backend/app/api/security.py` | 227 | Authentification de l'API d'administration. |
 | `backend/app/api/service.py` | 122 | Vue « administration » : lecture de l'état et actions de contrôle. |
-| `backend/app/api/settings_store.py` | 142 | Réglages pilotables depuis le dashboard, stockés en base. |
+| `backend/app/api/settings_store.py` | 154 | Réglages pilotables depuis le dashboard, stockés en base. |
 | `backend/app/api/stats.py` | 138 | Statistiques du dashboard — lecture seule, aucun calcul de trading. |
 | `backend/app/backtest/__init__.py` | 5 | Rejeu historique et régression des décisions. |
 | `backend/app/backtest/engine.py` | 863 | Rejeu historique — le vrai pare-feu, le vrai simulateur, aucune écriture en base. |
@@ -42,18 +42,18 @@ Empreinte des sources : `5a83fd7036e19fc1`
 | `backend/app/core/coordination.py` | 92 | Verrou transactionnel interprocessus, indépendant des transactions du ledger. |
 | `backend/app/core/db.py` | 166 | Résolution de la connexion PostgreSQL (Supabase). |
 | `backend/app/core/env.py` | 57 | Lecture des fichiers d'environnement, sans dépendance externe. |
-| `backend/app/core/settings.py` | 620 | Configuration centralisée — chargée depuis l'environnement, sans dépendance externe. |
+| `backend/app/core/settings.py` | 641 | Configuration centralisée — chargée depuis l'environnement, sans dépendance externe. |
 | `backend/app/db/__init__.py` | 1 | app/db |
 | `backend/app/db/repository.py` | 1203 | Persistance PostgreSQL — état, signaux, décisions, positions, ordres. |
 | `backend/app/engine/__init__.py` | 1 |  |
-| `backend/app/engine/affordability.py` | 146 | Faisabilité d'un ordre avec un petit capital — calcul pur, sans I/O. |
+| `backend/app/engine/affordability.py` | 150 | Faisabilité d'un ordre avec un petit capital — calcul pur, sans I/O. |
 | `backend/app/engine/capital.py` | 93 | Capital actif, réserve protégée et croissance : calcul pur, partagé au rejeu. |
 | `backend/app/engine/costs.py` | 19 | Coûts prévisionnels par unité, partagés entre sizing, diagnostic et sorties. |
 | `backend/app/engine/entry_rule.py` | 391 | Filtre d'entrée déterministe — le cadre dans lequel le LLM peut acheter. |
 | `backend/app/engine/exit_guard.py` | 123 | Garde-fou de sortie — le LLM peut solder une position, jamais vendre à découvert. |
 | `backend/app/engine/exit_rule.py` | 99 | Règles de sortie pures, indépendantes de l'exchange et de l'horloge. |
 | `backend/app/engine/machine.py` | 68 | Machine à états persistée. |
-| `backend/app/engine/risk_gate.py` | 833 | Risk Gateway — pare-feu transactionnel déterministe (fail-closed). |
+| `backend/app/engine/risk_gate.py` | 834 | Risk Gateway — pare-feu transactionnel déterministe (fail-closed). |
 | `backend/app/engine/sweep.py` | 74 | Profit Sweeper — calcul pur, sans I/O. |
 | `backend/app/exchange/__init__.py` | 1 | Package des passerelles exchange. Aucune I/O à l'import. |
 | `backend/app/exchange/kraken.py` | 360 | Passerelle Kraken spot — préparation de l'étape 1.6. |
@@ -122,11 +122,12 @@ Empreinte des sources : `5a83fd7036e19fc1`
 | `backend/tests/__init__.py` | 1 |  |
 | `backend/tests/conftest.py` | 74 | Les tests unitaires ne doivent jamais contacter un service externe. |
 | `backend/tests/test_affordability.py` | 182 | Tests de la faisabilité d'un ordre avec un petit capital. |
-| `backend/tests/test_api.py` | 593 | Tests de l'API d'administration : session, pause, panic-sell, WebSocket. |
+| `backend/tests/test_api.py` | 606 | Tests de l'API d'administration : session, pause, panic-sell, WebSocket. |
 | `backend/tests/test_api_security.py` | 105 | Tests de la couche d'authentification : scrypt, JWT, TOTP, anti-rejeu. |
 | `backend/tests/test_backtest.py` | 288 | Tests du moteur de backtest : absence de lookahead, stop prioritaire, frais. |
 | `backend/tests/test_backtest_golden.py` | 95 | Régression de backtest : le comportement doit rester celui du golden. |
 | `backend/tests/test_backtest_metrics.py` | 117 | Métriques de validation : profit factor, espérance, gains et pertes moyens. |
+| `backend/tests/test_budget_profiles.py` | 79 |  |
 | `backend/tests/test_capital.py` | 221 | Invariants de l'enveloppe et scénarios de pertes, reprise et promotion. |
 | `backend/tests/test_capital_postgres.py` | 162 | Contrat PostgreSQL réel : opt-in, exclusivement base locale jetable migrée. |
 | `backend/tests/test_check_exchange.py` | 90 | Tests du verdict de la sonde exchange — la logique qui protège la clé. |
@@ -262,12 +263,12 @@ le code, pas une copie de celui-ci.
 
 *Réglages pilotables depuis le dashboard, stockés en base.*
 
-- **class SettingsRefused(ValueError)** (l.42) — Réglage refusé : valeur hors bornes ou configuration incohérente.
-- `def friendly_settings(config: Settings, *, updated_at: str | None=None) -> dict` (l.46) — Vue lisible par le dashboard : labels, valeurs effectives, profils.
-- `def _as_text(value) -> str` (l.77)
-- `def _mapping(update: dict) -> dict[str, str]` (l.85) — Traduit les noms du dashboard vers les variables de configuration.
-- `def build_payload(current: dict, update: dict) -> dict` (l.105) — Fusionne le payload existant et la modification du dashboard.
-- `def validate_payload(payload: dict, *, loader=load_settings) -> Settings` (l.123) — Construit la configuration effective et refuse une combinaison dangereuse.
+- **class SettingsRefused(ValueError)** (l.50) — Réglage refusé : valeur hors bornes ou configuration incohérente.
+- `def friendly_settings(config: Settings, *, updated_at: str | None=None) -> dict` (l.54) — Vue lisible par le dashboard : labels, valeurs effectives, profils.
+- `def _as_text(value) -> str` (l.85)
+- `def _mapping(update: dict) -> dict[str, str]` (l.93) — Traduit les noms du dashboard vers les variables de configuration.
+- `def build_payload(current: dict, update: dict) -> dict` (l.113) — Fusionne le payload existant et la modification du dashboard.
+- `def validate_payload(payload: dict, *, loader=load_settings) -> Settings` (l.135) — Construit la configuration effective et refuse une combinaison dangereuse.
 
 ### `backend/app/api/stats.py`
 
@@ -467,19 +468,19 @@ le code, pas une copie de celui-ci.
 
 *Configuration centralisée — chargée depuis l'environnement, sans dépendance externe.*
 
-- **class ExchangeSettings** (l.238)
-- **class LLMSettings** (l.258)
-- **class Settings** (l.269)
-  - `def is_live(self) -> bool` (l.295)
-  - `def is_sandbox(self) -> bool` (l.299)
-  - `def execution_mode(self) -> str` (l.303) — Valeur écrite dans les colonnes `mode` de la base.
-  - `def database(self) -> DatabaseConfig` (l.315) — Résolution paresseuse : la base n'est exigée que si on s'en sert.
-- `def _env(env: Mapping[str, str], key: str, default: str | None=None) -> str` (l.203)
-- `def _env_dec(env: Mapping[str, str], key: str, default: str) -> Decimal` (l.211)
-- `def _env_int(env: Mapping[str, str], key: str, default: str) -> int` (l.215)
-- `def _env_bool(env: Mapping[str, str], key: str, default: str='false') -> bool` (l.219)
-- `def _first(env: Mapping[str, str], *names: str, default: str='') -> str` (l.223) — Première variable non vide parmi plusieurs alias acceptés.
-- `def load_settings(env_file: str | Path | None=None, overrides: Mapping[str, str] | None=None, *, use_environment: bool=True) -> Settings` (l.325) — Charge la configuration. Lève RuntimeError si incohérente.
+- **class ExchangeSettings** (l.257)
+- **class LLMSettings** (l.277)
+- **class Settings** (l.288)
+  - `def is_live(self) -> bool` (l.314)
+  - `def is_sandbox(self) -> bool` (l.318)
+  - `def execution_mode(self) -> str` (l.322) — Valeur écrite dans les colonnes `mode` de la base.
+  - `def database(self) -> DatabaseConfig` (l.334) — Résolution paresseuse : la base n'est exigée que si on s'en sert.
+- `def _env(env: Mapping[str, str], key: str, default: str | None=None) -> str` (l.222)
+- `def _env_dec(env: Mapping[str, str], key: str, default: str) -> Decimal` (l.230)
+- `def _env_int(env: Mapping[str, str], key: str, default: str) -> int` (l.234)
+- `def _env_bool(env: Mapping[str, str], key: str, default: str='false') -> bool` (l.238)
+- `def _first(env: Mapping[str, str], *names: str, default: str='') -> str` (l.242) — Première variable non vide parmi plusieurs alias acceptés.
+- `def load_settings(env_file: str | Path | None=None, overrides: Mapping[str, str] | None=None, *, use_environment: bool=True) -> Settings` (l.344) — Charge la configuration. Lève RuntimeError si incohérente.
 
 ### `backend/app/db/repository.py`
 
@@ -1543,20 +1544,21 @@ le code, pas une copie de celui-ci.
 - `def test_stats_requires_a_session(api)` (l.381)
 - `def test_settings_are_exposed_without_jargon(api)` (l.386)
 - `def test_settings_update_writes_to_the_database(api, tmp_path)` (l.403)
-- `def test_settings_update_refuses_an_incoherent_daily_loss(api)` (l.430)
-- `def test_position_payload_shows_the_net_risk_at_the_stop()` (l.442)
-- `def test_position_payload_without_a_position_is_none()` (l.457)
-- `def test_panic_is_wired_in_live_mode(tmp_path)` (l.461) — Le 409 « non câblé » a disparu : le panic réel passe par la liquidation.
-- `def test_kill_switch_requires_totp(api)` (l.504)
-- `def test_kill_switch_halts_with_valid_totp(api)` (l.513)
-- `def test_circuit_breaker_reset_requires_locked_state(api)` (l.522)
-- `def test_circuit_breaker_reset_works_when_locked(api)` (l.531)
-- `def test_reconcile_returns_a_structured_diff(api)` (l.542)
-- `def test_system_health_requires_session(api)` (l.556)
-- `def test_system_health_returns_telemetry(api)` (l.561)
-- `def test_portfolio_position_empty(api)` (l.571)
-- `def test_llm_prompt_is_masked(api)` (l.579)
-- `def test_llm_prompt_missing_returns_404(api)` (l.589)
+- `def test_nano_profile_can_be_selected_with_100_percent_exposure(api)` (l.430)
+- `def test_settings_update_refuses_an_incoherent_daily_loss(api)` (l.443)
+- `def test_position_payload_shows_the_net_risk_at_the_stop()` (l.455)
+- `def test_position_payload_without_a_position_is_none()` (l.470)
+- `def test_panic_is_wired_in_live_mode(tmp_path)` (l.474) — Le 409 « non câblé » a disparu : le panic réel passe par la liquidation.
+- `def test_kill_switch_requires_totp(api)` (l.517)
+- `def test_kill_switch_halts_with_valid_totp(api)` (l.526)
+- `def test_circuit_breaker_reset_requires_locked_state(api)` (l.535)
+- `def test_circuit_breaker_reset_works_when_locked(api)` (l.544)
+- `def test_reconcile_returns_a_structured_diff(api)` (l.555)
+- `def test_system_health_requires_session(api)` (l.569)
+- `def test_system_health_returns_telemetry(api)` (l.574)
+- `def test_portfolio_position_empty(api)` (l.584)
+- `def test_llm_prompt_is_masked(api)` (l.592)
+- `def test_llm_prompt_missing_returns_404(api)` (l.602)
 
 ### `backend/tests/test_api_security.py`
 
@@ -1625,6 +1627,15 @@ le code, pas une copie de celui-ci.
 - `def test_sans_trade_toutes_les_metriques_sont_nulles_ou_absentes()` (l.96)
 - `def test_une_seule_perte_donne_un_profit_factor_nul()` (l.105)
 - `def test_le_resume_affiche_les_nouvelles_metriques()` (l.113)
+
+### `backend/tests/test_budget_profiles.py`
+
+- `def config(profile, **overrides)` (l.16)
+- `def test_budget_profile_financing_matches_real_gateway(profile, budget, possible)` (l.28)
+- `def test_new_profiles_are_manual_paper_only_and_never_raise_a_reduced_risk(profile)` (l.43)
+- `def test_selecting_budget_profile_clears_old_overrides_and_overrides_startup_risk()` (l.52)
+- `def test_nano_does_not_remove_net_cost_filter_or_increase_risk_after_a_loss()` (l.66)
+- `def test_reduced_nano_exposure_is_respected_by_diagnostic_and_execution()` (l.74)
 
 ### `backend/tests/test_capital.py`
 
@@ -2695,11 +2706,12 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/__init__.py` | 0 |
 | `backend/tests/conftest.py` | 0 |
 | `backend/tests/test_affordability.py` | 9 |
-| `backend/tests/test_api.py` | 30 |
+| `backend/tests/test_api.py` | 31 |
 | `backend/tests/test_api_security.py` | 22 |
 | `backend/tests/test_backtest.py` | 9 |
 | `backend/tests/test_backtest_golden.py` | 3 |
 | `backend/tests/test_backtest_metrics.py` | 7 |
+| `backend/tests/test_budget_profiles.py` | 13 |
 | `backend/tests/test_capital.py` | 20 |
 | `backend/tests/test_capital_postgres.py` | 6 |
 | `backend/tests/test_check_exchange.py` | 9 |
@@ -2743,13 +2755,13 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_rotation.py` | 12 |
 | `backend/tests/test_scheduler.py` | 13 |
 | `backend/tests/test_schema_contract.py` | 18 |
-| `backend/tests/test_settings.py` | 43 |
+| `backend/tests/test_settings.py` | 46 |
 | `backend/tests/test_shadow.py` | 5 |
 | `backend/tests/test_sweep.py` | 13 |
 | `backend/tests/test_swing_backtest.py` | 7 |
 | `backend/tests/test_trade_history.py` | 8 |
 | `backend/tests/test_watchdog.py` | 12 |
-| **Total** | **861** |
+| **Total** | **878** |
 
 ## 5. Schéma SQL
 

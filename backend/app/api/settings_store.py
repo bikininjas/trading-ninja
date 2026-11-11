@@ -28,6 +28,10 @@ PROFILE_LABELS = {
     "standard": "Équilibré",
     "aggressive": "Audacieux",
     "micro": "Micro",
+    "petit_budget": "Petit budget (simulation)",
+    "micro_budget": "Micro budget (simulation)",
+    "nano_budget": "Nano budget (simulation, exposition élevée)",
+    "swing": "Swing Daily",
 }
 
 PROFILE_DESCRIPTIONS = {
@@ -36,6 +40,10 @@ PROFILE_DESCRIPTIONS = {
     "standard": "Un peu plus d'opportunités, risque modéré.",
     "aggressive": "Plus d'opportunités, variations plus fortes.",
     "micro": "Pour un très petit compte : le minimum de l'exchange impose des tickets plus gros.",
+    "petit_budget": "Repère 20–100 EUR : risque 1,5 %, exposition 50 %. Minima et frais peuvent refuser l'achat.",
+    "micro_budget": "Repère 8–20 EUR : risque 3 %, exposition 50 %. Objectif 3,5 R, sans garantie de l'atteindre.",
+    "nano_budget": "Sous 8 EUR : risque 5 %, exposition jusqu'à 100 % sous 50 EUR. Concentration élevée ; un minimum trop cher reste refusé.",
+    "swing": "Stratégie Daily avec stop structurel.",
 }
 
 
@@ -114,8 +122,12 @@ def build_payload(current: dict, update: dict) -> dict:
         if key in RUNTIME_ALLOWED_KEYS
     }
     if update.get('profile') is not None and str(update['profile'])!=payload.get('RISK_PROFILE'):
-        for key in ('MAX_NOTIONAL_PCT','MAX_DAILY_DRAWDOWN_PCT','MAX_ORDERS_PER_HOUR','MIN_CONFIDENCE','ENTRY_RULE_ENABLED'):
+        for key in RUNTIME_ALLOWED_KEYS - {'HALT_AUTO_RESUME_HOURS'}:
             payload.pop(key,None)
+        # Matérialise les limites du profil pour écraser aussi un ancien override
+        # de démarrage (ex. risque prudent à 0,75 % conservé dans l'environnement).
+        payload.update({k: v for k, v in RISK_PRESETS.get(str(update['profile']), {}).items()
+                        if k in RUNTIME_ALLOWED_KEYS})
     payload.update(_mapping(update))
     return payload
 
@@ -128,7 +140,7 @@ def validate_payload(payload: dict, *, loader=load_settings) -> Settings:
             for key, value in payload.items()
             if key in RUNTIME_ALLOWED_KEYS
         })
-    except RuntimeError as exc:
+    except (RuntimeError, ValueError) as exc:
         raise SettingsRefused(str(exc)) from exc
 
     # Une seule perte ne doit pas fermer la journée : le seuil journalier reste

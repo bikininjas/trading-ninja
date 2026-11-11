@@ -1123,6 +1123,7 @@
 
   function applyProfileValues(profile) {
     if (!profile) return;
+    $('set-notional').max = String(Math.max(50, Number(profile.max_per_trade_pct) * 100));
     setRange('set-notional', Math.round(Number(profile.max_per_trade_pct) * 100));
     setRange('set-daily', Math.round(Number(profile.max_daily_loss_pct) * 100));
     setRange('set-orders', Number(profile.max_orders_per_hour));
@@ -1134,6 +1135,8 @@
     latestSettings = settings;
     settingsProfiles = settings.profiles || [];
     fillProfileOptions(settingsProfiles, settings.profile);
+    const selectedProfile = settingsProfiles.find((profile) => profile.key === settings.profile);
+    $('set-notional').max = String(Math.max(50, Number(selectedProfile?.max_per_trade_pct || settings.max_per_trade_pct) * 100));
     setRange('set-notional', Math.round(Number(settings.max_per_trade_pct) * 100));
     setRange('set-daily', Math.round(Number(settings.max_daily_loss_pct) * 100));
     setRange('set-orders', Number(settings.max_orders_per_hour));

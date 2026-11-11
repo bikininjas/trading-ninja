@@ -8,7 +8,7 @@ les améliorations restantes. Les preuves datées sont conservées dans
 confirme les quatorze migrations, les groupes et les contrôles d’intégrité.
 
 État vérifié : lots de sécurité, surveillance et préparation d'exploitation,
-861 tests Python dont 54 PostgreSQL sur base jetable, 31 Node ; CI à vérifier
+878 tests Python dont 54 PostgreSQL sur base jetable, 31 Node ; CI à vérifier
 pour chaque candidat.
 Supabase trninja est en
 0014, droits publics fermés et 324 250 bougies. Seb a retiré le 10 novembre la
@@ -25,6 +25,15 @@ observés en réel à budget constant. Le go live ne garantit ni rentabilité fu
 ni absence totale de panne.
 
 ## Ordre et responsabilités
+
+🟨 **R4 — profils petits/micro/nano budgets** *(commencé le 10 novembre 2026)* :
+profils manuels PAPER, frais compris, limites de concentration explicites et
+refus conservés sous les minima. Qualification mécanique à plusieurs budgets ;
+aucune preuve de rentabilité déduite.
+Lot vérifié le 11 novembre : 162 diagnostics, 878 tests dont 54 PostgreSQL et
+sélection/enregistrement Chromium. Micro à 9,37 EUR finance les minima sur
+l'instantané ; les rejeux micro/nano font deux pertes puis s'arrêtent. R4 reste
+non validée. Guide : `docs/PROFILS_PETITS_BUDGETS.md`.
 
 **R0 → R1 → R2 → R3 → R4 → R5 → R6 → R7.**
 

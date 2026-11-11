@@ -6,6 +6,49 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-11 — Trois profils petits budgets livrés et mesurés
+
+D-090 : `petit_budget` (1,5 % / 50 %), `micro_budget` (3 % / 50 %) et
+`nano_budget` (5 % / jusqu'à 100 % sous 50 EUR). Choix manuel PAPER, stop 2,5 ATR,
+cible 3,5 R, frais/glissement inclus, une position, arrêt après deux pertes.
+L'ancien micro est conservé. Les presets, API et dashboard sont cohérents ; la
+sélection remet à zéro les anciennes surcharges, et l'exposition nano réduite
+est effectivement respectée. Une exposition incompatible retourne un refus API,
+pas une exception 500. Guide : `PROFILS_PETITS_BUDGETS.md`.
+
+162 diagnostics sur instantané public du 10 novembre : micro à 9,37 EUR finance
+BTC/ETH/SOL en base et sous stress. Nano à 5 EUR finance les trois en base,
+mais refuse SOL sous stress au plafond de risque ; à 3 EUR et moins, tous sont
+refusés. Les nouveaux exemples de déploiement utilisent micro sans surcharges.
+La révision SQL souhaitée reste prudent assoupli : aucune sélection automatique,
+écriture Supabase, migration, activation LIVE ou ordre réel dans ce lot.
+
+Rejeu mécanique du runtime sur 2026, paramètres déclarés avant mesure, sans
+Ollama ni recherche de variante gagnante : **deux trades perdants puis arrêt**
+pour micro et nano. Micro : 9,37 → **8,9211623644 EUR** en base, **8,8670825842**
+sous stress. Nano : 5 → **4,5494073298 EUR**, puis **4,5169372027** sous stress.
+Les cycles ultérieurs refusent au coupe-circuit ; pas de reprise automatique pour
+fabriquer davantage de trades. Aucun bénéfice ni qualification LLM démontré.
+Plans, résultats et matrice : `audits/2026-11-11/`.
+
+Validation : **878 tests Python dont 54 PostgreSQL réussis**, golden identique
+(-34,8828 EUR), Chromium desktop/mobile avec sélection nano à 100 %, envoi du
+réglage, retour micro à 50 % et absence de débordement. Le premier essai SQL a
+échoué car PostgreSQL local était arrêté depuis la session précédente ; relancé
+sur la base jetable puis suite complète réussie. Un test réutilisait deux fois
+un code TOTP et une assertion d'un autre test ; corrigé avant validation.
+La recette WSL et les preuves économiques restent ouvertes.
+
+---
+
+## 2026-11-10 — Profils petits budgets : lot commencé
+
+Seb demande des profils pour 9,37 EUR et moins. Préparation de trois profils
+PAPER explicites, sans sélection automatique ni modification LIVE. Vérification
+du financement et du risque net, y compris refus sous minima, puis rejeu golden.
+
+---
+
 ## 2026-11-10 — Groupes SQL PAPER appliqués et vérifiés sur Supabase
 
 D-089 livrée : migration **0014_paper_service_roles.sql** réellement appliquée

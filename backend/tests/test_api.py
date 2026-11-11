@@ -427,6 +427,19 @@ def test_settings_update_writes_to_the_database(api, tmp_path):
     assert repo.runtime_updated_by == "dashboard"
 
 
+def test_nano_profile_can_be_selected_with_100_percent_exposure(api):
+    client, repo, _ = api
+    headers = {'Authorization': f'Bearer {token_of(client)}'}
+    response = client.post('/api/settings', json={'profile': 'nano_budget', 'max_per_trade_pct': 1.0},
+                           headers=headers)
+    assert response.status_code == 200, response.text
+    assert response.json()['risk_per_trade_pct'] == '0.05'
+    assert repo.runtime_payload['RISK_PROFILE'] == 'nano_budget'
+    refused = client.post('/api/settings', json={'profile': 'prudent', 'max_per_trade_pct': 1.0},
+                          headers=headers)
+    assert refused.status_code >= 400
+
+
 def test_settings_update_refuses_an_incoherent_daily_loss(api):
     client, _, _ = api
     headers = {"Authorization": f"Bearer {token_of(client)}"}

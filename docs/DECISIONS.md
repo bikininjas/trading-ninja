@@ -2037,3 +2037,25 @@ Le prévol refuse administrateur, plusieurs groupes ou groupe inadapté et accè
 LIVE. Le moteur l'exige au démarrage ; la sonde garde l'alerte de panne SQL.
 Deux index de clés étrangères soutiennent les nouvelles jointures RLS, sans
 suppression des index de protection encore inutilisés faute d'activité.
+
+---
+
+## D-090 — Profils manuels petits, micro et nano budgets (2026-11-11)
+
+À la demande de Seb, trois profils PAPER dédiés : petit budget 1,5 % de risque
+et 50 % d'exposition, micro 3 % / 50 %, nano 5 % / 100 % sous 50 EUR. Aucun
+changement automatique de profil ni hausse pour financer le minimum. Nano peut
+concentrer presque tout le compte ; une exposition réduite est respectée par le
+pare-feu et le diagnostic. Le minimum petit compte ne relève jamais leur risque.
+
+Stop 2,5 ATR, cible 3,5 R et filtre net conservé à 1,5 ; confiance 0,60, une
+position, arrêt après deux pertes, plafonds documentés. Le scénario de cible ne
+prouve pas sa probabilité d'atteinte. Les tranches sont indicatives et les minima
+peuvent rendre un compte inférieur à quelques euros non finançable. L'ancien
+micro reste inchangé pour compatibilité.
+
+La sélection efface les anciennes surcharges runtime et matérialise les limites
+du nouveau profil devant les anciens overrides de démarrage. API et dashboard
+acceptent 100 % seulement lorsque le profil/configuration le permet. Les nouvelles
+familles restent PAPER pendant leur qualification ; la configuration SQL courante
+n'est pas changée automatiquement par la création d'un profil.

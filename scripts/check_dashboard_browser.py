@@ -8,6 +8,10 @@ from datetime import datetime,timezone,timedelta
 from pathlib import Path
 from playwright.async_api import async_playwright
 ROOT=Path(__file__).resolve().parents[1]/'dashboard/public'
+sys.path.insert(0,str(ROOT.parents[1]/'backend'))
+from app.core.settings import load_settings
+from app.api.settings_store import friendly_settings
+PROFILE_OPTIONS=friendly_settings(load_settings(use_environment=False))['profiles']
 OUT=Path(sys.argv[1] if len(sys.argv)>1 else '/tmp/tn-dashboard-check')
 OUT.mkdir(parents=True,exist_ok=True)
 STATUS={'mode':'PAPER','state':'IDLE','equity':'11.37','free_quote':'9.62','active_equity':'9.62',
@@ -37,10 +41,12 @@ async def main():
    if path=='/events': return await r.fulfill(status=200,content_type='text/event-stream',body='data: '+json.dumps(STATUS)+'\n\n')
    if path=='/api/status': payload=STATUS
    elif path.startswith('/api/history'): payload={'rows':[]}
-   elif path=='/api/settings':payload={'profile':'progressif','max_per_trade_pct':'.50','max_daily_loss_pct':'.02',
+   elif path=='/api/settings':
+    if r.request.method=='POST': sent.append((path,r.request.post_data_json))
+    payload={'profile':'progressif','max_per_trade_pct':'.50','max_daily_loss_pct':'.02',
      'max_orders_per_hour':2,'confidence_floor':'.60','risk_per_trade_pct':'.005','halt_auto_resume_hours':24,
      'entry_rule_enabled':True,'application':{'revision':0,'applied_revision':0,'apply_error':None},
-     'profiles':[{'key':'progressif','label':'Progressif','max_per_trade_pct':'.50','max_daily_loss_pct':'.02','max_orders_per_hour':2,'confidence_floor':'.60'}]}
+     'profiles':PROFILE_OPTIONS}
    elif path=='/api/settings/preview':payload={'changes':{'min_confidence':{'scope':'GLOBAL_SAFETY'}},'positions':[]}
    elif path=='/api/control/entries':
     body=r.request.post_data_json;sent.append((path,body));controls.update(enabled=body['enabled'],revision=controls['revision']+1);payload=controls
@@ -100,6 +106,16 @@ async def main():
   await page.locator('#diagnostic-form button').click()
   await page.wait_for_function("document.querySelector('#trade-diagnostics').textContent.includes('Meilleur PnL observé')")
   assert not any(path.endswith('/panic') for path,_ in sent)
+  await page.locator('#set-profile').select_option('nano_budget')
+  assert await page.locator('#set-notional').input_value()=='100'
+  assert '100 %' in await page.locator('#set-profile-help').inner_text()
+  await page.locator('#settings-save').click()
+  await page.wait_for_function("document.querySelector('#settings-save').disabled === false")
+  saved=next(body for path,body in reversed(sent) if path=='/api/settings')
+  assert saved['profile']=='nano_budget' and saved['max_per_trade_pct']==1
+  await page.locator('#set-profile').select_option('micro_budget')
+  assert await page.locator('#set-notional').input_value()=='50'
+  assert await page.locator('#set-notional').get_attribute('max')=='50'
   assert not errors,errors
   await page.screenshot(path=str(OUT/'capital-desktop.png'),full_page=True)
   await page.set_viewport_size({'width':390,'height':844})

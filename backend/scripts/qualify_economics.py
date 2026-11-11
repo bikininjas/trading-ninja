@@ -64,7 +64,7 @@ async def qualify(directory, plan):
         for policy in plan['policies']:
             settings = load_settings(use_environment=False, overrides={
                 'TRADING_MODE': 'paper', 'EXCHANGE_ID': 'kraken', 'EXCHANGE_SANDBOX_MODE': 'true',
-                'RISK_PROFILE': 'prudent', 'TRADING_SYMBOL': 'BTC/EUR',
+                'RISK_PROFILE': policy.get('profile', 'prudent'), 'TRADING_SYMBOL': 'BTC/EUR',
                 'TRADING_SYMBOLS': ','.join(sorted(data)), 'QUOTE_CURRENCY': 'EUR',
                 'DECISION_TIMEFRAME': '4h', 'ENTRY_TIMEFRAME': '1h',
                 'RISK_PER_TRADE_PCT': policy['risk'], 'MAX_NOTIONAL_PCT': policy['exposure'],

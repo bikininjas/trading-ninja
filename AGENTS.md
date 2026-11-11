@@ -31,7 +31,7 @@ prix et stop sont toujours calculés par le code.
   `0014_paper_service_roles.sql`. Les quatorze sont appliquées sur Supabase trninja
   et leurs empreintes vérifiées le 10 novembre 2026. Preuves et limites de sauvegarde :
   `docs/JOURNAL.md`.
-- 861 tests Python sont collectés, dont 54 contrats PostgreSQL locaux opt-in ;
+- 878 tests Python sont collectés, dont 54 contrats PostgreSQL locaux opt-in ;
   31 tests Node et un contrôle navigateur complètent les preuves.
 - Le statut reste **NO-GO** pour le réel. Les corrections intégrées et leurs
   preuves sont dans `docs/JOURNAL.md` ; le plan de passage est
@@ -60,6 +60,11 @@ prix et stop sont toujours calculés par le code.
 - D-089 : quatre groupes SQL PAPER sans LOGIN sont installés. Les LOGIN et
   secrets distincts restent à créer dans le stockage privé du WSL. Le prévol
   refuse une connexion administrateur ; ne pas remplacer ces groupes par postgres.
+- D-090 : trois nouveaux profils PAPER manuels `petit_budget`, `micro_budget`,
+  `nano_budget`. Guide `docs/PROFILS_PETITS_BUDGETS.md`. Les exemples de services
+  ciblent micro, mais la révision SQL souhaitée reste prudent assoupli : sélectionner
+  le profil via l'API avant la recette WSL. Les rejeux mécaniques micro/nano ont
+  exécuté deux trades perdants puis déclenché l'arrêt ; aucune rentabilité validée.
 - `docs/ROADMAP.md` donne l'avancement ; `docs/JOURNAL.md` les preuves datées.
   `docs/CODE_INDEX.md` est généré depuis le code, jamais rédigé manuellement.
 

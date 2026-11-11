@@ -76,7 +76,8 @@ def assess(
     effective_risk = risk_pct if risk_pct is not None else config.effective_risk_pct(0)
     if effective_risk <= 0:
         raise ValueError("le budget de risque doit être strictement positif")
-    if config.stop_mode is not StopMode.ATR or config.small_account_full_allocation:
+    if config.stop_mode is not StopMode.ATR or (config.small_account_full_allocation
+            and config.small_account_max_risk_pct > effective_risk):
         raise ValueError("préflight ATR sans allocation petit compte uniquement")
 
     stop = price - config.stop_atr_multiple * atr_14
@@ -125,7 +126,10 @@ def assess(
             )
 
     required_by_risk = minimum_amount * loss_per_unit / effective_risk
-    required_by_exposure = min_order_quote / min(config.max_notional_pct, Decimal("0.50"))
+    exposure = (config.max_notional_pct if config.small_account_full_allocation
+                and equity < config.small_account_threshold_quote
+                else min(config.max_notional_pct, Decimal('0.50')))
+    required_by_exposure = min_order_quote / exposure
     if not Decimal(0) <= config.fee_buffer_pct < Decimal(1):
         raise ValueError("fee_buffer_pct doit être dans [0, 1[")
     required_by_cash = min_order_quote / (Decimal(1) - config.fee_buffer_pct)

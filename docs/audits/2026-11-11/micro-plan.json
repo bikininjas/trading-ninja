@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "frozen_before_this_measurement": true,
+  "classification": "KNOWN_RETROSPECTIVE_EXPLORATION",
+  "dataset_digest": "c625858f50091ca284562d7a030829347b25f28449adf98410450299b37d4f85",
+  "warmup_at": "2025-11-02T00:00:00+00:00",
+  "start_at": "2026-01-01T00:00:00+00:00",
+  "end_at": "2026-11-10T12:00:01+00:00",
+  "capital": "9.37",
+  "policies": [
+    {
+      "name": "micro_budget",
+      "profile": "micro_budget",
+      "risk": ".03",
+      "exposure": ".50"
+    }
+  ],
+  "costs": [
+    {
+      "name": "account-taker",
+      "fee": "0.008",
+      "slippage_bps": 5
+    },
+    {
+      "name": "stress",
+      "fee": "0.010",
+      "slippage_bps": 10
+    }
+  ],
+  "hypothesis": "Known retrospective mechanical qualification of new budget presets, including fixed target 3.5 R. No parameter search, LLM inference or live approval.",
+  "limitations": [
+    "No Ollama inference or captured model decision. Mechanical BUY confidence 1 when flat and HOLD when positioned; actual entry rule, Risk Gateway and PaperBroker are used.",
+    "Known historical window, not independent out-of-calibration validation. No parameter search or selection after this result.",
+    "2022-2025 source gaps remain disclosed. Warmup starts after the last older gap; repaired October 2026 hours are sourced from public trades and checked against H4. This does not qualify full history.",
+    "Current exchange minimums and fee schedule are applied retrospectively, not asserted to be historically accurate.",
+    "Cash has no interest. Equal-weight buy-and-hold includes lot rounding, minimums, fees and slippage at entry and hypothetical final liquidation; unfinanceable legs stay cash.",
+    "Single shared portfolio, one position, no deposits, reserve or growth promotions. Live remains disabled. No successful test may authorize live or raise capital, risk or frequency."
+  ]
+}

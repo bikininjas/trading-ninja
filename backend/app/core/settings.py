@@ -135,6 +135,25 @@ RISK_PRESETS["progressif"] = {
     "PROFIT_TRAILING_ENABLED": "true",
 }
 
+# Sélection manuelle : les tranches décrivent un usage, jamais une promesse
+# de financement. Aucun changement automatique après une perte ou un refus.
+BUDGET_PROFILES = {
+    "petit_budget": ("20–100 EUR", "0.015", "0.50", "0.04", "0.08", "0.15"),
+    "micro_budget": ("8–20 EUR", "0.03", "0.50", "0.06", "0.10", "0.20"),
+    "nano_budget": ("moins de 8 EUR", "0.05", "1.0", "0.10", "0.15", "0.20"),
+}
+for _name, (_range, _risk, _exposure, _daily, _weekly, _drawdown) in BUDGET_PROFILES.items():
+    RISK_PRESETS[_name] = {
+        **RISK_PRESETS['prudent'],
+        'RISK_PER_TRADE_PCT': _risk, 'MAX_NOTIONAL_PCT': _exposure,
+        'MAX_DAILY_DRAWDOWN_PCT': _daily, 'MAX_WEEKLY_DRAWDOWN_PCT': _weekly,
+        'MAX_DRAWDOWN_FROM_HWM_PCT': _drawdown,
+        'TAKE_PROFIT_R_MULTIPLE': '3.5', 'MIN_CONFIDENCE': '0.60',
+        'MAX_CONSECUTIVE_LOSSES': '2', 'MAX_ORDERS_PER_HOUR': '3',
+        'COST_AWARE': 'true',
+        'SMALL_ACCOUNT_FULL_ALLOCATION': 'true' if _name == 'nano_budget' else 'false',
+    }
+
 
 # ---------------------------------------------------------------------------
 # Spécificités exchange
@@ -350,6 +369,8 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
     preset = RISK_PRESETS[profile]
     if profile == "progressif" and mode != "paper":
         raise RuntimeError("Le profil progressif reste réservé au mode paper jusqu'à validation")
+    if profile in BUDGET_PROFILES and mode != 'paper':
+        raise RuntimeError('Les nouveaux profils de budget restent PAPER pendant leur qualification')
 
     exchange_id = _env(merged, "EXCHANGE_ID", "binance").lower()
     if exchange_id not in EXCHANGE_KEY_ALIASES:
@@ -408,7 +429,7 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
     )
     # En réel, le minimum exchange ne peut jamais relever le risque autorisé.
     # Charger la configuration reste possible pour gérer une position existante.
-    if mode == "live":
+    if mode == "live" or profile in BUDGET_PROFILES:
         small_account_max_risk_pct = min(small_account_max_risk_pct, risk_per_trade_pct)
     risk = RiskConfig(
         cost_aware=mode == "live" or configured_cost_aware,

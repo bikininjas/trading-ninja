@@ -68,7 +68,7 @@ class SettingsUpdate(BaseModel):
     """Réglages du dashboard. Les pourcentages sont des fractions (0,50 = 50 %)."""
 
     profile: str | None = None
-    max_per_trade_pct: float | None = Field(default=None, ge=0.05, le=0.50)
+    max_per_trade_pct: float | None = Field(default=None, ge=0.05, le=1.0)
     max_daily_loss_pct: float | None = Field(default=None, ge=0.01, le=0.20)
     max_orders_per_hour: int | None = Field(default=None, ge=1, le=20)
     confidence_floor: float | None = Field(default=None, ge=0.40, le=0.95)
