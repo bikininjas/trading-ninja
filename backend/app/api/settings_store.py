@@ -35,15 +35,15 @@ PROFILE_LABELS = {
 }
 
 PROFILE_DESCRIPTIONS = {
-    "progressif": "Petit budget, perte prévue frais compris, gains laissés au stop suiveur. Peut rester en euros.",
-    "prudent": "Peu d'achats, petite part du capital, arrêt rapide.",
-    "standard": "Un peu plus d'opportunités, risque modéré.",
-    "aggressive": "Plus d'opportunités, variations plus fortes.",
-    "micro": "Pour un très petit compte : le minimum de l'exchange impose des tickets plus gros.",
-    "petit_budget": "Repère 20–100 EUR : risque 1,5 %, exposition 50 %. Minima et frais peuvent refuser l'achat.",
-    "micro_budget": "Repère 8–20 EUR : risque 3 %, exposition 50 %. Objectif 3,5 R, sans garantie de l'atteindre.",
-    "nano_budget": "Sous 8 EUR : risque 5 %, exposition jusqu'à 100 % sous 50 EUR. Concentration élevée ; un minimum trop cher reste refusé.",
-    "swing": "Stratégie Daily avec stop structurel.",
+    "progressif": "Simulation avec une partie du capital mise de côté après les gains. Le bot peut garder les euros sans acheter.",
+    "prudent": "Engage une petite part du compte et accepte une faible perte prévue par achat. Avec quelques euros, les achats peuvent rester impossibles.",
+    "standard": "Accepte davantage d'argent engagé et une perte prévue plus élevée que Prudent. Aucun gain garanti.",
+    "aggressive": "Accepte des pertes plus fortes que Prudent. Ce nom ne signifie pas que le bot gagne davantage.",
+    "micro": "Ancien profil conservé pour compatibilité. Ses limites diffèrent du nouveau Micro budget et peuvent refuser les petits ordres.",
+    "petit_budget": "Repère : 20 à 100 €. Jusqu'à la moitié du capital engagée et 1,5 % de perte prévue par achat. Simulation uniquement.",
+    "micro_budget": "Repère : 8 à 20 €, notamment 9,37 €. Jusqu'à la moitié du capital engagée et 3 % de perte prévue par achat. Simulation uniquement.",
+    "nano_budget": "Repère : moins de 8 €. Peut engager presque tout le compte, jusqu'à 100 % sous 50 €, avec 5 % de perte prévue par achat. Concentration élevée. Simulation uniquement.",
+    "swing": "Cherche des mouvements sur plusieurs jours avec des bougies quotidiennes. Peut mobiliser tout un petit compte ; la protection peut être dépassée lors d'une forte chute.",
 }
 
 
@@ -62,6 +62,9 @@ def friendly_settings(config: Settings, *, updated_at: str | None = None) -> dic
         "max_drawdown_from_hwm_pct": str(config.risk.max_drawdown_from_hwm_pct),
         "max_consecutive_losses": config.risk.max_consecutive_losses,
         "risk_per_trade_pct": str(config.risk.risk_per_trade_pct),
+        "cost_aware": config.risk.cost_aware,
+        "small_account_full_allocation": config.risk.small_account_full_allocation,
+        "small_account_threshold_quote": str(config.risk.small_account_threshold_quote),
         "max_orders_per_hour": config.risk.max_orders_per_hour,
         "confidence_floor": str(config.risk.min_confidence),
         "entry_rule_enabled": config.risk.entry_rule_enabled,
@@ -76,6 +79,10 @@ def friendly_settings(config: Settings, *, updated_at: str | None = None) -> dic
                 "max_daily_loss_pct": RISK_PRESETS[key]["MAX_DAILY_DRAWDOWN_PCT"],
                 "max_orders_per_hour": int(RISK_PRESETS[key]["MAX_ORDERS_PER_HOUR"]),
                 "confidence_floor": RISK_PRESETS[key]["MIN_CONFIDENCE"],
+                "risk_per_trade_pct": RISK_PRESETS[key]["RISK_PER_TRADE_PCT"],
+                "cost_aware": RISK_PRESETS[key].get('COST_AWARE', 'false') == 'true',
+                "small_account_full_allocation": RISK_PRESETS[key].get('SMALL_ACCOUNT_FULL_ALLOCATION', 'false') == 'true',
+                "small_account_threshold_quote": '50',
             }
             for key in RISK_PRESETS
         ],

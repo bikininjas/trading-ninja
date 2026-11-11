@@ -6,6 +6,42 @@ Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
 ---
 
+## 2026-11-11 — Profils expliqués dans l'interface, recette débutant vérifiée
+
+D-091 livrée : aide visible dans Réglages, comparatif de tous les profils,
+exemple fictif modifiable en euros, distinction argent engagé/perte prévue au
+stop et avertissement nano. Les valeurs suivent les curseurs et le profil ;
+elles utilisent les limites courantes pour le profil déjà chargé, avec frais
+inclus ou exclus explicitement selon sa configuration. L'exemple ne modifie
+aucune configuration et reste hors du payload d'enregistrement.
+
+Glossaire : stop non garanti, frais/différence de prix, objectif non prévisionnel,
+conviction non assimilable à une probabilité et arrêts de sécurité. Les montants
+minimums refusés et les résultats mécaniques perdants restent visibles. Les
+nouveaux profils ne sont pas présentés comme une voie automatique vers LIVE.
+
+Vérification réelle : 878 tests Python dont 54 PostgreSQL réussis, golden identique
+(-34,8828 EUR), contrôle global et 31 Node verts. Chromium vérifie nano à 5 EUR
+(0,25 EUR de perte prévue et avertissement), micro à 9,37 EUR (4,69 EUR engagés,
+0,28 EUR de perte prévue), curseur à 25 % (2,34 EUR), saisie française avec
+virgule et exemple invalide sans blocage de l'enregistrement. Glossaire et
+comparaison ouverts, desktop/mobile sans débordement. Le premier test cherchait
+du texte dans un glossaire fermé ; corrigé en ouvrant celui-ci. L'inspection
+visuelle mobile a révélé un tableau trop serré : remplacé par des fiches sur
+petit écran et suppression des artefacts d'arrondi. Captures locales :
+`/tmp/tn-profile-guide/`. Aucun ordre, changement de risque ou écriture Supabase.
+
+---
+
+## 2026-11-11 — Explications des profils pour débutants : lot commencé
+
+Seb indique ne pas connaître le trading, la crypto ou les risques. Ajout d'une
+aide visible dans Réglages, comparaison de tous les profils et exemples en euros
+sans mutation de budget. Vérifier la sélection, les valeurs modifiées, la
+concentration nano et le rendu mobile avant publication.
+
+---
+
 ## 2026-11-11 — Trois profils petits budgets livrés et mesurés
 
 D-090 : `petit_budget` (1,5 % / 50 %), `micro_budget` (3 % / 50 %) et

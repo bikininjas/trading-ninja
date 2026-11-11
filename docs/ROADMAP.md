@@ -26,6 +26,13 @@ ni absence totale de panne.
 
 ## Ordre et responsabilités
 
+🟨 **Interface — profils expliqués aux débutants** *(commencé le 11 novembre 2026)* :
+explications des montants engagés et pertes prévues, exemple fictif en euros,
+concentration nano, refus de minima et absence de preuve de rentabilité.
+Explications livrées et vérifiées le 11 novembre avec Chromium, exemples
+modifiables, glossaire et comparatif lisible sur mobile. Les limites économiques
+et les prérequis du réel restent inchangés.
+
 🟨 **R4 — profils petits/micro/nano budgets** *(commencé le 10 novembre 2026)* :
 profils manuels PAPER, frais compris, limites de concentration explicites et
 refus conservés sous les minima. Qualification mécanique à plusieurs budgets ;

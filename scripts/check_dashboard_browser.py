@@ -46,7 +46,7 @@ async def main():
     payload={'profile':'progressif','max_per_trade_pct':'.50','max_daily_loss_pct':'.02',
      'max_orders_per_hour':2,'confidence_floor':'.60','risk_per_trade_pct':'.005','halt_auto_resume_hours':24,
      'entry_rule_enabled':True,'application':{'revision':0,'applied_revision':0,'apply_error':None},
-     'profiles':PROFILE_OPTIONS}
+     'cost_aware':True,'profiles':PROFILE_OPTIONS}
    elif path=='/api/settings/preview':payload={'changes':{'min_confidence':{'scope':'GLOBAL_SAFETY'}},'positions':[]}
    elif path=='/api/control/entries':
     body=r.request.post_data_json;sent.append((path,body));controls.update(enabled=body['enabled'],revision=controls['revision']+1);payload=controls
@@ -109,18 +109,41 @@ async def main():
   await page.locator('#set-profile').select_option('nano_budget')
   assert await page.locator('#set-notional').input_value()=='100'
   assert '100 %' in await page.locator('#set-profile-help').inner_text()
+  await page.locator('#profile-example-capital').fill('5')
+  assert '5,00' in await page.locator('#profile-example').inner_text()
+  assert '0,25' in await page.locator('#profile-example').inner_text()
+  assert await page.locator('#profile-concentration').is_visible()
+  assert 'presque tout' in await page.locator('#profile-concentration').inner_text()
+  # Un exemple invalide ne doit ni modifier les réglages ni empêcher leur envoi.
+  await page.locator('#profile-example-capital').fill('0')
+  assert 'supérieur à zéro' in await page.locator('#profile-example').inner_text()
   await page.locator('#settings-save').click()
   await page.wait_for_function("document.querySelector('#settings-save').disabled === false")
   saved=next(body for path,body in reversed(sent) if path=='/api/settings')
   assert saved['profile']=='nano_budget' and saved['max_per_trade_pct']==1
   await page.locator('#set-profile').select_option('micro_budget')
+  await page.locator('#profile-example-capital').fill('9,37')
+  assert '4,69' in await page.locator('#profile-example').inner_text()
+  assert '0,28' in await page.locator('#profile-example').inner_text()
+  assert await page.locator('#profile-concentration').is_hidden()
+  await page.locator('#set-notional').fill('25')
+  await page.locator('#set-notional').dispatch_event('input')
+  assert '2,34' in await page.locator('#profile-example').inner_text()
+  await page.locator('#set-notional').fill('50')
+  await page.locator('#set-notional').dispatch_event('input')
+  assert await page.locator('#profile-comparison-body tr').count()==len(PROFILE_OPTIONS)
+  await page.get_by_text('Les mots utiles, sans jargon',exact=True).click()
+  assert 'ne signifie pas 80 % de chances' in await page.locator('.profile-guide').inner_text()
+  await page.get_by_text('Comparer tous les profils',exact=True).click()
   assert await page.locator('#set-notional').input_value()=='50'
   assert await page.locator('#set-notional').get_attribute('max')=='50'
   assert not errors,errors
   await page.screenshot(path=str(OUT/'capital-desktop.png'),full_page=True)
+  await page.locator('.profile-guide').screenshot(path=str(OUT/'profile-guide-desktop.png'))
   await page.set_viewport_size({'width':390,'height':844})
   assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth')
   await page.screenshot(path=str(OUT/'capital-mobile.png'),full_page=True)
+  await page.locator('.profile-guide').screenshot(path=str(OUT/'profile-guide-mobile.png'))
   assert not errors,errors
   print('Dashboard : expiration/panne de surveillance sans faux vert, capital, suspension/réautorisation avec TOTP, rejeu, diagnostics et mobile sans débordement.')
   await browser.close()

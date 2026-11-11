@@ -3,14 +3,14 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `42e20c2b7aa493fa`
+Empreinte des sources : `dbb516f372effe41`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
 | Modules Python | 155 |
-| Lignes Python | 34701 |
+| Lignes Python | 34711 |
 | Classes | 148 |
 | Fonctions et méthodes | 1129 |
 | Cas de test collectés par pytest | 878 |
@@ -28,7 +28,7 @@ Empreinte des sources : `42e20c2b7aa493fa`
 | `backend/app/api/main.py` | 674 | API d'administration — observation, pause, reprise, panic-sell. |
 | `backend/app/api/security.py` | 227 | Authentification de l'API d'administration. |
 | `backend/app/api/service.py` | 122 | Vue « administration » : lecture de l'état et actions de contrôle. |
-| `backend/app/api/settings_store.py` | 154 | Réglages pilotables depuis le dashboard, stockés en base. |
+| `backend/app/api/settings_store.py` | 161 | Réglages pilotables depuis le dashboard, stockés en base. |
 | `backend/app/api/stats.py` | 138 | Statistiques du dashboard — lecture seule, aucun calcul de trading. |
 | `backend/app/backtest/__init__.py` | 5 | Rejeu historique et régression des décisions. |
 | `backend/app/backtest/engine.py` | 863 | Rejeu historique — le vrai pare-feu, le vrai simulateur, aucune écriture en base. |
@@ -122,7 +122,7 @@ Empreinte des sources : `42e20c2b7aa493fa`
 | `backend/tests/__init__.py` | 1 |  |
 | `backend/tests/conftest.py` | 74 | Les tests unitaires ne doivent jamais contacter un service externe. |
 | `backend/tests/test_affordability.py` | 182 | Tests de la faisabilité d'un ordre avec un petit capital. |
-| `backend/tests/test_api.py` | 606 | Tests de l'API d'administration : session, pause, panic-sell, WebSocket. |
+| `backend/tests/test_api.py` | 609 | Tests de l'API d'administration : session, pause, panic-sell, WebSocket. |
 | `backend/tests/test_api_security.py` | 105 | Tests de la couche d'authentification : scrypt, JWT, TOTP, anti-rejeu. |
 | `backend/tests/test_backtest.py` | 288 | Tests du moteur de backtest : absence de lookahead, stop prioritaire, frais. |
 | `backend/tests/test_backtest_golden.py` | 95 | Régression de backtest : le comportement doit rester celui du golden. |
@@ -265,10 +265,10 @@ le code, pas une copie de celui-ci.
 
 - **class SettingsRefused(ValueError)** (l.50) — Réglage refusé : valeur hors bornes ou configuration incohérente.
 - `def friendly_settings(config: Settings, *, updated_at: str | None=None) -> dict` (l.54) — Vue lisible par le dashboard : labels, valeurs effectives, profils.
-- `def _as_text(value) -> str` (l.85)
-- `def _mapping(update: dict) -> dict[str, str]` (l.93) — Traduit les noms du dashboard vers les variables de configuration.
-- `def build_payload(current: dict, update: dict) -> dict` (l.113) — Fusionne le payload existant et la modification du dashboard.
-- `def validate_payload(payload: dict, *, loader=load_settings) -> Settings` (l.135) — Construit la configuration effective et refuse une combinaison dangereuse.
+- `def _as_text(value) -> str` (l.92)
+- `def _mapping(update: dict) -> dict[str, str]` (l.100) — Traduit les noms du dashboard vers les variables de configuration.
+- `def build_payload(current: dict, update: dict) -> dict` (l.120) — Fusionne le payload existant et la modification du dashboard.
+- `def validate_payload(payload: dict, *, loader=load_settings) -> Settings` (l.142) — Construit la configuration effective et refuse une combinaison dangereuse.
 
 ### `backend/app/api/stats.py`
 
@@ -1543,22 +1543,22 @@ le code, pas une copie de celui-ci.
 - `def test_stats_describes_pnl_model_and_equity(api)` (l.360)
 - `def test_stats_requires_a_session(api)` (l.381)
 - `def test_settings_are_exposed_without_jargon(api)` (l.386)
-- `def test_settings_update_writes_to_the_database(api, tmp_path)` (l.403)
-- `def test_nano_profile_can_be_selected_with_100_percent_exposure(api)` (l.430)
-- `def test_settings_update_refuses_an_incoherent_daily_loss(api)` (l.443)
-- `def test_position_payload_shows_the_net_risk_at_the_stop()` (l.455)
-- `def test_position_payload_without_a_position_is_none()` (l.470)
-- `def test_panic_is_wired_in_live_mode(tmp_path)` (l.474) — Le 409 « non câblé » a disparu : le panic réel passe par la liquidation.
-- `def test_kill_switch_requires_totp(api)` (l.517)
-- `def test_kill_switch_halts_with_valid_totp(api)` (l.526)
-- `def test_circuit_breaker_reset_requires_locked_state(api)` (l.535)
-- `def test_circuit_breaker_reset_works_when_locked(api)` (l.544)
-- `def test_reconcile_returns_a_structured_diff(api)` (l.555)
-- `def test_system_health_requires_session(api)` (l.569)
-- `def test_system_health_returns_telemetry(api)` (l.574)
-- `def test_portfolio_position_empty(api)` (l.584)
-- `def test_llm_prompt_is_masked(api)` (l.592)
-- `def test_llm_prompt_missing_returns_404(api)` (l.602)
+- `def test_settings_update_writes_to_the_database(api, tmp_path)` (l.406)
+- `def test_nano_profile_can_be_selected_with_100_percent_exposure(api)` (l.433)
+- `def test_settings_update_refuses_an_incoherent_daily_loss(api)` (l.446)
+- `def test_position_payload_shows_the_net_risk_at_the_stop()` (l.458)
+- `def test_position_payload_without_a_position_is_none()` (l.473)
+- `def test_panic_is_wired_in_live_mode(tmp_path)` (l.477) — Le 409 « non câblé » a disparu : le panic réel passe par la liquidation.
+- `def test_kill_switch_requires_totp(api)` (l.520)
+- `def test_kill_switch_halts_with_valid_totp(api)` (l.529)
+- `def test_circuit_breaker_reset_requires_locked_state(api)` (l.538)
+- `def test_circuit_breaker_reset_works_when_locked(api)` (l.547)
+- `def test_reconcile_returns_a_structured_diff(api)` (l.558)
+- `def test_system_health_requires_session(api)` (l.572)
+- `def test_system_health_returns_telemetry(api)` (l.577)
+- `def test_portfolio_position_empty(api)` (l.587)
+- `def test_llm_prompt_is_masked(api)` (l.595)
+- `def test_llm_prompt_missing_returns_404(api)` (l.605)
 
 ### `backend/tests/test_api_security.py`
 

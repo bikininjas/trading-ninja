@@ -1106,6 +1106,48 @@
     setText('set-orders-value', `${optionValue('set-orders')} / h`);
     setText('set-confidence-value', `${optionValue('set-confidence')} %`);
     setText('set-halt-value', `${optionValue('set-halt')} h`);
+    renderProfileExplanation();
+  }
+
+  function renderProfileExplanation() {
+    const box = $('profile-example');
+    if (!box) return;
+    const profile = settingsProfiles.find((item) => item.key === optionValue('set-profile'));
+    const capital = Number(optionValue('profile-example-capital').trim().replace(',', '.'));
+    box.replaceChildren();
+    const caution = $('profile-concentration');
+    caution.hidden = true;
+    if (!profile) return;
+    if (!Number.isFinite(capital) || capital <= 0) {
+      box.textContent = 'Entre un montant fictif supérieur à zéro pour voir les exemples.';
+      return;
+    }
+    const effective = latestSettings?.profile === profile.key ? latestSettings : profile;
+    const risk = Number(effective.risk_per_trade_pct);
+    let exposure = Number(optionValue('set-notional')) / 100;
+    const fullAllocation = effective.small_account_full_allocation;
+    const threshold = Number(effective.small_account_threshold_quote || 50);
+    if (fullAllocation && capital >= threshold) exposure = Math.min(exposure, 0.5);
+    const money = (value) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(value);
+    const lines = [
+      `Avec ${money(capital)} fictifs : plafond d'achat d'environ ${money(capital * exposure)}. La somme réellement achetée peut être inférieure.`,
+      Number.isFinite(risk)
+        ? `Perte prévue au stop par achat : jusqu'à environ ${money(capital * risk)} (${percent(risk, 2)} du capital), ${effective.cost_aware ? 'frais et différence de prix prévus inclus' : 'avant frais et différence de prix'}. Ce montant peut être dépassé en cas de chute brutale ou de panne.`
+        : 'La perte prévue dépend des limites du profil appliquées par le moteur.',
+      `Le curseur de journée correspond ici à environ ${money(capital * Number(optionValue('set-daily')) / 100)} de recul avant blocage des nouveaux achats. Ce n'est pas un montant à dépenser ni une garantie.`,
+      'Ces chiffres expliquent les valeurs affichées. Ils ne prédisent ni un achat, ni un gain.'
+    ];
+    for (const line of lines) {
+      const paragraph = document.createElement('p');
+      paragraph.textContent = line;
+      box.append(paragraph);
+    }
+    if (exposure > 0.5 || profile.key === 'nano_budget') {
+      caution.hidden = false;
+      caution.textContent = exposure > 0.5
+        ? 'Attention : ce réglage peut immobiliser presque tout ton capital dans une seule crypto. Le stop ne garantit pas de récupérer le reste. Un petit montant en euros peut représenter une grande perte en pourcentage.'
+        : 'Nano budget reste un profil à risque élevé : il accepte jusqu’à 5 % de perte prévue par achat. Réduire l’exposition peut rendre les minima de la plateforme impossibles à financer.';
+    }
   }
 
   function fillProfileOptions(profiles, selected) {
@@ -1118,6 +1160,24 @@
       option.textContent = profile.label;
       if (profile.key === selected) option.selected = true;
       select.append(option);
+    }
+    const body = $('profile-comparison-body');
+    if (body) {
+      body.replaceChildren();
+      for (const profile of profiles || []) {
+        const row = document.createElement('tr');
+        const cap = `${Number(profile.max_per_trade_pct) * 100} %${profile.small_account_full_allocation ? ' sous 50 € ; 50 % au-delà' : ''}`;
+        const risk = Number(profile.risk_per_trade_pct);
+        const values = [profile.label, cap, Number.isFinite(risk) ? `${percent(risk, 2)}${profile.cost_aware ? ', frais prévus inclus' : ', avant frais'}` : 'Voir les réglages appliqués', profile.description];
+        const labels = ['Profil', 'Argent engagé', 'Perte prévue par achat', 'À comprendre'];
+        for (const [index, value] of values.entries()) {
+          const cell = document.createElement('td');
+          cell.dataset.label = labels[index];
+          cell.textContent = value || '';
+          row.append(cell);
+        }
+        body.append(row);
+      }
     }
   }
 
@@ -1198,6 +1258,7 @@
   for (const id of ['set-notional', 'set-daily', 'set-orders', 'set-confidence', 'set-halt']) {
     $(id)?.addEventListener('input', refreshSettingOutputs);
   }
+  $('profile-example-capital')?.addEventListener('input', renderProfileExplanation);
 
   $('settings-reload')?.addEventListener('click', async () => {
     setSettingsFeedback('chargement…');

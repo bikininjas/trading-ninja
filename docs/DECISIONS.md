@@ -2059,3 +2059,19 @@ du nouveau profil devant les anciens overrides de démarrage. API et dashboard
 acceptent 100 % seulement lorsque le profil/configuration le permet. Les nouvelles
 familles restent PAPER pendant leur qualification ; la configuration SQL courante
 n'est pas changée automatiquement par la création d'un profil.
+
+---
+
+## D-091 — Expliquer les profils avant leur enregistrement (2026-11-11)
+
+L'interface doit être compréhensible sans connaissance de trading. Chaque profil
+décrit l'argent engagé et la perte prévue ; un exemple fictif en euros suit le
+choix et les curseurs sans toucher au capital ou au payload de configuration.
+Les limites courantes remplacent les valeurs par défaut dans l'exemple du profil
+déjà chargé. Les anciens profils dont le risque PAPER exclut les coûts l'indiquent.
+
+Expliquer stop, frais, conviction, objectif et arrêts, sans promesse de protection
+absolue ou de rendement. Le nano affiche sa concentration élevée ; le comparatif
+se transforme en fiches sur téléphone. Les minima refusés et les résultats
+perdants restent visibles. Enregistrer des limites ne vaut pas activation LIVE
+ni preuve que le moteur les a appliquées.

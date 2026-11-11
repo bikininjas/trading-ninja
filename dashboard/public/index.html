@@ -282,27 +282,62 @@
       </div>
       <form id="settings-form" class="settings">
         <label>
-          <span>Prudence</span>
+          <span>Profil : comment le bot engage et protège le capital</span>
           <select id="set-profile"></select>
           <small id="set-profile-help" class="muted"></small>
         </label>
+
+        <div class="profile-guide">
+          <h3>Comprendre le profil choisi</h3>
+          <p>Un profil fixe des limites. Il ne garantit aucun gain et n'oblige pas le bot à acheter.
+            « Simulation » signifie que les achats et les pertes sont fictifs.</p>
+          <label for="profile-example-capital">Exemple avec un capital fictif en euros</label>
+          <input id="profile-example-capital" type="text" value="9,37" inputmode="decimal" maxlength="20" aria-describedby="profile-example-note">
+          <small id="profile-example-note">Ce chiffre sert seulement à comprendre. Il ne change ni ton solde, ni le budget du bot, ni ses réglages.</small>
+          <div id="profile-example" aria-live="polite"></div>
+          <p id="profile-concentration" class="profile-caution" hidden></p>
+          <details>
+            <summary>Comparer tous les profils</summary>
+            <div class="profile-comparison"><table>
+              <caption>Limites par défaut, avant tes modifications des curseurs</caption>
+              <thead><tr><th>Profil</th><th>Part du capital engagée</th><th>Perte prévue par achat</th><th>À comprendre</th></tr></thead>
+              <tbody id="profile-comparison-body"></tbody>
+            </table></div>
+          </details>
+          <details>
+            <summary>Les mots utiles, sans jargon</summary>
+            <dl>
+              <dt>Argent engagé, ou exposition</dt><dd>Les euros utilisés pour acheter une crypto. Ils ne sont plus disponibles en espèces tant que la position reste ouverte.</dd>
+              <dt>Perte prévue et stop</dt><dd>Le stop est une vente de protection prévue si le prix baisse. La perte calculée à ce niveau n'est pas une perte maximale garantie : chute brutale, panne ou manque d'acheteurs peuvent coûter davantage.</dd>
+              <dt>Frais et différence de prix</dt><dd>La plateforme facture l'achat et la vente. Le prix réellement obtenu peut aussi être moins bon que celui affiché. Ces coûts réduisent les gains et augmentent les pertes.</dd>
+              <dt>Objectif de vente</dt><dd>Un niveau de hausse visé, pas une prévision. Éloigner cet objectif ne rend pas une stratégie rentable à lui seul.</dd>
+              <dt>Conviction du modèle</dt><dd>Une note donnée par le modèle. Une note de 80 % ne signifie pas 80 % de chances de gagner.</dd>
+              <dt>Arrêts de sécurité</dt><dd>Les seuils de journée, de semaine et de recul depuis le plus haut bloquent de nouveaux achats quand le compte a trop baissé. Un arrêt n'est pas une promesse de vendre immédiatement toute la crypto ni de récupérer l'argent perdu.</dd>
+            </dl>
+          </details>
+          <p>Un achat peut être refusé : montant minimum de la plateforme trop élevé, frais trop lourds, marché défavorable ou protection active. Avec 3 € ou moins, BTC, ETH et SOL étaient tous refusés lors du diagnostic conservé. Le bot garde alors les euros ; il n'augmente pas le risque pour forcer l'achat.</p>
+          <p><strong>Les petits profils ne sont pas validés comme rentables.</strong> Le test sur des prix passés de Micro budget et Nano budget a produit deux achats revendus à perte par profil, puis un arrêt de sécurité. Ce test utilisait des décisions automatiques fixes ; il n'évalue pas la performance de l'IA.</p>
+        </div>
 
         <label>
           <span>Combien le bot peut mettre sur un achat</span>
           <input id="set-notional" type="range" min="5" max="50" step="5">
           <output id="set-notional-value">—</output>
+          <small>La part achetée peut être plus petite : le risque au stop, les frais et le solde limitent aussi la taille.</small>
         </label>
 
         <label>
           <span>Quand le bot s'arrête pour la journée</span>
           <input id="set-daily" type="range" min="2" max="20" step="1">
           <output id="set-daily-value">—</output>
+          <small>Le bot bloque de nouveaux achats après le recul prévu pour la journée. Une chute ou une panne peut dépasser ce seuil.</small>
         </label>
 
         <label>
-          <span>Nombre maximum d'achats par heure</span>
+          <span>Nombre maximum d'ordres par heure</span>
           <input id="set-orders" type="range" min="1" max="10" step="1">
           <output id="set-orders-value">—</output>
+          <small>Un achat et sa vente peuvent compter séparément. Ce plafond n'est pas un objectif d'activité.</small>
         </label>
 
         <label>
@@ -319,7 +354,7 @@
 
         <label class="check">
           <input id="set-entry-rule" type="checkbox">
-          <span>Le bot peut acheter quand le marché recule un peu</span>
+          <span>Exiger aussi le filtre de marché avant un achat</span>
         </label>
 
         <div class="settings-actions">
@@ -328,6 +363,7 @@
           <span id="settings-feedback" class="feedback" role="status" aria-live="polite"></span>
         </div>
       </form>
+      <p class="note">Choisir un profil prépare les valeurs du formulaire. « Enregistrer » demande leur application au bot ; cela n'active pas l'argent réel. Le bot doit ensuite confirmer les réglages appliqués. Changer de profil remet ses limites par défaut ; les valeurs des curseurs peuvent les modifier.</p>
       <p id="settings-limits" class="muted note"></p>
     </section>
 

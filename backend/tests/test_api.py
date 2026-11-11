@@ -398,6 +398,9 @@ def test_settings_are_exposed_without_jargon(api):
     assert body["risk_per_trade_pct"] == "0.005"
     assert body["halt_auto_resume_hours"] == 24
     assert any(profile["key"] == "micro" for profile in body["profiles"])
+    nano = next(profile for profile in body['profiles'] if profile['key'] == 'nano_budget')
+    assert nano['risk_per_trade_pct'] == '0.05' and nano['small_account_full_allocation']
+    assert nano['cost_aware'] and '100 %' in nano['description']
 
 
 def test_settings_update_writes_to_the_database(api, tmp_path):

@@ -659,6 +659,28 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.025); }
 .settings .check input { accent-color: var(--accent); }
 .settings-actions { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
 .settings-actions .feedback { margin: 0; }
+.profile-guide { padding: 1rem; border: 1px solid var(--border); border-radius: 0.6rem; min-width: 0; }
+.profile-guide h3 { margin: 0 0 0.6rem; }
+.profile-guide p, .profile-guide dd { font-size: 0.85rem; line-height: 1.55; }
+.profile-guide small { display: block; color: var(--muted); line-height: 1.5; margin-top: 0.4rem; }
+.profile-guide input { max-width: 100%; width: 10rem; padding: 0.5rem; }
+.profile-guide details { margin-top: 0.9rem; }
+.profile-guide summary { cursor: pointer; }
+.profile-guide dt { font-weight: 600; margin-top: 0.8rem; }
+.profile-guide dd { margin: 0.3rem 0 0; }
+.profile-caution { border-left: 3px solid #e9a740; padding: 0.6rem; }
+.profile-comparison { overflow-x: auto; max-width: 100%; }
+.profile-comparison th, .profile-comparison td { white-space: normal; min-width: 7rem; }
+.profile-comparison table { table-layout: auto; min-width: 42rem; }
+.profile-comparison td:last-child { min-width: 16rem; }
+@media (max-width: 600px) {
+  .profile-comparison table { min-width: 0; width: 100%; }
+  .profile-comparison thead { display: none; }
+  .profile-comparison tbody { display: block; }
+  .profile-comparison tr { display: grid; padding: 0.6rem 0; border-bottom: 1px solid var(--border); }
+  .profile-comparison td, .profile-comparison td:last-child { min-width: 0; border: 0; padding: 0.35rem 0; overflow: visible; }
+  .profile-comparison td::before { content: attr(data-label) " : "; font-weight: 600; color: var(--text); }
+}
 
 /* --- divers --------------------------------------------------------------- */
 
