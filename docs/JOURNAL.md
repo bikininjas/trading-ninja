@@ -4,6 +4,69 @@ Une entrée par session de travail, **la plus récente en haut**. Chaque entrée
 qui a été fait, ce qui l'a vérifié (`commande → résultat réel`), et ce qui a été décidé.
 Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
+## 2026-11-12 — Disponibilité du modèle et reprise du moteur (en cours)
+
+- Le client préchauffe le modèle avant une décision LLM, avec délai borné à
+  30 secondes, repli HOLD et espacement des essais si Ollama est indisponible.
+  Les tests couvrent chargement à froid, panne et reprise ; préchauffage réel OK.
+- Revue des connexions : ledger surveillé et reconnecté hors cycle, heartbeat
+  séparé qui annule le travail en cas de perte, verrou financier séparé vérifié
+  avant les effets. Le ping ledger et sa reconnexion sont désormais bornés.
+  Une panne pendant un cycle n'est pas rejouée aveuglément ; une supervision
+  externe reste nécessaire pour redémarrer après perte du heartbeat.
+- Le moteur PAPER a été lancé dans une session tmux autonome, sans modifier
+  la configuration du système. Après redémarrage avec les corrections, le PID
+  2351919 a achevé un cycle en 25,3 secondes et attend la prochaine bougie ;
+  aucun setup sur les sept marchés. Cette session ne fournit pas de redémarrage
+  automatique après panne ni après redémarrage WSL.
+- `scripts/check.sh` après le changement SQL : 863 tests Python réussis,
+  63 contrats SQL opt-in sautés, 32 tests Node ; golden identique.
+
+## 2026-11-12 — Veille et reprise du moteur (en cours)
+
+- La durée des tentatives de reconnexion est incluse dans l'attente de la
+  prochaine bougie, mesurée avec l'horloge monotone, pour éviter un retard
+  supplémentaire après une panne PostgreSQL prolongée.
+- Vérifié : 40 tests de reconnexion, ordonnanceur et orchestrateur réussis ;
+  rejeu golden identique. `scripts/check.sh` : tout est vert, 861 tests Python
+  exécutés et 32 Node. Après lancement depuis une commande maintenue ouverte,
+  le moteur PAPER a achevé un cycle (sept marchés, aucun setup) et attendu la
+  bougie suivante. Il a disparu sans traceback immédiatement après la fin de
+  cette commande ; `status` le confirme arrêté. Ce comportement est observé
+  dans cette session, sans preuve du mécanisme exact d'interruption. La veille
+  longue et une coupure réseau réelle restent à vérifier.
+- `manage.sh` indique maintenant que l'initialisation est en cours au lieu de
+  déclarer le moteur prêt après une seconde. Les comptes de tests et l'index
+  généré ont été actualisés.
+
+## 2026-11-12 — Ajustement du solde PAPER depuis le dashboard (en cours)
+
+- Ajout d'un formulaire de solde absolu dans Réglages et d'une route API réservée
+  au mode PAPER. L'ajustement est confirmé, conserve les snapshots antérieurs,
+  met à jour le ledger progressif et refuse une position ouverte.
+- Vérification WSL et base jetable restant à faire avant validation.
+
+## 2026-11-12 — `manage.sh` retrouve les processus orphelins
+
+- Si un PID manque, `status` et `stop` recherchent désormais le processus attendu
+  par ligne de commande et répertoire de travail exact, puis adoptent son PID.
+  Un processus d'un autre répertoire n'est jamais arrêté.
+- Vérifié dans WSL : `status` a retrouvé API 252620, dashboard 258904 et moteur
+  199312 ; `restart dashboard` a arrêté 258904, relancé 283014, puis `status`
+  a confirmé les trois services en cours.
+
+## 2026-11-12 — Reconnexion ledger pendant la veille H4
+
+- Analyse des journaux WSL : cinq démarrages, un cycle chacun, sept paires sous
+  EMA200 ; le dernier processus s'est arrêté après `ConnectionResetError` sur la
+  connexion PostgreSQL ledger au début du cycle suivant. La décision reste une
+  évaluation par bougie H4 clôturée, pas une interrogation d'ordre à haute fréquence.
+- Le moteur ping maintenant sa connexion ledger toutes les 30 secondes pendant
+  l'attente, la recrée si elle est fermée et signale la veille toutes les cinq
+  minutes. Cela ne réessaie aucun cycle financier interrompu.
+- Vérifié localement : compilation Python et `tests/test_repository_reconnect.py`
+  réussis. Recette WSL avec veille longue et coupure réseau restant à faire.
+
 ---
 
 ## 2026-11-11 — Revue dashboard v2 et apprentissage : corrections vérifiées

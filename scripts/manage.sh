@@ -3,9 +3,9 @@
 # Gestion des composants Trading Ninja
 # =============================================================================
 #
-#   scripts/manage.sh start   [api|dashboard|all]
-#   scripts/manage.sh stop    [api|dashboard|all]
-#   scripts/manage.sh restart [api|dashboard|all]
+#   scripts/manage.sh start   [api|dashboard|engine|all]
+#   scripts/manage.sh stop    [api|dashboard|engine|all]
+#   scripts/manage.sh restart [api|dashboard|engine|all]
 #   scripts/manage.sh status
 #   scripts/manage.sh logs    [api|dashboard|all]
 #
@@ -63,6 +63,7 @@ pattern() {
   case "$1" in
     api)       printf 'uvicorn app.api.main' ;;
     dashboard) printf 'node server.js' ;;
+    engine)    printf 'app.main --serve' ;;
   esac
 }
 
@@ -70,6 +71,7 @@ port() {
   case "$1" in
     api)       printf '%s' "$API_PORT" ;;
     dashboard) printf '%s' "$DASHBOARD_PORT" ;;
+    engine)    printf '' ;;
   esac
 }
 
@@ -77,6 +79,7 @@ url() {
   case "$1" in
     api)       printf 'http://%s:%s' "$API_HOST" "$API_PORT" ;;
     dashboard) printf 'http://%s:%s' "$DASHBOARD_HOST" "$DASHBOARD_PORT" ;;
+    engine)    printf 'PAPER (bougies H4)' ;;
   esac
 }
 
@@ -97,11 +100,41 @@ matches() {
   ps -p "$pid" -o args= 2>/dev/null | grep -Fq -- "$want"
 }
 
+process_dir() {
+  case "$1" in
+    api|engine) printf '%s' "$BACKEND" ;;
+    dashboard)  printf '%s' "$DASHBOARD" ;;
+  esac
+}
+
+discover_pid() {
+  local name="$1" pid expected actual
+  expected="$(process_dir "$name")"
+  while read -r pid; do
+    [[ -n "$pid" ]] || continue
+    if matches "$pid" "$(pattern "$name")"; then
+      actual="$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true)"
+      if [[ "$actual" == "$expected" ]]; then
+        printf '%s' "$pid"
+        return 0
+      fi
+    fi
+  done < <(ps -eo pid=)
+  return 1
+}
+
 # Affiche le PID si le composant tourne vraiment ; sinon nettoie le fichier PID.
 running_pid() {
   local name="$1" pid
   pid="$(read_pid "$name")"
-  [[ -n "$pid" ]] || return 1
+  if [[ -z "$pid" ]]; then
+    if pid="$(discover_pid "$name")"; then
+      printf '%s\n' "$pid" >"$(pidfile "$name")"
+      printf '%s' "$pid"
+      return 0
+    fi
+    return 1
+  fi
   if alive "$pid" && matches "$pid" "$(pattern "$name")"; then
     printf '%s' "$pid"
     return 0
@@ -120,17 +153,25 @@ port_in_use() {
 
 preflight_api() {
   [[ -x "$PYTHON" ]] || die "python du venv introuvable : $PYTHON (voir backend/README.md)"
-  [[ -f "$BACKEND/.env" ]] || die "backend/.env manquant"
   local key
   for key in JWT_SECRET_KEY TOTP_SECRET ADMIN_PASSWORD_HASH; do
-    grep -qE "^${key}=[^[:space:]]" "$BACKEND/.env" \
-      || die "backend/.env : ${key} manquant ou vide — l'API refuserait de démarrer"
+    local found=false file
+    for file in "$BACKEND/.env" "$ROOT/.env" "$ROOT/.env.local"; do
+      if [[ -f "$file" ]] && grep -qE "^${key}=[^[:space:]]" "$file"; then found=true; fi
+    done
+    [[ "$found" == true ]] || die "$key absent de backend/.env, .env ou .env.local — l'API refuserait de démarrer"
   done
 }
 
 preflight_dashboard() {
   command -v node >/dev/null 2>&1 || die "node introuvable dans le PATH"
   [[ -f "$DASHBOARD/server.js" ]] || die "dashboard/server.js manquant"
+}
+
+preflight_engine() {
+  [[ -x "$PYTHON" ]] || die "python du venv introuvable : $PYTHON (voir backend/README.md)"
+  [[ -f "$BACKEND/.env" || -f "$ROOT/.env" || -f "$ROOT/.env.local" ]] \
+    || die "configuration absente : crée backend/.env ou .env.local à la racine"
 }
 
 wait_ready() {
@@ -145,6 +186,7 @@ wait_ready() {
                           "http://${API_HOST}:${port}/api/status" 2>/dev/null || true)" ;;
         dashboard) code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 \
                           "http://127.0.0.1:${port}/login" 2>/dev/null || true)" ;;
+        engine) code="ready" ;;
       esac
       [[ -n "$code" && "$code" != "000" ]] && return 0
     fi
@@ -163,7 +205,7 @@ start_one() {
 
   local p
   p="$(port "$name")"
-  if port_in_use "$p"; then
+  if [[ -n "$p" ]] && port_in_use "$p"; then
     die "port $p déjà utilisé par un autre processus — $name non démarré"
   fi
 
@@ -173,6 +215,7 @@ start_one() {
   case "$name" in
     api)       dir="$BACKEND" ;;
     dashboard) dir="$DASHBOARD" ;;
+    engine)    dir="$BACKEND" ;;
   esac
 
   (
@@ -180,13 +223,22 @@ start_one() {
     if [[ "$name" == api ]]; then
       nohup "$PYTHON" -m uvicorn app.api.main:create_app --factory \
         --host "$API_HOST" --port "$API_PORT" >>"$log" 2>&1 </dev/null &
+    elif [[ "$name" == engine ]]; then
+      nohup env TRADING_MODE=paper I_UNDERSTAND_REAL_MONEY=false \
+        EXCHANGE_SANDBOX_MODE=true EXCHANGE_API_KEY= EXCHANGE_SECRET= \
+        KRAKEN_API_KEY= KRAKEN_SECRET= KRAKEN_SECRET_KEY= \
+        BINANCE_API_KEY= BINANCE_SECRET_KEY= \
+        "$PYTHON" -m app.main --serve >>"$log" 2>&1 </dev/null &
     else
       nohup node server.js >>"$log" 2>&1 </dev/null &
     fi
     echo $! >"$(pidfile "$name")"
   )
 
-  if wait_ready "$name"; then
+  if [[ "$name" == engine ]]; then sleep 1; fi
+  if [[ "$name" == engine ]] && alive "$(read_pid "$name")"; then
+    info "engine PAPER lancé (PID $(read_pid "$name")) ; initialisation en cours, vérifier le premier cycle dans $log"
+  elif wait_ready "$name"; then
     ok "$name démarré (PID $(read_pid "$name")) — $(url "$name")"
   else
     warn "$name n'a pas répondu en ${WAIT_SECONDS}s — dernières lignes de $log :"
@@ -240,7 +292,7 @@ status_one() {
   port="$(port "$name")"
   if pid="$(running_pid "$name")"; then
     printf '%-10s %-9s PID %-7s %s\n' "$name" "en cours" "$pid" "$(url "$name")"
-  elif port_in_use "$port"; then
+  elif [[ -n "$port" ]] && port_in_use "$port"; then
     printf '%-10s %-9s %-11s %s (port occupé par un autre processus)\n' \
       "$name" "conflit" "-" "$(url "$name")"
   else
@@ -263,7 +315,8 @@ do_start() {
   case "$1" in
     api)       start_one api ;;
     dashboard) start_one dashboard ;;
-    all)       start_one api; start_one dashboard ;;
+    engine)    start_one engine ;;
+    all)       start_one api; start_one dashboard; start_one engine ;;
     *)         usage; exit 2 ;;
   esac
 }
@@ -272,7 +325,8 @@ do_stop() {
   case "$1" in
     api)       stop_one api ;;
     dashboard) stop_one dashboard ;;
-    all)       stop_one dashboard || true; stop_one api || true ;;
+    engine)    stop_one engine ;;
+    all)       stop_one engine || true; stop_one dashboard || true; stop_one api || true ;;
     *)         usage; exit 2 ;;
   esac
 }
@@ -281,11 +335,11 @@ usage() {
   cat <<'EOF'
 Usage : scripts/manage.sh <action> [composant]
 
-  start   api|dashboard|all   démarre en arrière-plan
-  stop    api|dashboard|all   arrête (TERM, puis KILL après 5 s)
-  restart api|dashboard|all   arrête puis redémarre
-  status                      état des deux composants
-  logs    api|dashboard|all   dernières lignes des journaux
+  start   api|dashboard|engine|all   démarre en arrière-plan (engine toujours PAPER)
+  stop    api|dashboard|engine|all   arrête (TERM, puis KILL après 5 s)
+  restart api|dashboard|engine|all   arrête puis redémarre
+  status                              état des trois composants
+  logs    api|dashboard|engine|all   dernières lignes des journaux
 
 Journaux et fichiers PID : scripts/.run/
 EOF
@@ -299,8 +353,8 @@ case "$ACTION" in
   stop)    do_stop "$TARGET" ;;
   restart) do_stop "$TARGET"; do_start "$TARGET" ;;
   status)  printf 'Trading Ninja — %s\n\n' "$(date '+%Y-%m-%d %H:%M:%S')"
-           status_one api; status_one dashboard ;;
-  logs)    if [[ "$TARGET" == all ]]; then logs_one api; printf '\n'; logs_one dashboard
+           status_one api; status_one dashboard; status_one engine ;;
+  logs)    if [[ "$TARGET" == all ]]; then logs_one api; printf '\n'; logs_one dashboard; printf '\n'; logs_one engine
            else logs_one "$TARGET"; fi ;;
   -h|--help|help) usage ;;
   *)       usage; exit 2 ;;

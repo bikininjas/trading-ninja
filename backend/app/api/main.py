@@ -76,6 +76,10 @@ class SettingsUpdate(BaseModel):
     halt_auto_resume_hours: int | None = Field(default=None, ge=0, le=168)
 
 
+class PaperBalanceUpdate(BaseModel):
+    balance: Decimal = Field(gt=0, le=1000000, max_digits=18, decimal_places=2)
+
+
 @serialized_financial(mode_from=lambda v:v['config'].execution_mode,halt_reason='liquidation administrateur')
 async def _default_liquidate(repo: PostgresRepository, config: Settings) -> list:
     """Liquidation d'urgence : ledger en papier, exchange réel en live.
@@ -526,6 +530,21 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.post("/api/control/paper-balance")
+    async def paper_balance_update(payload: PaperBalanceUpdate, repo=Depends(get_repo),
+                                   _: dict = Depends(session)) -> dict:
+        if config.execution_mode != "PAPER":
+            raise HTTPException(409, "ajustement du solde réservé au mode PAPER")
+        try:
+            async with repo.cycle_lock("PAPER"):
+                if await repo.open_position("PAPER") is not None:
+                    raise HTTPException(409, "ferme la position PAPER avant d’ajuster le solde")
+                current = await repo.account("PAPER", config.paper_start_equity)
+                result = await repo.set_paper_balance(payload.balance, current)
+                return {"balance": str(result), "mode": "PAPER"}
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
 
     # -- contrôle --------------------------------------------------------
 

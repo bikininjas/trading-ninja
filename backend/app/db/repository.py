@@ -11,6 +11,7 @@ base enregistre.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from contextlib import asynccontextmanager
@@ -86,14 +87,34 @@ def _drawdown(peak: Decimal, equity: Decimal) -> Decimal:
 
 
 class PostgresRepository(InsightsStore, LearningStore):
-    def __init__(self, connection: asyncpg.Connection, *, lock_connection_factory=None):
+    def __init__(self, connection: asyncpg.Connection, *, lock_connection_factory=None,
+                 reconnect_factory=None):
         self._conn = connection
         self._lock_connection_factory = lock_connection_factory
+        self._reconnect_factory = reconnect_factory
 
     @classmethod
     async def connect(cls, config: DatabaseConfig) -> "PostgresRepository":
         connection = await asyncpg.connect(**config.asyncpg_kwargs())
-        return cls(connection, lock_connection_factory=lambda: asyncpg.connect(**config.asyncpg_kwargs()))
+        factory = lambda: asyncpg.connect(**config.asyncpg_kwargs())
+        return cls(connection, lock_connection_factory=factory, reconnect_factory=factory)
+
+    async def ensure_connected(self) -> bool:
+        """Ping la connexion du ledger et la recrée après une coupure idle/pooler."""
+        if self._reconnect_factory is None:
+            return False
+        try:
+            if not self._conn.is_closed():
+                await asyncio.wait_for(self._conn.fetchval("SELECT 1"), timeout=5)
+                return False
+        except (asyncpg.PostgresConnectionError, asyncpg.InterfaceError, OSError, TimeoutError):
+            pass
+        try:
+            await self._conn.close(timeout=1)
+        except Exception:
+            pass
+        self._conn = await asyncio.wait_for(self._reconnect_factory(), timeout=10)
+        return True
 
     async def prepare_request(self, mode, symbol, request):
         from app.core.coordination import assert_financial_guard
@@ -394,6 +415,33 @@ class PostgresRepository(InsightsStore, LearningStore):
                 "WHERE mode = $1::execution_mode",
                 mode, equity,
             )
+
+    async def set_paper_balance(self, balance: Decimal, current: AccountSnapshot) -> Decimal:
+        """Ajuste le solde simulé en conservant chaque ancien instantané."""
+        async with self._conn.transaction():
+            position = await self.open_position("PAPER")
+            if position is not None:
+                raise ValueError("ferme la position PAPER avant d’ajuster le solde")
+            delta = balance - current.equity
+            capital = await self.capital_state("PAPER")
+            if capital is not None:
+                updated_active = capital.active_quote + delta
+                updated_initial = capital.initial_quote + delta
+                if updated_active < 0 or updated_initial <= 0:
+                    raise ValueError("le nouvel ajustement dépasserait le capital PAPER disponible")
+                await self._conn.execute(
+                    "UPDATE capital_accounts SET active_quote=$2, initial_quote=$3 "
+                    "WHERE mode='PAPER'", updated_active, updated_initial,
+                )
+            await self._conn.execute(
+                "INSERT INTO equity_snapshots (mode,equity_quote,free_quote,source) "
+                "VALUES ('PAPER',$1,$1,'ADMIN_ADJUSTMENT')", balance,
+            )
+            await self._conn.execute(
+                "UPDATE bot_state SET equity_hwm_quote=GREATEST(equity_hwm_quote,$1), "
+                "updated_at=CLOCK_TIMESTAMP() WHERE mode='PAPER'", balance,
+            )
+        return balance
 
     # -- signaux et décisions --------------------------------------------
 

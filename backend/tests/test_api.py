@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace
@@ -53,6 +54,14 @@ class FakeRepo:
 
     async def open_position(self, mode):
         return self.position
+
+    @asynccontextmanager
+    async def cycle_lock(self, mode):
+        yield
+
+    async def set_paper_balance(self, balance, current):
+        self.adjusted_balance = balance
+        return balance
 
     async def open_positions(self, mode):
         return [self.position] if self.position is not None else []
@@ -453,6 +462,24 @@ def test_settings_update_refuses_an_incoherent_daily_loss(api):
     )
     assert response.status_code == 422
     assert "au moins le double" in response.json()["detail"]
+
+
+def test_paper_balance_can_be_adjusted_without_open_position(api):
+    client, repo, _ = api
+    headers = {"Authorization": f"Bearer {token_of(client)}"}
+    response = client.post("/api/control/paper-balance", json={"balance": "1000.00"}, headers=headers)
+    assert response.status_code == 200, response.text
+    assert response.json() == {"balance": "1000.00", "mode": "PAPER"}
+    assert repo.adjusted_balance == Decimal("1000.00")
+
+
+def test_paper_balance_refuses_open_position(api):
+    client, repo, _ = api
+    repo.position = SimpleNamespace(symbol="BTC/EUR")
+    headers = {"Authorization": f"Bearer {token_of(client)}"}
+    response = client.post("/api/control/paper-balance", json={"balance": "1000.00"}, headers=headers)
+    assert response.status_code == 409
+    assert "position PAPER" in response.json()["detail"]
 
 
 def test_position_payload_shows_the_net_risk_at_the_stop():

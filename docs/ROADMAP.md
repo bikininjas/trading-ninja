@@ -26,6 +26,22 @@ ni absence totale de panne.
 
 ## Ordre et responsabilités
 
+🟨 **Disponibilité du modèle et reprise du moteur** *(commencé le 12 novembre 2026)* :
+préparer le modèle avant une décision et vérifier les possibilités de supervision
+PAPER sans modification du système ; qualification de panne et maintien à vérifier.
+
+🟨 **Solde courant PAPER ajustable depuis le dashboard** *(commencé le 12 novembre 2026)* :
+champ d’ajustement absolu, instantané financier `ADMIN_ADJUSTMENT`, historique
+préservé, verrou financier et refus si une position est ouverte. Reste à vérifier
+sur une base jetable et dans le WSL cible avant de déclarer la recette terminée.
+
+🟨 **Reprise après connexion PostgreSQL idle fermée** *(commencé le 12 novembre 2026)* :
+le moteur vérifie et rétablit sa connexion ledger pendant la veille H4, avec un
+message périodique de vie. Test unitaire local réussi ; recette WSL après longue
+veille et coupure réseau encore à faire. Un cycle PAPER complet a été observé
+le 12 novembre, mais le processus lancé depuis cette session disparaît à la fin
+de la commande de lancement ; maintien autonome non confirmé.
+
 ✅ **Revue dashboard v2 et mémoire PAPER** *(11 novembre 2026)* :
 réponses incomplètes conservant le dernier affichage valide, timeouts de lecture,
 ratios nets corrigés, plans incohérents exclus et pannes de cours isolées sans

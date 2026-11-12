@@ -162,7 +162,7 @@
       </div>
       <p class="muted">La suspension des achats conserve la gestion des positions et leurs protections.</p>
       <div class="opportunity-summary" id="opportunity-summary"></div>
-      <details><summary>Derniers cycles et rejeu hors ligne</summary><div id="insights-cycles"></div></details>
+      <details open><summary>Activité récente : marchés lus et raisons des décisions</summary><div id="insights-cycles"></div></details>
       <details><summary>Comprendre une position</summary>
         <form id="diagnostic-form" class="controls"><label>Identifiant de position <input id="diagnostic-id" required placeholder="Identifiant dans l’activité Positions"></label><button type="submit" class="ghost">Analyser</button></form>
         <div id="trade-diagnostics"></div>
@@ -248,6 +248,15 @@
         <h2>Réglages</h2>
         <span id="settings-updated" class="muted"></span>
       </div>
+      <form id="paper-balance-form" class="settings" hidden>
+        <label>
+          <span>Solde courant PAPER (EUR)</span>
+          <input id="paper-balance" type="number" min="0.01" max="1000000" step="0.01" required>
+          <small>L’ajustement conserve l’historique et est refusé si une position est ouverte.</small>
+        </label>
+        <button class="primary" type="submit" id="paper-balance-save">Ajuster le solde PAPER</button>
+        <span id="paper-balance-feedback" class="feedback" role="status" aria-live="polite"></span>
+      </form>
       <form id="settings-form" class="settings">
         <label>
           <span>Profil : comment le bot engage et protège le capital</span>

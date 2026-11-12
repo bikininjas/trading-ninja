@@ -18,7 +18,7 @@ Les migrations 0001–0015 sont appliquées sur trninja, vérifiées le 11 novem
 Sur une autre base, vérifier les migrations avant de démarrer l’instrumentation.
 
 Les tests n’utilisent aucune clé du shell et interdisent les connexions externes.
-La suite normale collecte 921 tests : 858 passent hors base, 63 contrats SQL sont
+La suite normale collecte 926 tests : 863 passent hors base, 63 contrats SQL sont
 ignorés sans base jetable. Pour tout vérifier, démarrer PostgreSQL 17 local avec
 les rôles `anon`/`authenticated`, appliquer les quinze migrations et utiliser :
 
@@ -66,7 +66,7 @@ Le profil papier `progressif` et le comparatif de budgets sont décrits dans
 virtuels ; il ne modifie pas les réglages locaux existants.
 
 ```bash
-.venv/bin/python -m pytest                     # 921 tests collectés ; 63 PostgreSQL opt-in, voir ci-dessous
+.venv/bin/python -m pytest                     # 926 tests collectés ; 63 PostgreSQL opt-in, voir ci-dessous
 .venv/bin/python -m app.main --once            # un cycle papier complet (données réelles)
 .venv/bin/python -m app.main --serve           # une évaluation par bougie H4 clôturée
 .venv/bin/python -m app.main --status          # état + 3 dernières lignes par table
@@ -108,12 +108,19 @@ PYTHONPATH=. .venv/bin/python scripts/demo_guardrails.py
 Depuis la racine du dépôt :
 
 ```bash
-scripts/manage.sh start all      # API + dashboard en arrière-plan
+scripts/manage.sh start all      # API + dashboard + moteur PAPER en arrière-plan
 scripts/manage.sh status
 scripts/manage.sh restart dashboard
 scripts/manage.sh logs all
 scripts/manage.sh stop all
 ```
+
+Depuis la racine du dépôt, `bash scripts/manage.sh start all` démarre les trois
+composants. Le moteur force PAPER et neutralise les clés exchange, même si elles
+figurent dans `.env.local`. Les réglages de base et Ollama sont lus depuis les
+fichiers habituels (`backend/.env`, `.env`, `.env.local`). L'API exige également
+`JWT_SECRET_KEY`, `TOTP_SECRET` et `ADMIN_PASSWORD_HASH` dans l'un de ces fichiers.
+Le moteur se pilote avec `status`, `logs engine` et `stop engine`.
 
 Fichiers PID et journaux dans `scripts/.run/` (ignoré par git). Un PID n'est tué
 qu'après vérification de sa ligne de commande.

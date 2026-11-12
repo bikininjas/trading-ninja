@@ -19,8 +19,20 @@ uv pip sync --python .venv/bin/python requirements.lock
 .venv/bin/python -m pytest
 ```
 
-La connexion PostgreSQL et Ollama doivent être configurés avant de lancer le moteur.
-Les tests SQL utilisent une base locale jetable, jamais la base déployée.
+Après configuration de PostgreSQL, Ollama et des secrets d'administration (`JWT_SECRET_KEY`,
+`TOTP_SECRET`, `ADMIN_PASSWORD_HASH`) dans `backend/.env`, `.env` ou `.env.local`, lance
+l'API, le dashboard et le moteur PAPER ensemble depuis la racine :
+
+```bash
+bash scripts/manage.sh start all
+bash scripts/manage.sh status
+bash scripts/manage.sh logs engine
+bash scripts/manage.sh stop all
+```
+
+Le moteur reste en simulation PAPER et ignore les clés exchange présentes dans
+`.env.local`. Le dashboard local est sur http://127.0.0.1:8081. Les commandes
+individuelles acceptent `api`, `dashboard` ou `engine`.
 
 ## Documentation
 

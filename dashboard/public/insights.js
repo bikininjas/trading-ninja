@@ -2,6 +2,13 @@
 (() => {
   'use strict';
   const $ = (id) => document.getElementById(id);
+  const localDateTime = (value) => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString(undefined, {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit',
+    });
+  };
   const labels = { NO_SETUP: 'Pas de configuration d’achat', LLM_HOLD: 'Attente du modèle',
     LLM_UNAVAILABLE: 'Modèle indisponible', RISK_REJECTED: 'Refus du pare-feu', NOT_SELECTED: 'Autre paire retenue',
     FILLED: 'Achat exécuté', ENTRY_DISABLED: 'Achats suspendus', DATA_UNAVAILABLE: 'Données indisponibles',
@@ -60,7 +67,7 @@
       if (!data.cycles.length) line(cycles, 'Aucun cycle enregistré depuis la mise en place des observations.');
       for (const cycle of data.cycles) {
         const row = document.createElement('article'); row.className = 'card';
-        line(row, `${cycle.started_at} · ${cycle.status}`);
+        line(row, `${localDateTime(cycle.started_at)} · ${cycle.status}`);
         action(row, 'Voir le parcours', async () => {
           const data = await api(`/api/insights/cycles/${cycle.id}/events`);
           for (const event of data.events) {
@@ -119,7 +126,7 @@
       RUNTIME_STALLED: 'cycle au-delà du budget de trente secondes', RUNTIME_LATE: 'cycle programmé en retard',
       RUNTIME_INCOMPLETE: 'dernier cycle échoué ou incomplet', RUNTIME_MISSING: 'aucune preuve de cycle',
       OBSERVATION_UNAVAILABLE: 'actualisation impossible', PROOF_EXPIRED: 'preuve de surveillance expirée' };
-    line(box, `${health}${data.status !== 'OK' ? ` · ${reasons[data.reason] || 'preuve insuffisante'}` : ''}${data.latest ? ` · observation ${data.latest.observed_at}` : ''}`);
+    line(box, `${health}${data.status !== 'OK' ? ` · ${reasons[data.reason] || 'preuve insuffisante'}` : ''}${data.latest ? ` · observation ${localDateTime(data.latest.observed_at)}` : ''}`);
     if (data.status === 'OK') protectionExpiry = setTimeout(() => renderProtection({ ...data, status: 'UNKNOWN', reason: 'PROOF_EXPIRED' }), remaining + 1);
     if (data.latest) detail(box, 'État observé des protections', data.latest.body);
     for (const incident of data.incidents) {
@@ -133,7 +140,7 @@
     const box = clear('experiment-results');
     if (!items.length) line(box, 'Aucune comparaison enregistrée.');
     for (const item of items) {
-      line(box, `${item.created_at} · ${item.state} · aucune promotion automatique`);
+      line(box, `${localDateTime(item.created_at)} · ${item.state} · aucune promotion automatique`);
       for (const variant of item.result?.variants || []) line(box, `${variant.name} : ${variant.trades} trades, capital final ${variant.equity_end}, drawdown ${Number(variant.max_drawdown * 100).toFixed(2)} %`);
       detail(box, 'Résultats et hypothèses', item.result);
     }

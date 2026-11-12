@@ -415,6 +415,9 @@ class Orchestrator:
         return (await getter(self._mode))["enabled"] if getter else True
 
     async def run_once(self) -> CycleReport:
+        ensure_connected = getattr(self._repo, "ensure_connected", None)
+        if ensure_connected:
+            await ensure_connected()
         self._observation_error = None
         if not self._capture or not hasattr(self._feature_repo, "begin_cycle"):
             async with self._repo.cycle_lock(self._mode):

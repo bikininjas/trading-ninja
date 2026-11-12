@@ -141,6 +141,45 @@ async def test_timeout_falls_back_to_hold_with_zero_confidence():
 
 
 @pytest.mark.asyncio
+async def test_cold_model_is_loaded_before_decision():
+    paths = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        paths.append(request.url.path)
+        if request.url.path == "/api/generate":
+            return httpx.Response(200, json={"done": True})
+        return httpx.Response(200, json={"message": {"content": VALID}})
+
+    client_ = SignalClient(settings(), transport=httpx.MockTransport(handler))
+    signal = await client_.propose("BTC/EUR", SNAPSHOT, CONTEXT)
+    assert paths == ["/api/generate", "/api/chat"]
+    assert signal.action == "BUY" and not signal.degraded
+
+
+@pytest.mark.asyncio
+async def test_failed_warmup_returns_hold_and_limits_retries(monkeypatch):
+    attempts = []
+    now = [100.0]
+    monkeypatch.setattr("app.llm.client.time.monotonic", lambda: now[0])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        attempts.append(request.url.path)
+        if len(attempts) == 1:
+            raise httpx.ConnectError("Ollama arrêté")
+        if request.url.path == "/api/generate":
+            return httpx.Response(200, json={"done": True})
+        return httpx.Response(200, json={"message": {"content": VALID}})
+
+    client_ = SignalClient(settings(), transport=httpx.MockTransport(handler))
+    assert (await client_.propose("BTC/EUR", SNAPSHOT, CONTEXT)).degraded
+    assert (await client_.propose("BTC/EUR", SNAPSHOT, CONTEXT)).degraded
+    assert attempts == ["/api/generate"]
+    now[0] += 31
+    assert (await client_.propose("BTC/EUR", SNAPSHOT, CONTEXT)).action == "BUY"
+    assert attempts == ["/api/generate", "/api/generate", "/api/chat"]
+
+
+@pytest.mark.asyncio
 async def test_http_error_falls_back_to_hold():
     signal = await client(status=500).propose("BTC/EUR", SNAPSHOT, CONTEXT)
     assert signal.action == "HOLD"

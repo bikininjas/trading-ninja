@@ -32,7 +32,7 @@ prix et stop sont toujours calculés par le code.
   empreintes et droits vérifiés le 11 novembre 2026. Preuve :
   `docs/audits/2026-11-11/learning-migration-verification.json` ; journal et limites
   de sauvegarde : `docs/JOURNAL.md`.
-- 921 tests Python sont collectés, dont 63 contrats PostgreSQL locaux opt-in ;
+- 926 tests Python sont collectés, dont 63 contrats PostgreSQL locaux opt-in ;
   32 tests Node et un contrôle navigateur complètent les preuves.
 - Le statut reste **NO-GO** pour le réel. Les corrections intégrées et leurs
   preuves sont dans `docs/JOURNAL.md` ; le plan de passage est

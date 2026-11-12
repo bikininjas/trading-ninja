@@ -57,10 +57,24 @@ async def _status(repo: PostgresRepository, mode: str) -> None:
                       f"{row['status']} {row['requested_amount']} @ {row['average_fill_price']}")
 
 
-async def _serve(orchestrator: Orchestrator, timeframe: str, *, max_cycles: int = 0) -> None:
+async def _serve(orchestrator: Orchestrator, timeframe: str, *, max_cycles: int = 0,
+                 repo: PostgresRepository | None = None) -> None:
     """Boucle alignée sur les clôtures de bougies, pas sur un intervalle fixe."""
+    async def keep_database_ready() -> None:
+        if repo is None:
+            return
+        while True:
+            try:
+                if await repo.ensure_connected():
+                    print("connexion PostgreSQL rétablie pendant l’attente", flush=True)
+                return
+            except Exception as exc:
+                print(f"PostgreSQL indisponible pendant l’attente ({type(exc).__name__}) ; nouvel essai dans 10 s", flush=True)
+                await asyncio.sleep(10)
+
     cycle = 0
     while max_cycles <= 0 or cycle < max_cycles:
+        await keep_database_ready()
         next_close = next_candle_close(datetime.now(timezone.utc), timeframe)
         cycle += 1
         report: CycleReport = await orchestrator.run_once()
@@ -81,7 +95,16 @@ async def _serve(orchestrator: Orchestrator, timeframe: str, *, max_cycles: int 
                 f"{evaluation_at:%Y-%m-%d %H:%M} UTC — attente {wait / 60:.1f} min",
                 flush=True,
             )
-            await asyncio.sleep(wait)
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + wait
+            next_notice = loop.time() + 300.0
+            while (remaining := deadline - loop.time()) > 0:
+                interval = min(30.0, remaining, max(0, next_notice - loop.time()))
+                await asyncio.sleep(interval)
+                await keep_database_ready()
+                if loop.time() >= next_notice and loop.time() < deadline:
+                    print(f"veille active · prochaine évaluation à {evaluation_at:%Y-%m-%d %H:%M} UTC", flush=True)
+                    next_notice = loop.time() + 300.0
         else:
             print(
                 f"bougie {next_close:%H:%M} UTC clôturée pendant le cycle : "
@@ -150,7 +173,7 @@ async def _run(args: argparse.Namespace) -> int:
             if args.serve:
                 await _serve(
                     orchestrator, settings.exchange.daily_timeframe_decision,
-                    max_cycles=args.serve_cycles,
+                    max_cycles=args.serve_cycles, repo=repo,
                 )
                 return
 

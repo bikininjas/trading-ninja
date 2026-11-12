@@ -315,7 +315,7 @@ export function createDashboardServer(options = {}) {
     }
 
     const idPart = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
-    const insightGet = new Set(['/api/insights/overview', '/api/insights/cycles',
+    const insightGet = new Set(['/api/system/health', '/api/insights/overview', '/api/insights/cycles',
       '/api/insights/experiments', '/api/insights/confidence', '/api/insights/protection',
       '/api/insights/policy', '/api/insights/learning', '/api/diagnostics/opportunities']);
     const insightPost = new Set(['/api/control/entries', '/api/settings/preview',
@@ -375,16 +375,22 @@ export function createDashboardServer(options = {}) {
       if (!session) return;
 
       const allowed = new Set(['/api/control/pause', '/api/control/resume', '/api/control/panic',
+        '/api/control/paper-balance',
         '/api/control/kill-switch', '/api/control/circuit-breaker/reset', '/api/control/reconcile']);
       if (!allowed.has(pathname)) return sendJson(res, 404, { error: 'commande non exposée' });
       let body;
-      if (new Set(['/api/control/panic', '/api/control/kill-switch', '/api/control/circuit-breaker/reset']).has(pathname)) {
+      if (new Set(['/api/control/panic', '/api/control/kill-switch', '/api/control/circuit-breaker/reset',
+        '/api/control/paper-balance']).has(pathname)) {
         const payload = await readJson(req);
+        if (pathname === '/api/control/paper-balance') {
+          body = { balance: payload.balance };
+        } else {
         const totp = String(payload.totp ?? '').replace(/\s+/g, '');
         if (!/^\d{6}$/.test(totp)) {
           return sendJson(res, 400, { error: 'code TOTP à 6 chiffres requis' });
         }
         body = { totp };
+        }
       }
       const result = await callApi(pathname, { method: 'POST', token: session.token, body });
       if (result.status === 401) return expireSession(res, session);

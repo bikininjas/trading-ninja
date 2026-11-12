@@ -1053,6 +1053,8 @@
       throw new Error('Statut incomplet ou invalide');
     }
     latestStatus = status;
+    const balanceForm = $('paper-balance-form');
+    if (balanceForm) balanceForm.hidden = status.mode !== 'PAPER';
     statusSequence += 1;
 
     const badge = $('state');
@@ -1452,6 +1454,42 @@
     $(id)?.addEventListener('input', refreshSettingOutputs);
   }
   $('profile-example-capital')?.addEventListener('input', renderProfileExplanation);
+
+  $('paper-balance-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const input = $('paper-balance');
+    const feedback = $('paper-balance-feedback');
+    const button = $('paper-balance-save');
+    const balance = Number(input?.value);
+    if (!Number.isFinite(balance) || balance <= 0 || balance > 1_000_000) {
+      if (feedback) feedback.textContent = 'Saisis un montant entre 0,01 et 1 000 000 EUR.';
+      return;
+    }
+    if (!window.confirm(`Fixer le solde PAPER courant à ${money(balance)} EUR ? L’historique sera conservé.`)) return;
+    if (button) button.disabled = true;
+    try {
+      const response = await fetch('/api/control/paper-balance', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ balance: balance.toFixed(2) }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 401) { window.location.href = '/login'; return; }
+      if (!response.ok) {
+        const detail = Array.isArray(data.detail)
+          ? data.detail.map((item) => item.msg || item.message || JSON.stringify(item)).join(' · ')
+          : typeof data.detail === 'string' ? data.detail
+            : data.detail ? JSON.stringify(data.detail) : 'Ajustement refusé';
+        throw new Error(detail);
+      }
+      if (feedback) feedback.textContent = `Solde PAPER ajusté à ${money(data.balance)} EUR.`;
+      input.value = '';
+      await Promise.all([loadStatus(), loadStats()]);
+    } catch (error) {
+      if (feedback) feedback.textContent = error.message;
+    } finally {
+      if (button) button.disabled = false;
+    }
+  });
 
   $('settings-reload')?.addEventListener('click', async () => {
     setSettingsFeedback('chargement…');

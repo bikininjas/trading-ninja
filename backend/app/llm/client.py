@@ -19,6 +19,7 @@ la seule garantie : un modèle peut ignorer une consigne, pas un parseur.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import time
@@ -242,6 +243,7 @@ class SignalClient:
     def __init__(self, settings: LLMSettings, *, transport: httpx.AsyncBaseTransport | None = None):
         self._settings = settings
         self._transport = transport
+        self._warmup_retry_at = 0.0
 
     # -- payload ---------------------------------------------------------
 
@@ -427,6 +429,19 @@ class SignalClient:
             raise ValueError(f"decision_timeframe non géré : {decision_timeframe!r}")
         if decision_timeframe == "1d" and context.d1 is None:
             return self._fallback(snapshot, "contexte D1 absent")
+        # La veille H4 peut dépasser la durée de résidence du modèle. Un appel
+        # de chargement borné précède chaque décision, sans relancer Ollama ni
+        # bloquer indéfiniment la gestion des positions en cas d'indisponibilité.
+        if time.monotonic() < self._warmup_retry_at:
+            return self._fallback(snapshot, "préchauffage Ollama temporairement indisponible")
+        try:
+            ready = await asyncio.wait_for(self.warmup(timeout_seconds=30.0), timeout=30.0)
+        except TimeoutError:
+            ready = False
+        if not ready:
+            self._warmup_retry_at = time.monotonic() + 30.0
+            return self._fallback(snapshot, "préchauffage Ollama impossible ou expiré")
+        self._warmup_retry_at = 0.0
         payload, market = self._payload(
             symbol, snapshot, context, has_position, trend_buffer_pct,
             lessons=lessons, decision_timeframe=decision_timeframe,
@@ -557,7 +572,8 @@ class SignalClient:
         """
         root = self._root()
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_seconds)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_seconds),
+                                         transport=self._transport) as client:
                 response = await client.post(
                     root + "/api/generate",
                     json={"model": self._settings.model, "prompt": "", "stream": False,
