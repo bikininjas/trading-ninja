@@ -2180,3 +2180,41 @@ Faux rebonds immédiats et lag sont définis et comptés dans `BACKTEST.md` ; un
 lag apparié sur un unique événement ne valide aucune anticipation moyenne.
 Couverture imparfaite et sélection rétrospective explicites. Le statut réel
 reste NO-GO. Résultats et trades archivés sous `docs/backtests/2026-11-16/`.
+
+## D-096 — Plusieurs positions PAPER avec budget partagé (2026-11-16)
+
+**Demande explicite** : Seb souhaite plusieurs positions ouvertes sur des cryptos
+distinctes. Relever uniquement le compteur n'aurait pas suffi : le runtime, les
+snapshots et plusieurs vues ne traitaient que la première position.
+
+**Décision** : 1 à 5 positions configurables en PAPER ; défaut historique 1 et
+préparation d'installation à 5. Le réel et testnet refusent une limite supérieure
+à 1. Surveillance de toutes les lignes avant au plus un nouvel achat par cycle,
+réévalué avec le cash, tous les symboles ouverts et le risque restant. Chaque
+politique stratégique et chaque stop/TP restent propres à la position.
+
+Le pourcentage de risque du profil devient le plafond cumulé en mode multiple,
+avec frais et glissement prévus. L'exposition du profil est également partagée ;
+le plafond absolu par ordre reste individuel. Aucune hausse de budget, aucun
+assouplissement de tendance ni achat sous les minima pour occuper les places.
+Un premier achat peut consommer tout le budget et empêcher les suivants.
+Après pertes, l'étranglement réduit aussi le plafond cumulé. Avant admission, les
+positions sont revalorisées et les drawdowns relus en SQL ; le prix du candidat
+est rafraîchi après ces lectures. Une panne à cette étape annule seulement l'achat.
+
+**Comptabilité et contrôle** : une sortie conserve la valeur des autres actifs,
+le cooldown suspend les achats sans arrêter leurs protections ; les arrêts PAPER
+laissent traiter les stops/TP restants. Panne de cours : autres sorties maintenues,
+achats suspendus, valorisation conservatrice explicitement signalée. Snapshots
+globaux sans symbole individuel pour ne pas fausser les diagnostics. Le dashboard
+et les réponses de portefeuille exposent la liste ; le champ `position` reste
+compatible avec les anciens clients. Aucune migration nécessaire.
+Le risque estimé au stop affiché utilise le stop courant, les frais configurés et
+le glissement de sortie prévu ; il est nul si les protections couvrent ces coûts.
+
+**Livraison** : code testé sous Python 3.13.17 sur PostgreSQL 17 jetable ; golden
+identique. L'installation exige sudo et reste distincte de cette validation.
+L'installateur vérifie les empreintes, les dépendances et le prévol SQL limité,
+prépare une nouvelle release et une copie de l'ancienne configuration avant
+bascule. SOL, LINK, AAVE, SUI et NEAR sont les cinq candidates préparées ; leur
+étude ne démontre pas de rentabilité et aucune n'a actuellement de setup.

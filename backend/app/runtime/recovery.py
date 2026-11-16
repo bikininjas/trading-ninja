@@ -20,10 +20,11 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from inspect import isawaitable
 from typing import Any
+import ccxt
 
 from app.engine.capital import CapitalPolicy
 from app.db.repository import PostgresRepository
-from app.market.feed import last_price
+from app.market.feed import FeedError, last_price
 
 __all__ = [
     "Liquidation",
@@ -121,11 +122,18 @@ async def _liquidate_open_positions(
     consecutive = account.consecutive_losses
     results: list[Liquidation] = []
 
-    positions = await repo.open_positions(mode)
+    all_positions = await repo.open_positions(mode)
+    positions = all_positions
+    closed_ids = set()
+    errors = []
     if only_symbols is not None:
         positions = [p for p in positions if p.symbol in only_symbols]
     for position in positions:
-        price = last_price(exchange, position.symbol)
+        try:
+            price = last_price(exchange, position.symbol)
+        except (FeedError, ccxt.NetworkError, OSError) as exc:
+            errors.append(f"{position.symbol} : {exc}")
+            continue
         fill = await _maybe_await(
             broker.exit(
                 position.amount, price, symbol=position.symbol,
@@ -180,18 +188,34 @@ async def _liquidate_open_positions(
             if capital is not None:
                 net = net.quantize(Decimal('0.0000000001'))
                 capital = await repo.allocate_capital(mode, position.id, net, moment, capital_policy, allow_promotion=False)
-                cash, reserve, growth = capital.active_quote, capital.reserve_quote, capital.growth_quote
+                if len(all_positions) > 1:
+                    cash += fill.notional_quote - fill.fee_quote
+                    cash -= (capital.reserve_quote - reserve) + (capital.growth_quote - growth)
+                    reserve, growth = capital.reserve_quote, capital.growth_quote
+                else:
+                    cash, reserve, growth = capital.active_quote, capital.reserve_quote, capital.growth_quote
             else:
                 cash = cash + fill.notional_quote - fill.fee_quote
             if live:
                 cash = await _maybe_await(broker.free_quote()) - reserve - growth
             consecutive = consecutive + 1 if net < 0 else 0
+            closed_ids.add(position.id)
+            remaining_value = Decimal(0)
+            for remaining in all_positions:
+                if remaining.id in closed_ids:
+                    continue
+                try:
+                    mark = last_price(exchange, remaining.symbol)
+                except (FeedError, ccxt.NetworkError, OSError):
+                    mark = min(remaining.entry_price, remaining.stop_loss_price)
+                remaining_value += remaining.amount * mark
             await repo.update_after_close(
-                mode, consecutive_losses=consecutive, equity=cash + reserve + growth
+                mode, consecutive_losses=consecutive, equity=cash + reserve + growth + remaining_value
             )
             await repo.snapshot_equity(
-                mode, equity=cash + reserve + growth, free_quote=cash,
-                position_value_quote=Decimal(0), symbol=position.symbol, source="KILL_SWITCH",
+                mode, equity=cash + reserve + growth + remaining_value, free_quote=cash,
+                position_value_quote=remaining_value,
+                symbol=position.symbol if len(all_positions) == 1 else None, source="KILL_SWITCH",
             )
             results.append(Liquidation(
                 symbol=position.symbol, amount=position.amount, exit_price=fill.price,
@@ -203,6 +227,9 @@ async def _liquidate_open_positions(
     # Même sans position, un kill-switch est une panne volontaire : le bot doit
     # rester arrêté jusqu'à une intervention humaine.
     await repo.force_halt(mode, f"{reason} à {moment:%Y-%m-%d %H:%M:%S} UTC")
+    if errors:
+        raise PanicLiquidationError("liquidation incomplète : cours indisponibles",
+                                    liquidated=results, errors=errors)
     return results
 
 

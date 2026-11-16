@@ -493,8 +493,19 @@ def test_position_payload_shows_the_net_risk_at_the_stop():
     payload = _position_payload(position, Decimal("0.008"))
     assert payload["risk_amount_quote"] == "0.115"
     assert payload["fee_rate"] == "0.008"
-    # 0,115 de risque brut + 2 × 0,80 % sur 4,60 EUR de notionnel = 0,1886 EUR
-    assert payload["estimated_net_risk_quote"] == "0.188600"
+    # Achat 4,60 + 0,0368 EUR de frais ; vente au stop 4,416 - 0,035328.
+    # Le risque historique stocké ne remplace pas la géométrie actuelle du stop.
+    assert payload["estimated_net_risk_quote"] == "0.256128"
+
+
+@pytest.mark.parametrize(('stop', 'expected'), [('96', '0.258318336'), ('102', '0')])
+def test_position_net_risk_tracks_current_stop_and_slippage(stop, expected):
+    position = SimpleNamespace(
+        id='pos-1', symbol='BTC/EUR', entry_price=Decimal('100'), amount=Decimal('.046'),
+        stop_loss_price=Decimal(stop), take_profit_price=None,
+        opened_at=datetime(2026, 11, 4, tzinfo=timezone.utc), risk_amount_quote=Decimal('.115'))
+    payload = _position_payload(position, Decimal('.008'), Decimal('.0005'))
+    assert Decimal(payload['estimated_net_risk_quote']) == Decimal(expected)
 
 
 def test_position_payload_without_a_position_is_none():

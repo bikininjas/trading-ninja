@@ -200,3 +200,37 @@ aucun achat. Il possède sa propre connexion et ses propres verrous, avec un lot
 borné à 120 s. Ses appels à Ollama peuvent partager les ressources du moteur :
 mesurer la contention sur WSL pendant la recette. Aucun service n’a été activé
 sur la cible par la préparation de ce dépôt.
+
+## Mise à jour PAPER : positions multiples (16 novembre 2026)
+
+Le moteur peut surveiller plusieurs lignes, fermer plusieurs positions dans un
+cycle et rechercher au plus un nouvel achat par cycle. Le risque et l'exposition
+du profil sont partagés, sans hausse du capital. Voir
+[l'étude et les limites](../docs/DIVERSIFICATION_PAPER.md).
+
+Pour l'installation WSL déjà présente, les sources vérifiées sont figées dans
+`multiple-positions.sha256`. Vérification sans effet :
+
+```bash
+bash deploy/enable-multiple-positions-wsl.sh --check
+```
+
+Après cette vérification, depuis la racine du dépôt, Seb peut installer :
+
+```bash
+sudo bash deploy/enable-multiple-positions-wsl.sh
+```
+
+Cette commande prépare une nouvelle release avec les mêmes dépendances,
+vérifie le prévol PAPER avec le LOGIN limité et la compatibilité de l'environnement
+de l'API locale, arrête le moteur, vérifie à nouveau, conserve des copies privées
+des anciennes configurations moteur et API, bascule puis redémarre le
+moteur et l'API locale. Elle prépare cinq places et ajoute SOL/LINK/AAVE/SUI/NEAR
+à la liste existante. Aucun budget ou seuil de risque n'est relevé ; aucune
+migration n'est appliquée. Le service reste sans redémarrage automatique.
+
+Si un prévol échoue après l'arrêt, laisser le moteur arrêté et examiner l'état ;
+ne pas supprimer la nouvelle release pour forcer une nouvelle tentative. Après
+un démarrage, vérifier le premier cycle et la révision appliquée dans les journaux
+et le dashboard. Un service « active » pendant le préchauffage ne prouve pas encore
+un cycle réussi. L'exécution sudo et cette recette restent à faire.

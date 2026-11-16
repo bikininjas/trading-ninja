@@ -100,13 +100,13 @@
     </section>
 <div class="overview-bottom"><section class="panel position-panel">
         <div class="panel-head">
-          <h2>Position en cours</h2>
+          <h2>Positions en cours</h2>
           <span id="position-symbol" class="muted"></span>
         </div>
         <div id="position" class="position empty">Aucune position ouverte.</div>
         <p class="muted note">
           Le risque brut exclut les frais d'achat et de vente. La perte au stop les
-          inclut, au tarif taker configuré.
+          inclut, au tarif taker et au glissement de sortie prévus. Elle suit le stop courant.
         </p>
       </section><section class="panel next-panel"><div class="panel-head"><h2>Comprendre ce qui se passe</h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.5 5 5.5 1-4 4 1 6-5-3-5 3 1-6-4-4 5.5-1L12 3Z"/></svg></div><p>Chaque décision a une explication.</p><span class="muted">Explorez les analyses du modèle, les achats refusés et les protections de votre capital.</span><a class="text-link" href="#decisions">Explorer les décisions <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></a><a class="secondary-link" href="#activity">Consulter le journal d’activité <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></a></section></div>
 </section>
@@ -285,6 +285,13 @@
           <input id="set-orders" type="range" min="1" max="10" step="1">
           <output id="set-orders-value">—</output>
           <small>Un achat et sa vente peuvent compter séparément. Ce plafond n'est pas un objectif d'activité.</small>
+        </label>
+
+        <label>
+          <span>Positions ouvertes au maximum (simulation)</span>
+          <input id="set-positions" type="range" min="1" max="5" step="1" value="1">
+          <output id="set-positions-value">1</output>
+          <small id="set-portfolio-risk"></small>
         </label>
 
         <label>

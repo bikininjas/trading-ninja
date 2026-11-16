@@ -27,7 +27,7 @@ async def build_stats(repo, settings: Settings) -> dict:
     lesson_history = await repo.recent_lessons(mode, 1)
 
     account = await repo.account(mode, settings.paper_start_equity)
-    position = await repo.open_position(mode)
+    positions = await repo.open_positions(mode)
 
     total = int(metrics.get("total_trades") or 0)
     wins = int(metrics.get("wins") or 0)
@@ -48,9 +48,7 @@ async def build_stats(repo, settings: Settings) -> dict:
         if profit_factor_denominator != 0 else None
     )
 
-    engaged_position = Decimal(0)
-    if position is not None:
-        engaged_position = position.entry_price * position.amount
+    engaged_position = sum((p.entry_price * p.amount for p in positions), Decimal(0))
 
     rejection_total = sum(int(row["count"]) for row in rejections) or 1
     rejection_rows = [

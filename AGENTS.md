@@ -14,11 +14,16 @@ dimensionne ou la refuse ; l'exécution passe par un exchange via CCXT — aujou
 **simulée en papier**. Le LLM peut déclencher, mais il ne dimensionne rien : taille,
 prix et stop sont toujours calculés par le code.
 
-## 2. État de reprise — 11 novembre 2026
+## 2. État de reprise — 16 novembre 2026
 
 - Le bot reste en **simulation spot long uniquement** ; aucun capital réel engagé.
   Le chemin live exige les trois verrous de configuration et une réconciliation
   propre. Ne pas confondre une sonde de validation et une exécution réelle.
+- D-096 : positions multiples PAPER implémentées, 1 à 5 places, surveillance et
+  comptabilité de toutes les lignes. Risque et exposition partagés ; une nouvelle
+  entrée au maximum par cycle. Installation de la nouvelle release en attente de
+  sudo ; ne pas confondre le code testé avec le service installé. Voir
+  `docs/DIVERSIFICATION_PAPER.md` et `deploy/enable-multiple-positions-wsl.sh`.
 - Les résultats récents ne démontrent pas de rentabilité robuste. La disponibilité
   d'un exécuteur ne constitue pas une autorisation d'activation. Les historiques
   datés et résultats négatifs sont conservés dans le journal et les décisions.
@@ -32,7 +37,7 @@ prix et stop sont toujours calculés par le code.
   empreintes et droits vérifiés le 11 novembre 2026. Preuve :
   `docs/audits/2026-11-11/learning-migration-verification.json` ; journal et limites
   de sauvegarde : `docs/JOURNAL.md`.
-- 948 tests Python sont collectés, dont 63 contrats PostgreSQL locaux opt-in ;
+- 981 tests Python sont collectés, dont 65 contrats PostgreSQL locaux opt-in ;
   32 tests Node et un contrôle navigateur complètent les preuves.
 - Le statut reste **NO-GO** pour le réel. Les corrections intégrées et leurs
   preuves sont dans `docs/JOURNAL.md` ; le plan de passage est
@@ -214,9 +219,11 @@ La CI exécute les contrats complets sur un PostgreSQL jetable, jamais sur Supab
 
 ## 8. Prochaine action
 
-La cible retenue par Seb est son WSL domestique, actuellement inaccessible.
-`deploy/` fournit le lanceur, les unités et l'installation PAPER à préparer avant
-son go. Seb a retiré le 10 novembre le dump complet initial des prérequis bloquants
+La cible retenue par Seb est son WSL domestique, accessible dans cette session.
+Le moteur installé reste sur son ancienne release ; la candidate à positions
+multiples exige une installation sudo et la vérification de son premier cycle.
+`deploy/` fournit le lanceur, les unités et l'installation PAPER. Seb a retiré
+le 10 novembre le dump complet initial des prérequis bloquants
 puisque positions, ordres, intentions et ledger financier sont vides. L'outillage
 de sauvegarde reste optionnel ; ne pas présenter sa recette locale comme une
 restauration de Supabase. Décisions D-084 à D-086, procédure `deploy/README.md`.

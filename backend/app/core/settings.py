@@ -211,6 +211,7 @@ RUNTIME_ALLOWED_KEYS = frozenset({
     "MIN_EXIT_CONFIDENCE",
     "MIN_HALT_CONFIDENCE",
     "HALT_AUTO_RESUME_HOURS",
+    "MAX_OPEN_POSITIONS",
 })
 
 
@@ -432,7 +433,7 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
     if mode == "live" or profile in BUDGET_PROFILES:
         small_account_max_risk_pct = min(small_account_max_risk_pct, risk_per_trade_pct)
     risk = RiskConfig(
-        cost_aware=mode == "live" or configured_cost_aware,
+        cost_aware=mode == "live" or configured_cost_aware or _env_int(merged, "MAX_OPEN_POSITIONS", "1") > 1,
         execution_fee_pct=fee,
         execution_slippage_pct=slip_bps / Decimal(10000),
         opportunity_r_multiple=Decimal(merged.get("OPPORTUNITY_R_MULTIPLE", "4")),
@@ -503,6 +504,9 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
         min_exit_confidence=Decimal(merged.get("MIN_EXIT_CONFIDENCE", "0.55")),
         min_halt_confidence=Decimal(merged.get("MIN_HALT_CONFIDENCE", "0.80")),
     )
+
+    if risk.max_open_positions > 1 and mode != "paper":
+        raise RuntimeError("Les positions multiples restent réservées au PAPER")
 
     try:
         capital_policy = CapitalPolicy(

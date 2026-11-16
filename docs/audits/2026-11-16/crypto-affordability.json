@@ -1,0 +1,93 @@
+{
+  "observed_at": "2026-11-16T09:50:18.952709+00:00",
+  "config_basis": "profil micro_budget du depot, risque 3 %, exposition 50 %, frais 0.8 % et glissement 5 pb par cote, equite 9.37 EUR",
+  "affordability": [
+    {
+      "symbol": "SOL/EUR",
+      "min_order_quote": "3.2385",
+      "stop_distance_pct": "0.08290875405280222325150532654",
+      "effective_risk_pct_at_minimum": "0.03428744119530416221985058698",
+      "required_equity": "10.709110800",
+      "binding": "risk",
+      "affordable": false,
+      "equity": "9.37",
+      "atr_h4": "2.146428571428571428571428571",
+      "constraints": {
+        "amount_step": "1E-8",
+        "min_amount": "0.05",
+        "min_notional": "0.45",
+        "price_tick": "0.01"
+      }
+    },
+    {
+      "symbol": "LINK/EUR",
+      "min_order_quote": "2.9116605",
+      "stop_distance_pct": "0.07246037098075136163711394237",
+      "effective_risk_pct_at_minimum": "0.02760787005549626467449306297",
+      "required_equity": "8.622858080666666666666666667",
+      "binding": "risk",
+      "affordable": true,
+      "equity": "9.37",
+      "atr_h4": "0.2411164285714285714285714286",
+      "constraints": {
+        "amount_step": "1E-8",
+        "min_amount": "0.35",
+        "min_notional": "0.45",
+        "price_tick": "0.00001"
+      }
+    },
+    {
+      "symbol": "AAVE/EUR",
+      "min_order_quote": "2.9793",
+      "stop_distance_pct": "0.07380928406001409727117108046",
+      "effective_risk_pct_at_minimum": "0.02867447487726787620064034152",
+      "required_equity": "8.955994320",
+      "binding": "risk",
+      "affordable": true,
+      "equity": "9.37",
+      "atr_h4": "2.93",
+      "constraints": {
+        "amount_step": "1E-8",
+        "min_amount": "0.03",
+        "min_notional": "0.45",
+        "price_tick": "0.01"
+      }
+    },
+    {
+      "symbol": "SUI/EUR",
+      "min_order_quote": "3.29200",
+      "stop_distance_pct": "0.08581409477521263669501822600",
+      "effective_risk_pct_at_minimum": "0.03586594236926360725720384205",
+      "required_equity": "11.20212933333333333333333333",
+      "binding": "risk",
+      "affordable": false,
+      "equity": "9.37",
+      "atr_h4": "0.02258571428571428571428571429",
+      "constraints": {
+        "amount_step": "0.00001",
+        "min_amount": "5.0",
+        "min_notional": "0.45",
+        "price_tick": "0.0001"
+      }
+    },
+    {
+      "symbol": "NEAR/EUR",
+      "min_order_quote": "2.89710",
+      "stop_distance_pct": "0.09609609609609609609609609610",
+      "effective_risk_pct_at_minimum": "0.03471562578441835645677694771",
+      "required_equity": "10.8428471200",
+      "binding": "risk",
+      "affordable": false,
+      "equity": "9.37",
+      "atr_h4": "0.1113571428571428571428571429",
+      "constraints": {
+        "amount_step": "1E-8",
+        "min_amount": "1.0",
+        "min_notional": "0.45",
+        "price_tick": "0.0001"
+      }
+    }
+  ],
+  "kite_eur_listed": false,
+  "kite_pairs": []
+}

@@ -840,41 +840,48 @@
 
   // ------------------------------------------------------------ position --
 
-  function renderPosition(position) {
+  function renderPosition(positions) {
     const box = $('position');
     const symbol = $('position-symbol');
     if (!box) return;
     box.replaceChildren();
-    if (!position) {
+    if (!positions.length) {
       box.className = 'position empty';
       box.textContent = 'Aucune position ouverte.';
       if (symbol) symbol.textContent = '';
       return;
     }
     box.className = 'position';
-    if (symbol) symbol.textContent = position.symbol;
-    const rows = [
-      ['Entrée', money(position.entry_price)],
-      ['Prix actuel', money(position.current_price)],
-      ['Quantité', amount(position.amount)],
-      ['PnL latent', `${money(position.unrealized_pnl_quote)} EUR (${percent(toNumber(position.unrealized_pnl_pct) === null ? null : Number(position.unrealized_pnl_pct) / 100)})`],
-      ['Stop-loss', money(position.stop_loss_price)],
-      ['ID stop', position.stop_loss_order_id || '—'],
-      ['Breakeven', typeof position.is_breakeven_active === 'boolean' ? (position.is_breakeven_active ? 'actif' : 'non') : '—'],
-      ['Take-profit', position.take_profit_price ? money(position.take_profit_price) : '—'],
-      ['Risque brut', `${money(position.risk_amount_quote)} EUR`],
-      ['Perte au stop (frais inclus)', `${money(position.estimated_net_risk_quote)} EUR`],
-      ['Ouverte', dateTime(position.opened_at)],
-    ];
-    for (const [label, value] of rows) {
-      const row = document.createElement('div');
-      row.className = 'kv';
-      const key = document.createElement('span');
-      key.textContent = label;
-      const val = document.createElement('strong');
-      val.textContent = value ?? '—';
-      row.append(key, val);
-      box.append(row);
+    if (symbol) symbol.textContent = positions.length === 1 ? positions[0].symbol : `${positions.length} ouvertes`;
+    for (const position of positions) {
+      const card = document.createElement('section');
+      const title = document.createElement('h3');
+      title.textContent = position.symbol;
+      card.append(title);
+      const rows = [
+        ['Entrée', money(position.entry_price)],
+        ['Prix actuel', money(position.current_price)],
+        ['Quantité', amount(position.amount)],
+        ['PnL latent', `${money(position.unrealized_pnl_quote)} EUR (${percent(toNumber(position.unrealized_pnl_pct) === null ? null : Number(position.unrealized_pnl_pct) / 100)})`],
+        ['Stop-loss', money(position.stop_loss_price)],
+        ['ID stop', position.stop_loss_order_id || '—'],
+        ['Breakeven', typeof position.is_breakeven_active === 'boolean' ? (position.is_breakeven_active ? 'actif' : 'non') : '—'],
+        ['Take-profit', position.take_profit_price ? money(position.take_profit_price) : '—'],
+        ['Risque brut', `${money(position.risk_amount_quote)} EUR`],
+        ['Perte au stop (frais inclus)', `${money(position.estimated_net_risk_quote)} EUR`],
+        ['Ouverte', dateTime(position.opened_at)],
+      ];
+      for (const [label, value] of rows) {
+        const row = document.createElement('div');
+        row.className = 'kv';
+        const key = document.createElement('span');
+        key.textContent = label;
+        const val = document.createElement('strong');
+        val.textContent = value ?? '—';
+        row.append(key, val);
+        card.append(row);
+      }
+      box.append(card);
     }
   }
 
@@ -1040,6 +1047,7 @@
 
   function render(status) {
     const position = status?.position;
+    const positions = status && Object.hasOwn(status, 'positions') ? status.positions : (position ? [position] : []);
     if (!record(status)
       || !['PAPER', 'LIVE', 'TESTNET'].includes(status.mode)
       || !Object.hasOwn(STATE_LABELS, status.state)
@@ -1049,12 +1057,19 @@
       || !Object.hasOwn(status, 'position')
       || (position !== null && (!record(position) || typeof position.symbol !== 'string'
         || !['entry_price', 'amount', 'stop_loss_price'].every((key) => numeric(position[key]))
-        || !timestamp(position.opened_at)))) {
+        || !timestamp(position.opened_at)))
+      || !Array.isArray(positions) || !positions.every((p) => record(p)
+        && typeof p.symbol === 'string'
+        && ['entry_price', 'amount', 'stop_loss_price'].every((key) => numeric(p[key]))
+        && timestamp(p.opened_at))
+      || (Array.isArray(positions) && (positions.length ? position?.symbol !== positions[0]?.symbol : position !== null))) {
       throw new Error('Statut incomplet ou invalide');
     }
     latestStatus = status;
     const balanceForm = $('paper-balance-form');
     if (balanceForm) balanceForm.hidden = status.mode !== 'PAPER';
+    const positionsLimit = $('set-positions');
+    if (positionsLimit) positionsLimit.disabled = status.mode !== 'PAPER';
     statusSequence += 1;
 
     const badge = $('state');
@@ -1084,21 +1099,21 @@
     renderMode(status);
     renderHalt(status);
     if (resetButton) resetButton.hidden = status.state !== 'LOCKED_CIRCUIT_BREAKER';
-    renderPosition(status.position);
+    renderPosition(positions);
     renderRisk(status, latestSettings);
     setText('runtime-state', stateLabel(status.state));
     const descriptions = {
       IDLE: 'Le dernier statut indique une veille, sans achat en cours.',
       EVALUATING: 'Le moteur analyse une opportunité avant tout engagement.',
       EXECUTING: 'Une opération est en cours. Consultez l’activité pour son résultat.',
-      IN_POSITION: 'Une position est ouverte. Ses niveaux de protection sont détaillés ci-dessous.',
+      IN_POSITION: 'Des positions sont ouvertes. Chaque protection est détaillée ci-dessous.',
       POST_TRADE_SWEEP: 'La transaction est terminée. Le moteur traite sa répartition.',
       COOLDOWN: 'Le moteur marque une pause avant la prochaine analyse.',
       LOCKED_CIRCUIT_BREAKER: 'Une protection ou une pause bloque les nouveaux achats.',
       EMERGENCY_HALT: 'Le moteur est arrêté. Consultez le motif avant toute reprise.',
     };
     setText('runtime-description', descriptions[status.state]);
-    setText('runtime-position', status.position?.symbol || 'Aucune position');
+    setText('runtime-position', positions.map((p) => p.symbol).join(', ') || 'Aucune position');
     setText('runtime-source', 'Statut API reçu');
     markStatus();
   }
@@ -1286,6 +1301,7 @@
     setText('set-notional-value', `${optionValue('set-notional')} %`);
     setText('set-daily-value', `${optionValue('set-daily')} %`);
     setText('set-orders-value', `${optionValue('set-orders')} / h`);
+    setText('set-positions-value', `${optionValue('set-positions')}`);
     setText('set-confidence-value', `${optionValue('set-confidence')} %`);
     setText('set-halt-value', `${optionValue('set-halt')} h`);
     renderProfileExplanation();
@@ -1319,6 +1335,9 @@
       `Le curseur de journée correspond ici à environ ${money(capital * Number(optionValue('set-daily')) / 100)} de recul avant blocage des nouveaux achats. Ce n'est pas un montant à dépenser ni une garantie.`,
       'Ces chiffres expliquent les valeurs affichées. Ils ne prédisent ni un achat, ni un gain.'
     ];
+    if (Number(optionValue('set-positions')) > 1) {
+      lines.push('Avec plusieurs positions, les plafonds de risque et d’exposition sont partagés par tout le portefeuille. Les achats sont évalués un par un et restent soumis aux minima de la plateforme.');
+    }
     for (const line of lines) {
       const paragraph = document.createElement('p');
       paragraph.textContent = line;
@@ -1394,6 +1413,8 @@
     setRange('set-notional', Math.round(Number(settings.max_per_trade_pct) * 100));
     setRange('set-daily', Math.round(Number(settings.max_daily_loss_pct) * 100));
     setRange('set-orders', Number(settings.max_orders_per_hour));
+    setRange('set-positions', Number(settings.max_open_positions ?? 1));
+    setText('set-portfolio-risk', `Risque cumulé maximal : ${percent(Number(settings.max_portfolio_risk_pct ?? settings.risk_per_trade_pct), 2)} du capital actif, frais et glissement prévus inclus en mode positions multiples. Le cash et les minima de la plateforme peuvent limiter le nombre de positions.`);
     setRange('set-confidence', Math.round(Number(settings.confidence_floor) * 100));
     setRange('set-halt', Number(settings.halt_auto_resume_hours));
     const entryRule = $('set-entry-rule');
@@ -1450,7 +1471,7 @@
     setText('set-profile-help', profile?.description || '');
   });
 
-  for (const id of ['set-notional', 'set-daily', 'set-orders', 'set-confidence', 'set-halt']) {
+  for (const id of ['set-notional', 'set-daily', 'set-orders', 'set-positions', 'set-confidence', 'set-halt']) {
     $(id)?.addEventListener('input', refreshSettingOutputs);
   }
   $('profile-example-capital')?.addEventListener('input', renderProfileExplanation);
@@ -1509,6 +1530,7 @@
       max_per_trade_pct: Number(optionValue('set-notional')) / 100,
       max_daily_loss_pct: Number(optionValue('set-daily')) / 100,
       max_orders_per_hour: Number(optionValue('set-orders')),
+      max_open_positions: Number(optionValue('set-positions') || 1),
       confidence_floor: Number(optionValue('set-confidence')) / 100,
       entry_rule_enabled: Boolean($('set-entry-rule')?.checked),
       halt_auto_resume_hours: Number(optionValue('set-halt')),

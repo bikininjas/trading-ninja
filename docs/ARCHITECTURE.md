@@ -36,7 +36,7 @@ choisit ni quantité, ni prix, ni stop : toute la géométrie vient du code.
 
 ## 2. Ce qui existe, ce qui n'existe pas
 
-**948 tests** Python (885 hors base et 63 contrats PostgreSQL locaux opt-in)
+**981 tests** Python (916 hors base et 65 contrats PostgreSQL locaux opt-in)
 et **32 tests** Node (980 au total), répartis ci-dessous.
 
 | Composant | Fichier | État |
@@ -155,7 +155,7 @@ enveloppé et toute anomalie imprévue devient `INTERNAL_ERROR`.
 | 9 | Ordres sur 60 min (anti-emballement) | `MAX_ORDERS_PER_HOUR_EXCEEDED` |
 | 10 | Plancher de confiance (0,80) | `CONFIDENCE_TOO_LOW` |
 | 11 | Le modèle lui-même annonce une tendance baissière | `REJECTED_REGIME_CONFLICT` |
-| 12 | Monoposition | `POSITION_ALREADY_OPEN` |
+| 12 | Plafond de positions et unicité par symbole | `POSITION_ALREADY_OPEN` |
 | 13 | Bande de volatilité (marché mort / ATR anormal) | `REJECTED_LOW_VOLATILITY`, `REJECTED_EXTREME_VOLATILITY` |
 | 14 | Tendance longue (prix > EMA200 H4 + 0,5 %), puis couteau qui tombe | `REJECTED_COUNTER_TREND_EMA200`, `REJECTED_FALLING_KNIFE` |
 | 15 | Dimensionnement, minima exchange, budget de risque final | `INSUFFICIENT_FREE_BALANCE`, `SIZING_BELOW_EXCHANGE_MINIMUM`, `EXCHANGE_MIN_NOTIONAL_FAILED`, `INVALID_STOP_LOSS_CALCULATION`, `RISK_LIMIT_EXCEEDED` |

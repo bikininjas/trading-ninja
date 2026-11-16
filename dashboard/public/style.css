@@ -179,6 +179,8 @@ body[data-connected='true'] .live-dot { background: var(--accent); box-shadow: 0
 .risk-panel .note { margin-top: 17px; font-size: 10px; color: var(--faint); }
 .overview-bottom { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0,1fr); gap: 20px; }
 .position { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: 24px; }
+.position > section { min-width: 0; }
+.position > section > h3 { margin: 12px 0 4px; font-size: 13px; }
 .position.empty { display: flex; align-items: center; justify-content: center; min-height: 124px; border: 1px dashed var(--border-strong); border-radius: 8px; font-size: 11px; color: var(--muted); }
 .position-panel .note { font-size: 9px; color: var(--faint); margin-top: 14px; }
 .next-panel > p { font-size: 17px; letter-spacing: -.4px; margin: 6px 0 11px; }

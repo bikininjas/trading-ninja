@@ -155,6 +155,14 @@ async def main():
   assert await page.locator('#position-symbol').inner_text()=='BTC/EUR', 'Une réponse partielle efface la position.'
   assert '0,0 %' not in await page.locator('#position').inner_text(), 'Un PnL inconnu est affiché comme zéro.'
   assert 'non' not in await page.locator('#position').inner_text(), 'Le breakeven inconnu est affiché comme inactif.'
+  multiple={**opened,'positions':[opened['position'],{**opened['position'],'id':'00000000-0000-0000-0000-000000000002','symbol':'ETH/EUR','stop_loss_price':'80'}]}
+  await page.evaluate("testStream.onmessage({data:JSON.stringify("+json.dumps(multiple)+")})")
+  assert await page.locator('#position section').count()==2, 'Une position du portefeuille est masquée.'
+  assert 'ETH/EUR' in await page.locator('#runtime-position').inner_text()
+  damaged={**multiple,'positions':[opened['position'],{'symbol':'ETH/EUR'}]}
+  await page.evaluate("testStream.onmessage({data:JSON.stringify("+json.dumps(damaged)+")})")
+  assert await page.locator('#position section').count()==2, 'Une réponse partielle efface une position.'
+  await page.screenshot(path=str(OUT/'multiple-positions.png'),full_page=True)
   await page.evaluate("testStream.onmessage({data:JSON.stringify("+json.dumps(STATUS)+")})")
   # Les statistiques invalides conservent valeurs et courbe, avec un avertissement.
   before_pnl=await page.locator('#stat-pnl').inner_text()
@@ -255,7 +263,7 @@ async def main():
   await page.locator('#entries-toggle').click()
   await page.wait_for_function("document.querySelector('#entries-status').textContent.includes('autorisés')")
   assert sent[-1][1]['totp']=='123456'
-  await page.locator('#insights-panel summary').filter(has_text='Derniers cycles').click()
+  await page.locator('#insights-cycles').evaluate('(node) => { node.parentElement.open = true; }')
   await page.get_by_role('button',name='Vérifier le rejeu').click()
   await page.get_by_text('Décisions et rapport reproduits à l’identique.').wait_for()
   await page.locator('#insights-panel summary').filter(has_text='Comprendre une position').click()

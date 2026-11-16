@@ -32,7 +32,7 @@ async def test_illegal_transition_is_refused_before_writing():
     repo = FakeRepo()
     machine = StateMachine(repo, "PAPER", IDLE)
     with pytest.raises(StateTransitionRefused, match="interdite"):
-        await machine.go(IN_POSITION, "saut")
+        await machine.go(POST_TRADE_SWEEP, "saut")
     assert repo.calls == []
     assert machine.current == IDLE
 

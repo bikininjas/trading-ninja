@@ -15,6 +15,7 @@ from typing import Any
 
 from app.core.settings import Settings
 from app.db.repository import PostgresRepository
+from app.engine.costs import exit_proceeds
 
 __all__ = ["ControlRefused", "build_status", "jsonable", "pause", "resume"]
 
@@ -37,11 +38,13 @@ def jsonable(value: Any) -> Any:
     return value
 
 
-def _position_payload(position, fee_rate: Decimal = Decimal("0")) -> dict | None:
+def _position_payload(position, fee_rate: Decimal = Decimal("0"),
+                      slippage: Decimal = Decimal("0")) -> dict | None:
     if position is None:
         return None
     entry_notional = position.entry_price * position.amount
-    net_risk = position.risk_amount_quote + entry_notional * fee_rate * 2
+    net_risk = max(Decimal(0), entry_notional * (1 + fee_rate)
+                   - position.amount * exit_proceeds(position.stop_loss_price, fee_rate, slippage))
     return {
         "id": str(position.id),
         "symbol": position.symbol,
@@ -60,7 +63,7 @@ async def build_status(repo: PostgresRepository, settings: Settings) -> dict:
     mode = settings.execution_mode
     state, cooldown = await repo.state(mode)
     account = await repo.account(mode, settings.paper_start_equity)
-    position = await repo.open_position(mode)
+    positions = await repo.open_positions(mode)
     signals = await repo.recent("llm_signals", mode, 5)
     evaluations = await repo.recent("risk_evaluations", mode, 5)
     orders = await repo.recent("orders", mode, 5)
@@ -94,7 +97,10 @@ async def build_status(repo: PostgresRepository, settings: Settings) -> dict:
         },
         "consecutive_losses": account.consecutive_losses,
         "orders_last_hour": account.orders_last_hour,
-        "position": _position_payload(position, settings.exchange.taker_fee),
+        "position": _position_payload(positions[0], settings.exchange.taker_fee,
+                                      settings.risk.execution_slippage_pct) if positions else None,
+        "positions": [_position_payload(p, settings.exchange.taker_fee,
+                                        settings.risk.execution_slippage_pct) for p in positions],
         "recent": {
             "signals": [jsonable(row) for row in signals],
             "evaluations": [jsonable(row) for row in evaluations],

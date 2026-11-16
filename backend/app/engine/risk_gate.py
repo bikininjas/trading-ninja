@@ -203,6 +203,9 @@ class AccountState:
     orders_last_hour: int = 0
     locked: bool = False
     lock_reason: RejectionCode | None = None
+    # Perte prévue cumulée des positions existantes, frais/glissement inclus.
+    open_risk_quote: Decimal = Decimal("0")
+    open_notional_quote: Decimal = Decimal("0")
 
 
 @dataclass(frozen=True, slots=True)
@@ -330,6 +333,8 @@ class RiskConfig:
     min_halt_confidence: Decimal = Decimal("0.80")
 
     def __post_init__(self) -> None:
+        if type(self.max_open_positions) is not int or not 1 <= self.max_open_positions <= 5:
+            raise ValueError("max_open_positions doit être dans [1, 5]")
         if type(self.macro_ema_period) is not int or self.macro_ema_period not in (50, 100, 200):
             raise ValueError("macro_ema_period doit être 50, 100 ou 200")
         for name in ("execution_fee_pct", "execution_slippage_pct"):
@@ -717,7 +722,7 @@ def _evaluate(
         return _reject(RejectionCode.INVALID_STOP_LOSS_CALCULATION, "distance de stop nulle", passed)
 
     budget_distance = actual_distance
-    if config.cost_aware:
+    if config.cost_aware or config.max_open_positions > 1:
         budget_distance = planned_loss(
             market.price, stop_price, config.execution_fee_pct,
             config.execution_slippage_pct,
@@ -774,6 +779,17 @@ def _evaluate(
             )
         risk_pct = max(risk_pct, required_pct)
     intended_risk = account.equity_quote * risk_pct
+    if config.max_open_positions > 1:
+        if any(not value.is_finite() or value < 0 for value in
+               (account.open_risk_quote, account.open_notional_quote)):
+            return _reject(RejectionCode.INVALID_MARKET_DATA,
+                           "exposition du portefeuille invalide", passed)
+        portfolio_risk_pct = config.effective_risk_pct(account.consecutive_losses)
+        remaining_risk = account.equity_quote * portfolio_risk_pct - account.open_risk_quote
+        if remaining_risk <= 0:
+            return _reject(RejectionCode.RISK_LIMIT_EXCEEDED,
+                           "budget de risque cumulé entièrement engagé", passed)
+        intended_risk = min(intended_risk, remaining_risk)
 
     # Trois plafonds concurrents : le risque nominal, l'exposition, le cash réel.
     max_by_risk = intended_risk / budget_distance
@@ -788,6 +804,12 @@ def _evaluate(
             account.equity_quote * min(config.max_notional_pct, Decimal("0.50")),
             config.max_position_notional_quote,
         )
+    if config.max_open_positions > 1:
+        portfolio_exposure = (config.max_notional_pct if config.small_account_full_allocation
+                              and account.equity_quote < config.small_account_threshold_quote
+                              else min(config.max_notional_pct, Decimal('0.50')))
+        exposure_cap = min(config.max_position_notional_quote, max(
+            Decimal(0), account.equity_quote * portfolio_exposure - account.open_notional_quote))
     max_by_notional = exposure_cap / market.price
     spendable = account.free_quote * (Decimal(1) - config.fee_buffer_pct)
     max_by_cash = spendable / market.price

@@ -4,6 +4,99 @@ Une entrée par session de travail, **la plus récente en haut**. Chaque entrée
 qui a été fait, ce qui l'a vérifié (`commande → résultat réel`), et ce qui a été décidé.
 Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
+## 2026-11-16 — Revue finale validée ; commit et push demandés
+
+- Seb demande une nouvelle passe sur le code et la logique, puis commit et push
+  sur `master`. Revue des positions multiples PAPER et de l'installation préparée.
+- Le déploiement du service reste distinct ; aucune activation réelle autorisée.
+- Corrigé : les achats supplémentaires revalorisent toutes les lignes, puis
+  relisent l'équité, le HWM et les drawdowns SQL. Le prix du candidat est lu en
+  dernier. Une panne pendant cette revalidation restaure l'état de surveillance
+  sans envoyer d'achat ni laisser EXECUTING sans soumission.
+- Le plafond cumulé suit aussi l'étranglement après pertes ; la configuration
+  multiple annonce effectivement les coûts qu'elle utilise. Un trou d'historique
+  ou un curseur absent suspend les achats et laisse traiter les autres protections.
+- Le risque estimé affiché dépend du stop courant et des coûts de sortie, sans
+  réutiliser un ancien risque initial ni afficher une perte négative après trailing.
+- L'installation valide aussi le fichier local de l'API avant l'arrêt du moteur,
+  gère espaces/quotes/commentaires et en conserve une copie privée avant bascule.
+- Recette finale sous **Python 3.13.17** sur PostgreSQL **17** Docker jetable,
+  `trading_ninja_review`, port local **55432** : **981 passed**, dont **65 contrats
+  PostgreSQL**, aucun sauté. Treize cas ajoutés depuis la première livraison.
+  **32 Node** et recette Chromium/Playwright réussis ; capture de la revue dans
+  `/tmp/tn-multiple-positions-final-review/`. Golden identique, net **−34,8828 EUR**,
+  aucune bénédiction. Les fichiers privés et les services de production restent
+  inchangés ; le test d'installation sans effet et les empreintes sont actualisés.
+- `DATABASE_URL=<base locale jetable> bash scripts/check.sh` → **TOUT EST VERT** :
+  **916 tests hors base**, **65 opt-in** collectés et exécutés dans la suite de
+  livraison ci-dessus, **32 Node**, quinze migrations, index et secrets conformes.
+
+## 2026-11-16 — Positions multiples PAPER vérifiées ; installation en attente
+
+- Seb demande explicitement plusieurs positions ouvertes. Le runtime actuel ne
+  surveille que `open_position()` et choisit un achat ; relever uniquement
+  `MAX_OPEN_POSITIONS` serait incomplet.
+- Périmètre : PAPER, positions distinctes par symbole, stops et sorties séparés,
+  snapshots du portefeuille complet, affichage de toutes les positions et risque
+  cumulé borné. Aucun relèvement du capital ou activation réelle autorisé.
+- Implémenté : surveillance de toutes les lignes, au plus une entrée par cycle,
+  revalidation avec cash et risque cumulé, snapshots globaux, cooldown conservant
+  la surveillance, sorties protectrices pendant HALT PAPER, liquidation partielle
+  explicite en cas de cours manquant et affichage de toutes les positions.
+- Plafond de 1 à 5 places, réservé au PAPER au-delà de 1 ; défaut historique 1,
+  préparation à 5. Risque et exposition partagés sans relèvement du profil courant.
+  D-096 ; aucune migration et aucune modification de golden.
+- Python de livraison disponible via `/opt/trading-ninja/current/backend/.venv/bin/python`
+  (**3.13.17**). Suite complète sur PostgreSQL **17** Docker jetable,
+  `trading_ninja_review` en boucle locale **55432**, avec `TN_TEST_DATABASE_URL`
+  et `--postgres-test-url` : **968 passed**, dont **64 contrats SQL**, aucun sauté.
+  Vingt cas supplémentaires, dont capital progressif, baisse de la limite de
+  places, deux sorties, reprise, panne d'une paire et configuration d'installation.
+- `scripts/backtest.py replay` : golden identique, net **−34,8828 EUR**, aucun bless.
+  **32 tests Node** réussis. Chromium/Playwright : deux positions et stops distincts,
+  liste partielle refusée sans effacement, cinq espaces et quatre largeurs vérifiés ;
+  capture locale `/tmp/tn-multiple-positions-browser/multiple-positions.png`.
+  Un ancien sélecteur de recette « Derniers cycles » a été remis en accord avec
+  le panneau actuel. Index régénéré, syntaxe shell/JS et `git diff --check` vérifiés.
+- `DATABASE_URL=<base locale jetable> bash scripts/check.sh` → **TOUT EST VERT** :
+  **904 passed**, 64 contrats opt-in sautés par cette commande (tous exécutés dans
+  la suite complète ci-dessus), **32 Node**, quinze migrations et index conformes.
+- `DATABASE_URL=<base locale jetable> db_migrate.py verify` : 45 relations,
+  6 vues, 16 partitions, transactions annulées. Une première invocation utilisait
+  par erreur `TN_TEST_DATABASE_URL` pour cette CLI et a donc visé Supabase : sa
+  sonde d'écriture a été annulée ; le contrôle a été relancé sur la bonne base.
+  Tous les contrats PostgreSQL de la suite sont restés sur la base jetable.
+- Installation concrète préparée dans `deploy/enable-multiple-positions-wsl.sh`,
+  **106 fichiers** figés dans `multiple-positions.sha256` ; `--check` réussit.
+  Elle ajoute SOL/LINK/AAVE/SUI/NEAR après prévol PAPER avec identité SQL limitée,
+  prépare une nouvelle release et conserve l'ancienne configuration avant bascule.
+- **Non installé ici** : `sudo -n true` refuse sans mot de passe. Le moteur reste
+  sur son ancienne release, PID 553685 depuis 10:31 CET ; il n'a pas été arrêté.
+  Aucun fichier privé ni réglage financier hébergé modifié par cette préparation.
+  Exécution sudo, premier cycle et accusé d'application restent à qualifier.
+
+## 2026-11-16 — Diversification PAPER et diagnostic courant documentés
+
+- Demande : rechercher quatre à cinq cryptos supplémentaires et expliquer
+  l'absence de trades PAPER. Lecture du runtime, des règles et des dernières preuves.
+- `bash scripts/check.sh` → tout est vert : 885 tests Python hors contrats SQL,
+  32 Node, quinze migrations conformes ; Python de travail 3.15.2.
+- `manage.sh status`, `systemctl status trading-ninja@engine` et `journalctl` :
+  moteur PAPER actif depuis 10:31 CET, cycle complet à 10:32, sept paires sans setup
+  car sous EMA200 + marge ; prochaine évaluation à 12:00 UTC (13:00 CET).
+  L'état réel est plus récent que les réserves d'installation du 12 novembre.
+- Lecture SQL : PAPER IDLE, heartbeat courant, aucune position ni trade,
+  entrées autorisées ; révision 7 `micro_budget` appliquée, risque 3 %, exposition
+  50 %, dernier solde enregistré 9,37 EUR. Aucune écriture de configuration.
+- Recherche web et contrôle public Kraken de treize nouvelles paires : aucun setup,
+  toutes sous EMA200 + marge. Candidates préparées : SOL, LINK, AAVE, SUI, NEAR.
+  À volatilité courante, LINK et AAVE seulement passent le calcul de financement
+  individuel à 9,37 EUR. Cela n'autorise pas un achat et ne prouve aucun rendement.
+- KITE montait sur sept jours sur CoinGecko, mais aucun marché KITE dans Kraken
+  via CCXT. Les hausses sur 24 h ne sont pas assimilées à une tendance durable.
+  Sources et limites : `docs/DIVERSIFICATION_PAPER.md` ; mesures publiques sous
+  `docs/audits/2026-11-16/crypto-*.json`.
+
 ## 2026-11-16 — Comparatif de réactivité macro H4 vérifié
 
 - Brief : mesurer EMA50/100/200 sur BTC/ETH/SOL, 24 mois, entrées H4/H1,

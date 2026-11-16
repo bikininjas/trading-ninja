@@ -1,0 +1,43 @@
+{
+  "verified_at": "2026-11-16T10:35:24.212847+00:00",
+  "scope": "PAPER implementation; installation pending sudo",
+  "runtime": "Python 3.13.17",
+  "postgres": "17, disposable trading_ninja_review, loopback port 55432",
+  "python_tests": {
+    "passed": 981,
+    "postgres_contracts": 65,
+    "skipped": 0
+  },
+  "node_tests_passed": 32,
+  "browser": "Chromium via Playwright 1.62.0; multiple positions, partial data, five views, four widths passed",
+  "golden": {
+    "identical": true,
+    "blessed": false,
+    "net_pnl_eur": "-34.8828"
+  },
+  "manifest_sha256": "fc6a7db18e3f377c9a2d60cb71f43801dae1b41503018b7218cafaecceecf4b4",
+  "manifest_files": 106,
+  "installer_dry_check": "passed",
+  "installed": false,
+  "reason_not_installed": "sudo requires interactive password",
+  "production_configuration_changed": false,
+  "database_migrations_added": 0,
+  "candidates_prepared": [
+    "SOL/EUR",
+    "LINK/EUR",
+    "AAVE/EUR",
+    "SUI/EUR",
+    "NEAR/EUR"
+  ],
+  "base_commit": "ddeb00c",
+  "review_fixes": [
+    "fresh portfolio valuation and SQL drawdowns before admission",
+    "candidate quote refreshed after portfolio reads",
+    "loss throttle applied to total open risk",
+    "failed revalidation restores monitoring state",
+    "history gaps isolated from sibling protective exits",
+    "net risk display follows current stop and exit costs",
+    "local API environment validated before engine stop and backed up"
+  ],
+  "global_check": "TOUT EST VERT: 916 Python outside database, 65 opt-in skipped here and covered by the full 981-test suite, 32 Node, 15 migrations, generated index current; DATABASE_URL targets disposable local database"
+}

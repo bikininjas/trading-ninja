@@ -62,6 +62,8 @@ def friendly_settings(config: Settings, *, updated_at: str | None = None) -> dic
         "max_drawdown_from_hwm_pct": str(config.risk.max_drawdown_from_hwm_pct),
         "max_consecutive_losses": config.risk.max_consecutive_losses,
         "risk_per_trade_pct": str(config.risk.risk_per_trade_pct),
+        "max_open_positions": config.risk.max_open_positions,
+        "max_portfolio_risk_pct": str(config.risk.risk_per_trade_pct),
         "cost_aware": config.risk.cost_aware,
         "small_account_full_allocation": config.risk.small_account_full_allocation,
         "small_account_threshold_quote": str(config.risk.small_account_threshold_quote),
@@ -112,6 +114,8 @@ def _mapping(update: dict) -> dict[str, str]:
         mapping["MIN_CONFIDENCE"] = _as_text(update["confidence_floor"])
     if update.get("entry_rule_enabled") is not None:
         mapping["ENTRY_RULE_ENABLED"] = _as_text(update["entry_rule_enabled"])
+    if update.get("max_open_positions") is not None:
+        mapping["MAX_OPEN_POSITIONS"] = _as_text(update["max_open_positions"])
     if update.get("halt_auto_resume_hours") is not None:
         mapping["HALT_AUTO_RESUME_HOURS"] = _as_text(update["halt_auto_resume_hours"])
     return mapping
@@ -129,7 +133,7 @@ def build_payload(current: dict, update: dict) -> dict:
         if key in RUNTIME_ALLOWED_KEYS
     }
     if update.get('profile') is not None and str(update['profile'])!=payload.get('RISK_PROFILE'):
-        for key in RUNTIME_ALLOWED_KEYS - {'HALT_AUTO_RESUME_HOURS'}:
+        for key in RUNTIME_ALLOWED_KEYS - {'HALT_AUTO_RESUME_HOURS', 'MAX_OPEN_POSITIONS'}:
             payload.pop(key,None)
         # Matérialise les limites du profil pour écraser aussi un ancien override
         # de démarrage (ex. risque prudent à 0,75 % conservé dans l'environnement).

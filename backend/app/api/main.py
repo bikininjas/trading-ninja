@@ -73,6 +73,7 @@ class SettingsUpdate(BaseModel):
     max_orders_per_hour: int | None = Field(default=None, ge=1, le=20)
     confidence_floor: float | None = Field(default=None, ge=0.40, le=0.95)
     entry_rule_enabled: bool | None = None
+    max_open_positions: int | None = Field(default=None, ge=1, le=5)
     halt_auto_resume_hours: int | None = Field(default=None, ge=0, le=168)
 
 
@@ -306,9 +307,12 @@ async def _default_system_health(repo: Any, config: Settings) -> dict:
 
 
 async def _default_position(repo: Any, config: Settings) -> dict:
-    position = await repo.open_position(config.execution_mode)
-    if position is None:
-        return {"has_active_position": False}
+    positions = await repo.open_positions(config.execution_mode)
+    rows = [await _position_details(repo, config, position) for position in positions]
+    return {**(rows[0] if rows else {"has_active_position": False}), "positions": rows}
+
+
+async def _position_details(repo: Any, config: Settings, position) -> dict:
     current_price = position.entry_price
     try:
         from app.exchange.kraken import build_exchange

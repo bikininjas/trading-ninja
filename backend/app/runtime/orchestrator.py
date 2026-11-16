@@ -1,4 +1,4 @@
-"""Boucle d'exécution : un cycle = une décision, jamais deux.
+"""Boucle d'exécution : toutes les protections, puis au plus un nouvel achat par cycle.
 
 Séquence d'un cycle, dans cet ordre et pas un autre :
 
@@ -26,6 +26,7 @@ import json
 import asyncio
 import time
 import uuid
+import ccxt
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -47,6 +48,7 @@ from app.engine.machine import (
     POST_TRADE_SWEEP, StateMachine,
 )
 from app.engine.sweep import plan_sweep
+from app.engine.costs import exit_proceeds
 from app.engine.risk_gate import (
     AccountState, Action, EntryMode, MarketRegime, SwingExitMode, TradeIntent,
     evaluate,
@@ -165,6 +167,72 @@ class Orchestrator:
             orders_last_hour=account.orders_last_hour,
         )
 
+    async def _positions(self):
+        getter = getattr(self._repo, "open_positions", None)
+        if getter:
+            return await getter(self._mode)
+        position = await self._repo.open_position(self._mode)
+        return [position] if position else []
+
+    async def _portfolio_value(self, *, marks=None, report=None):
+        """Valorise toutes les lignes ; un cours absent interdit les achats.
+
+        Le repli conservateur permet de comptabiliser une sortie sur une autre
+        paire sans inventer un cours courant pour la paire indisponible.
+        """
+        marks = marks or {}
+        value = Decimal(0)
+        for position in await self._positions():
+            try:
+                price = marks.get(position.symbol)
+                if price is None:
+                    price = last_price(self._exchange, position.symbol)
+                if not price.is_finite() or price <= 0:
+                    raise FeedError("cours invalide")
+            except (FeedError, ccxt.NetworkError, OSError, ValueError) as exc:
+                if report is None:
+                    raise
+                report.errors.append(f"{position.symbol} : valorisation indisponible ({exc}) ; achats suspendus")
+                price = min(position.entry_price, position.stop_loss_price)
+            value += position.amount * price
+        return value
+
+    async def _entry_context(self, account: AccountSnapshot) -> tuple[AccountSnapshot, AccountState]:
+        positions = await self._positions()
+        state = self._account_state(account, tuple(p.symbol for p in positions))
+        if self._settings.risk.max_open_positions == 1:
+            return account, state
+        value = await self._portfolio_value()
+        if positions:
+            # Le dernier snapshot peut précéder de plusieurs inférences le nouvel
+            # achat. Revaloriser avant de relire risque, HWM et drawdowns SQL.
+            await self._repo.snapshot_equity(
+                self._mode, equity=account.free_quote + value + account.reserve_quote + account.growth_quote,
+                free_quote=account.free_quote, position_value_quote=value,
+                source='PAPER_REFRESH',
+            )
+            account = await self._current_account()
+            state = self._account_state(account, tuple(p.symbol for p in positions))
+        risk = Decimal(0)
+        for position in positions:
+            risk += max(Decimal(0), position.amount * (position.entry_price - exit_proceeds(
+                position.stop_loss_price, self._settings.risk.execution_fee_pct,
+                self._settings.risk.execution_slippage_pct)) + await self._entry_fee(position))
+        return account, replace(state, open_risk_quote=risk, open_notional_quote=value)
+
+    async def _rest(self, machine, reason):
+        target = IN_POSITION if await self._positions() else IDLE
+        if machine.current != target:
+            await machine.go(target, reason)
+
+    async def _snapshot_symbol(self, symbol):
+        # Les diagnostics d'une position ne doivent jamais prendre la valeur
+        # de tout le portefeuille pour le cours de cette seule crypto.
+        positions = await self._positions()
+        if self._settings.risk.max_open_positions > 1:
+            return None
+        return symbol if not positions or (len(positions) == 1 and positions[0].symbol == symbol) else None
+
     def _client_id(self, symbol: str, purpose: str) -> str:
         return f"{self._mode}-{symbol.replace('/', '')}-{purpose}-{self._id_factory().hex[:10]}"
 
@@ -232,7 +300,7 @@ class Orchestrator:
                     }
                 )
             )
-        except RuntimeError as exc:
+        except (RuntimeError, ValueError) as exc:
             return await refused(f"réglages en base refusés : {exc}")
         if fresh.execution_mode != self._settings.execution_mode:
             return await refused(
@@ -579,7 +647,9 @@ class Orchestrator:
             report.errors.append("clôture historique incomplète : aucune vente ni reprise automatique")
             report.state_after = HALT
             return report
-        if state in (LOCKED, HALT):
+        if state in (LOCKED, HALT) and not (
+            self._mode == 'PAPER' and await self._positions()
+        ):
             report.actions.append(f"état {state} : aucune action automatique")
             report.elapsed_ms = int((self._perf() - started) * 1000)
             return report
@@ -588,17 +658,17 @@ class Orchestrator:
         # de repos. On le normalise avant d'agir, sinon la machine refuserait sa
         # propre transition et le bot resterait bloqué jusqu'à intervention.
         if state in (EVALUATING, EXECUTING):
-            position = await self._repo.open_position(self._mode)
-            target = IN_POSITION if position is not None else IDLE
+            target = IN_POSITION if await self._positions() else IDLE
             await machine.go(target, "reprise après interruption")
             state = machine.current
 
         if state == COOLDOWN:
-            if cooldown_until is not None and now < cooldown_until:
+            if cooldown_until is not None and now < cooldown_until and not await self._positions():
                 report.actions.append(f"cooldown jusqu'à {cooldown_until:%H:%M} UTC")
                 report.elapsed_ms = int((self._perf() - started) * 1000)
                 return report
-            await machine.go(IDLE, "cooldown expiré")
+            await machine.go(IN_POSITION if await self._positions() else IDLE,
+                             "reprise de surveillance" if cooldown_until and now < cooldown_until else "cooldown expiré")
 
         account = await self._current_account()
         capital = await self._repo.capital_state(self._mode)
@@ -609,9 +679,12 @@ class Orchestrator:
                 self._mode, self._settings.exchange.quote_currency, account.equity,
                 account.reserve_quote, now)
             account = replace(account, reserve_quote=capital.reserve_quote, growth_quote=capital.growth_quote)
-        position = await self._repo.open_position(self._mode)
-
-        if position is not None:
+        positions = await self._positions()
+        monitor_error_count = len(report.errors)
+        for position in positions:
+            # Relire le compte après chaque sortie : cash, pertes et réserve
+            # du premier trade doivent être visibles au suivant.
+            account = await self._current_account()
             prior=self._settings
             getter=getattr(self._repo,'position_policy',None)
             self._legacy_policy=False
@@ -623,10 +696,17 @@ class Orchestrator:
                     await self._event('LEGACY_POLICY_MISSING',symbol=position.symbol,body={'position_id':str(position.id)})
             try:
                 await self._monitor(machine,position,account,report)
+            except (FeedError, ccxt.NetworkError, OSError) as exc:
+                report.errors.append(f"{position.symbol} : {exc}")
             finally:
                 self._settings=prior;self._legacy_policy=False
-        else:
-            await self._evaluate_cycle(machine, account, report)
+        remaining = await self._positions()
+        _, cooldown_until = await self._repo.state(self._mode)
+        if (machine.current not in (LOCKED, HALT, COOLDOWN)
+                and len(report.errors) == monitor_error_count
+                and (cooldown_until is None or now >= cooldown_until)
+                and len(remaining) < self._settings.risk.max_open_positions):
+            await self._evaluate_cycle(machine, await self._current_account(), report)
 
         report.state_after = machine.current
         report.elapsed_ms = int((self._perf() - started) * 1000)
@@ -636,7 +716,7 @@ class Orchestrator:
 
     async def _monitor(self, machine: StateMachine, position: PositionRow,
                        account: AccountSnapshot, report: CycleReport) -> None:
-        if machine.current != IN_POSITION:
+        if machine.current not in (IN_POSITION, LOCKED, HALT):
             # Redémarrage pendant une position : la base fait autorité sur l'état.
             await machine.go(IN_POSITION, "position ouverte retrouvée en base")
 
@@ -745,7 +825,7 @@ class Orchestrator:
             # Stop et curseur forment une seule écriture. Aucun signal LLM ne sert
             # de preuve d'application d'un stop ; les bougies manquées sont rejouées.
             if position.monitor_cursor_at is None:
-                raise RuntimeError("position papier historique sans curseur : réconciliation requise")
+                raise FeedError("position papier historique sans curseur : réconciliation requise")
             from app.market.feed import TIMEFRAME_MS
             period_ms = TIMEFRAME_MS[self._settings.exchange.daily_timeframe_decision]
             cursor = position.monitor_cursor_at
@@ -755,7 +835,7 @@ class Orchestrator:
                 # Un trou ne peut pas être interprété comme une absence de stop touché.
                 expected = datetime.fromtimestamp(((int(cursor.timestamp()*1000)//period_ms)+1)*period_ms/1000, timezone.utc)
                 if close_at != expected:
-                    raise RuntimeError("trou de surveillance papier : historique à réconcilier avant reprise")
+                    raise FeedError("trou de surveillance papier : historique à réconcilier avant reprise")
                 trigger = self._broker.exit_trigger(position.stop_loss_price, position.take_profit_price, candle)
                 if trigger:
                     exit_price, reason = trigger
@@ -777,11 +857,13 @@ class Orchestrator:
                                     "TAKE_PROFIT", report, purpose="TAKE_PROFIT")
             return
 
-        if self._legacy_policy:
-            report.actions.append("position historique : stop/TP conservés ; adoption de politique requise")
+        if self._legacy_policy or machine.current in (LOCKED, HALT):
+            report.actions.append("position historique : stop/TP conservés ; adoption de politique requise"
+                                  if self._legacy_policy else "arrêt : protections des positions maintenues")
             price=last_price(self._exchange,position.symbol)
-            await self._repo.snapshot_equity(self._mode,equity=account.free_quote+position.amount*price+account.reserve_quote+account.growth_quote,
-                free_quote=account.free_quote,position_value_quote=position.amount*price,symbol=position.symbol,source='LEGACY_MONITOR')
+            value = await self._portfolio_value(marks={position.symbol: price}, report=report)
+            await self._repo.snapshot_equity(self._mode,equity=account.free_quote+value+account.reserve_quote+account.growth_quote,
+                free_quote=account.free_quote,position_value_quote=value,symbol=await self._snapshot_symbol(position.symbol),source='LEGACY_MONITOR')
             return
 
         # -- gestion swing D1 : seuil de rentabilité puis sortie de tendance ----
@@ -894,11 +976,11 @@ class Orchestrator:
                 )
 
         price = last_price(self._exchange, position.symbol)
-        value = position.amount * price
+        value = await self._portfolio_value(marks={position.symbol: price}, report=report)
         await self._repo.snapshot_equity(
             self._mode, equity=account.free_quote + value + account.reserve_quote + account.growth_quote,
             free_quote=account.free_quote,
-            position_value_quote=value, symbol=position.symbol, source="MONITOR",
+            position_value_quote=value, symbol=await self._snapshot_symbol(position.symbol), source="MONITOR",
         )
         report.actions.append(
             f"{position.symbol} : stop {position.stop_loss_price} · "
@@ -1003,8 +1085,10 @@ class Orchestrator:
         if self._settings.capital_policy.enabled:
             net = net.quantize(Decimal("0.0000000001"))
 
-        await machine.go(POST_TRADE_SWEEP, f"sortie {reason}", code="NONE",
-                         context={"exit_price": str(fill.price), "reason": reason})
+        protected_only = machine.current in (HALT, LOCKED)
+        if not protected_only:
+            await machine.go(POST_TRADE_SWEEP, f"sortie {reason}", code="NONE",
+                             context={"exit_price": str(fill.price), "reason": reason})
         await self._repo.insert_order(
             self._mode, client_order_id=self._client_id(position.symbol, "EXIT"),
             symbol=position.symbol, side="SELL", order_type="MARKET",
@@ -1029,8 +1113,12 @@ class Orchestrator:
         if self._settings.capital_policy.enabled:
             capital = await self._repo.allocate_capital(
                 self._mode, position.id, net, self._now(), self._settings.capital_policy,
-                allow_promotion=not halt)
-            cash, reserve, growth = capital.active_quote, capital.reserve_quote, capital.growth_quote
+                allow_promotion=not (halt or protected_only))
+            if self._settings.risk.max_open_positions > 1 or await self._positions():
+                cash -= (capital.reserve_quote - reserve) + (capital.growth_quote - growth)
+                reserve, growth = capital.reserve_quote, capital.growth_quote
+            else:
+                cash, reserve, growth = capital.active_quote, capital.reserve_quote, capital.growth_quote
             sweep_note = f" · réserve {reserve} · cagnotte {growth} · paliers {capital.promotions}"
         else:
             deferred = await self._repo.deferred_sweep_quote(self._mode)
@@ -1050,13 +1138,14 @@ class Orchestrator:
                 sweep_note = f" · écrémé {plan.swept_quote}" if plan.swept_quote > 0 else f" · écrémage reporté ({plan.reason})"
         if cash < 0:
             raise RuntimeError("réserve supérieure au cash : réconciliation requise")
-        equity = cash + reserve + growth
+        value = await self._portfolio_value(report=report)
+        equity = cash + reserve + growth + value
         await self._repo.update_after_close(
             self._mode, consecutive_losses=consecutive, equity=equity
         )
         await self._repo.snapshot_equity(
-            self._mode, equity=equity, free_quote=cash, position_value_quote=Decimal(0),
-            symbol=position.symbol, source="EXIT",
+            self._mode, equity=equity, free_quote=cash, position_value_quote=value,
+            symbol=await self._snapshot_symbol(position.symbol), source="EXIT",
         )
         if self._mode == "LIVE":
             await self._repo.clear_exit(position.id)
@@ -1065,6 +1154,9 @@ class Orchestrator:
             f"{self._settings.exchange.quote_currency}{sweep_note}"
         )
 
+        report.actions.append(report.position_closed)
+        if protected_only:
+            return
         if halt:
             auto_resume_at = None
             if reason == "LLM_HALT" and self._settings.halt_auto_resume_hours > 0:
@@ -1082,7 +1174,8 @@ class Orchestrator:
         await self._repo.set_cooldown(
             self._mode, self._now() + timedelta(minutes=COOLDOWN_MINUTES)
         )
-        await machine.go(COOLDOWN, "post-trade, refroidissement")
+        await machine.go(IN_POSITION if await self._positions() else COOLDOWN,
+                         "autres positions surveillées" if await self._positions() else "post-trade, refroidissement")
 
     # -- pas de position -------------------------------------------------
 
@@ -1094,10 +1187,17 @@ class Orchestrator:
             return
         await machine.go(EVALUATING, "cycle d'évaluation")
         chosen: tuple[SymbolState, LLMSignal, Any, uuid.UUID, uuid.UUID, datetime] | None = None
-        account_state = self._account_state(account)
+        try:
+            account, account_state = await self._entry_context(account)
+        except (FeedError, ccxt.NetworkError, OSError, ValueError) as exc:
+            report.errors.append(f"valorisation du portefeuille indisponible : {exc}")
+            await self._rest(machine, "achats suspendus : valorisation indisponible")
+            return
 
         candidates=[]
         for symbol in self._settings.exchange.allowed_symbols:
+            if symbol in account_state.open_position_symbols:
+                continue
             try:
                 state = build_snapshot(
                     self._exchange, symbol, now=self._now(),
@@ -1255,7 +1355,7 @@ class Orchestrator:
             if chosen is None or candidate['symbol']!=chosen[0].symbol:
                 await self._event('NOT_SELECTED',symbol=candidate['symbol'],terminal=True)
         if chosen is None:
-            await machine.go(IDLE, "aucune décision approuvée")
+            await self._rest(machine, "aucune décision approuvée")
             return
 
         state, signal, decision, signal_id, evaluation_id, signal_at = chosen
@@ -1289,7 +1389,7 @@ class Orchestrator:
         if current != EXECUTING or not await self._entry_enabled():
             await self._event("ENTRY_DISABLED", symbol=state.symbol, terminal=True)
             if current == EXECUTING:
-                await machine.go(IDLE, "achat suspendu avant envoi")
+                await self._rest(machine, "achat suspendu avant envoi")
             else:
                 machine.current = current
             return
@@ -1297,13 +1397,21 @@ class Orchestrator:
         saver = getattr(self._repo, "save_policy", None)
         if saver:
             await saver(policy)
-        price = last_price(self._exchange, state.symbol)
-        fresh = replace(
-            state.snapshot, price=price, tick_at=self._now(), now=self._now()
-        )
         # Every candidate, including the selected ranked candidate, is evaluated again.
-        latest = await self._current_account()
-        position = await self._repo.open_position(self._mode)
+        try:
+            latest = await self._current_account()
+            latest, entry_account = await self._entry_context(latest)
+            # Les lectures du portefeuille peuvent durer : rafraîchir le candidat
+            # en dernier, à l'heure réelle d'évaluation.
+            price = last_price(self._exchange, state.symbol)
+            evaluated_at = self._now()
+            fresh = replace(state.snapshot, price=price, tick_at=evaluated_at, now=evaluated_at)
+        except (FeedError, ccxt.NetworkError, OSError, ValueError) as exc:
+            report.errors.append(f"{state.symbol} : revalidation indisponible ({exc}) ; achat suspendu")
+            await self._event('DATA_UNAVAILABLE', symbol=state.symbol, terminal=True,
+                              body={'reason': str(exc)})
+            await self._rest(machine, 'revalidation indisponible')
+            return
         decision = evaluate(
             TradeIntent(
                 Action.BUY,
@@ -1311,7 +1419,7 @@ class Orchestrator:
                 getattr(self, "_selected_regime", MarketRegime.TRENDING_UP),
             ),
             fresh,
-            self._account_state(latest, (position.symbol,) if position else ()),
+            entry_account,
             state.info.constraints,
             self._settings.risk,
         )
@@ -1333,20 +1441,20 @@ class Orchestrator:
                 terminal=True,
                 body={"code": str(decision.rejection_code)},
             )
-            await machine.go(IDLE, "revalidation refusée")
+            await self._rest(machine, "revalidation refusée")
             return
         current, _ = await self._repo.state(self._mode)
         if current != EXECUTING or not await self._entry_enabled():
             machine.current = current
             if current == EXECUTING:
-                await machine.go(IDLE, "achat suspendu pendant la revalidation")
+                await self._rest(machine, "achat suspendu pendant la revalidation")
             await self._event("ENTRY_DISABLED", symbol=state.symbol, terminal=True)
             return
         await self._event(
             "SUBMITTED", symbol=state.symbol, body={"policy_id": policy["id"]}
         )
         if not await self._entry_enabled():
-            await machine.go(IDLE,'achat suspendu avant autorisation de l’envoi')
+            await self._rest(machine,'achat suspendu avant autorisation de l’envoi')
             await self._event('ENTRY_DISABLED',symbol=state.symbol,terminal=True)
             return
         self._submission = True
@@ -1421,13 +1529,13 @@ class Orchestrator:
                     risk_evaluation_id=evaluation_id,
                 )
                 cash = latest.free_quote - fill.notional_quote - fill.fee_quote
-                value = fill.amount * price
+                value = await self._portfolio_value(marks={state.symbol: price}, report=report)
                 await self._repo.snapshot_equity(
                     self._mode,
                     equity=cash + value + latest.reserve_quote + latest.growth_quote,
                     free_quote=cash,
                     position_value_quote=value,
-                    symbol=state.symbol,
+                    symbol=await self._snapshot_symbol(state.symbol),
                     source="ENTRY",
                 )
                 book=getattr(self._repo,'book_request',None)

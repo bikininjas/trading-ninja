@@ -7,6 +7,11 @@ Pour la cible WSL retenue : [installation PAPER](../deploy/README.md) et
 [protocole de qualification](../deploy/QUALIFICATION.md). Le dump complet initial
 est optionnel selon la décision de Seb du 10 novembre ; cela ne valide pas le réel.
 
+Positions multiples PAPER : `MAX_OPEN_POSITIONS=1..5`, également réglable depuis
+le dashboard. Risque et exposition partagés par le portefeuille, stops et sorties
+propres à chaque ligne, au plus une entrée nouvelle par cycle. Le nombre de places
+ne garantit pas leur financement. [Étude et fonctionnement](../docs/DIVERSIFICATION_PAPER.md).
+
 ## Observation et recherche
 
 Les dix briefs sont implémentés en première version : voir
@@ -18,7 +23,7 @@ Les migrations 0001–0015 sont appliquées sur trninja, vérifiées le 11 novem
 Sur une autre base, vérifier les migrations avant de démarrer l’instrumentation.
 
 Les tests n’utilisent aucune clé du shell et interdisent les connexions externes.
-La suite normale collecte 948 tests : 885 passent hors base, 63 contrats SQL sont
+La suite normale collecte 981 tests : 916 passent hors base, 65 contrats SQL sont
 ignorés sans base jetable. Pour tout vérifier, démarrer PostgreSQL 17 local avec
 les rôles `anon`/`authenticated`, appliquer les quinze migrations et utiliser :
 
@@ -66,7 +71,7 @@ Le profil papier `progressif` et le comparatif de budgets sont décrits dans
 virtuels ; il ne modifie pas les réglages locaux existants.
 
 ```bash
-.venv/bin/python -m pytest                     # 948 tests collectés ; 63 PostgreSQL opt-in, voir ci-dessous
+.venv/bin/python -m pytest                     # 981 tests collectés ; 65 PostgreSQL opt-in, voir ci-dessous
 .venv/bin/python -m app.main --once            # un cycle papier complet (données réelles)
 .venv/bin/python -m app.main --serve           # une évaluation par bougie H4 clôturée
 .venv/bin/python -m app.main --status          # état + 3 dernières lignes par table

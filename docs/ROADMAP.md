@@ -1,6 +1,6 @@
 # Roadmap vers le go live définitif
 
-**Version mise à jour le 11 novembre 2026. Statut actuel : NO-GO pour le réel.**
+**Version mise à jour le 16 novembre 2026. Statut actuel : NO-GO pour le réel.**
 
 Ce document est la référence unique pour l’avancement, les portes du go live et
 les améliorations restantes. Les preuves datées sont conservées dans
@@ -8,12 +8,13 @@ les améliorations restantes. Les preuves datées sont conservées dans
 confirme les quatorze migrations, les groupes et les contrôles d’intégrité.
 
 État vérifié : lots de sécurité, surveillance et préparation d'exploitation,
-921 tests Python dont 63 PostgreSQL sur base jetable, 32 Node ; CI à vérifier
+981 tests Python dont 65 PostgreSQL sur base jetable, 32 Node ; CI à vérifier
 pour chaque candidat.
 Supabase trninja est en
 0015, droits publics fermés et 324 250 bougies. Seb a retiré le 10 novembre la
 sauvegarde complète des prérequis bloquants du démarrage initial, sans ordre ni
-position. Le WSL domestique est la cible retenue ; son accès reste indisponible.
+position. Le WSL domestique est accessible dans cette session ; la nouvelle release
+exige une authentification sudo interactive.
 
 Une étape commence avec un statut daté et une entrée dans JOURNAL.md. Elle n’est
 validée qu’après une vérification réelle. Les décisions techniques sont dans
@@ -26,6 +27,22 @@ ni absence totale de panne.
 
 ## Ordre et responsabilités
 
+✅ **Revue finale positions multiples** *(16 novembre 2026)* : équité et drawdowns
+revalorisés avant achat, prix final rafraîchi après le portefeuille, étranglement
+du risque cumulé, pannes/historiques isolés et risque affiché au stop corrigés.
+981 tests Python, dont 65 PostgreSQL locaux, 32 Node, navigateur et golden validés.
+Commit et push sur master demandés explicitement par Seb ; installation distincte.
+
+🟨 **Positions multiples PAPER** *(commencé le 16 novembre 2026)* : demande
+explicite de Seb ; adapter surveillance, sorties, valorisation du portefeuille,
+admission des achats et dashboard. Code vérifié, risque cumulé conservé ;
+installation de la release préparée, en attente d'exécution sudo sur le WSL.
+
+✅ **Diversification PAPER — recherche et diagnostic des entrées** *(16 novembre
+2026)* : treize paires Kraken EUR contrôlées, cinq candidates documentées ;
+aucun setup courant. Solde, révision et moteur vérifiés. Étude et faisabilité dans
+`DIVERSIFICATION_PAPER.md` ; installation des cinq paires distincte, encore à faire.
+
 ✅ **R4 — comparatif macro H4 EMA50/100/200, laboratoire** *(16 novembre 2026)* :
 72 scénarios exécutés sur 24 mois BTC/ETH/SOL, deux entrées/pentes/coûts ;
 885 tests hors base et golden identique, défaut 200 conservé. À 80 pb tous
@@ -37,8 +54,8 @@ correction et reprise PAPER sans exposition testées localement ; installation e
 cycle de reprise sur la release systemd restent à vérifier.
 
 🟨 **Supervision systemd PAPER du moteur** *(commencé le 12 novembre 2026)* :
-identité SQL limitée préparée et prévol réussi ; installation suspendue à la
-demande de Seb. Moteur, API et dashboard arrêtés ; reprise à qualifier.
+service observé actif le 16 novembre à partir de 10:31 CET, cycle et heartbeat
+confirmés. API et dashboard actifs. Veille longue et reprise après panne à qualifier.
 
 🟨 **Disponibilité du modèle et reprise du moteur** *(commencé le 12 novembre 2026)* :
 préparer le modèle avant une décision et vérifier les possibilités de supervision
