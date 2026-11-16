@@ -176,6 +176,17 @@ class MarketSnapshot:
     # Creux des 10 dernières D1, utilisé par StopMode.STRUCTURAL_D1. 0 = absent :
     # le mode structurel refuse alors le trade au lieu de retomber sur l'ATR.
     swing_low_10d: Decimal = Decimal("0")
+    ema_50_h4: Decimal = Decimal("0")
+    ema_100_h4: Decimal = Decimal("0")
+    ema_50_slope_atr: Decimal = Decimal("0")
+    ema_100_slope_atr: Decimal = Decimal("0")
+
+    def macro_ema(self, period: int) -> tuple[Decimal, Decimal]:
+        """EMA et pente sur 60 H4 ; aucune substitution si la donnée manque."""
+        if period not in (50, 100, 200):
+            raise ValueError("macro_ema_period doit être 50, 100 ou 200")
+        return (getattr(self, f"ema_{period}_h4"),
+                getattr(self, f"ema_{period}_slope_atr"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,6 +258,8 @@ class RiskConfig:
     # pour mesurer une hypothèse moyenne-réversion brute. Jamais lu depuis l'env,
     # jamais posé par le runtime : un backtest peut le passer, la production non.
     allow_counter_trend: bool = False
+    # Laboratoire uniquement, absent de l'env et des réglages administratifs.
+    macro_ema_period: int = 200
 
     # --- Petit portefeuille -------------------------------------------------
     # Autorise 100 % de l'équité en exposition quand elle est sous le seuil, pour
@@ -287,7 +300,8 @@ class RiskConfig:
     entry_rsi_max: Decimal = Decimal("65")
     entry_pullback_atr: Decimal = Decimal("0.75")
     entry_require_ema50_above_ema200: bool = True
-    # Pente minimale de l'EMA200 H4 sur 10 jours, en ATR. 0 = pas de filtre.
+    # Pente minimale sur 10 jours de l’EMA macro sélectionnée, en ATR.
+    # Nom historique conservé pour les configurations/golden ; 0 exige une pente ≥ 0.
     entry_ema200_slope_min: Decimal = Decimal("0")
     # Mode de recherche du repli (D-058). EMA50_H4 est le comportement historique ;
     # PULLBACK_H1 élargit le setup sans toucher au pare-feu.
@@ -316,6 +330,8 @@ class RiskConfig:
     min_halt_confidence: Decimal = Decimal("0.80")
 
     def __post_init__(self) -> None:
+        if type(self.macro_ema_period) is not int or self.macro_ema_period not in (50, 100, 200):
+            raise ValueError("macro_ema_period doit être 50, 100 ou 200")
         for name in ("execution_fee_pct", "execution_slippage_pct"):
             value = getattr(self, name)
             if not value.is_finite() or not Decimal(0) <= value < Decimal("0.1"):
@@ -529,13 +545,14 @@ def _evaluate(
             "horodatages sans fuseau horaire — UTC explicite exigé",
             passed,
         )
-    if not all(_is_finite(v) for v in (market.price, market.ema_200_h4, market.atr_14_h4)):
+    macro_ema, _ = market.macro_ema(config.macro_ema_period)
+    if not all(_is_finite(v) for v in (market.price, macro_ema, market.atr_14_h4)):
         # Decimal('NaN') n'est jamais <= 0 : sans ce test, NaN traverserait tout le
         # dimensionnement sans être arrêté par aucune comparaison.
         return _reject(RejectionCode.INVALID_MARKET_DATA, "prix/EMA/ATR non finis (NaN ou infini)", passed)
     if not all(_is_finite(v) for v in (account.equity_quote, account.free_quote)):
         return _reject(RejectionCode.INVALID_MARKET_DATA, "équité ou solde libre non fini", passed)
-    if market.price <= 0 or market.ema_200_h4 <= 0 or market.atr_14_h4 <= 0:
+    if market.price <= 0 or macro_ema <= 0 or market.atr_14_h4 <= 0:
         return _reject(RejectionCode.INVALID_MARKET_DATA, "prix/EMA/ATR non strictement positifs", passed)
     if account.equity_quote <= 0:
         return _reject(RejectionCode.INVALID_MARKET_DATA, "équité nulle ou négative", passed)
@@ -655,11 +672,11 @@ def _evaluate(
     # mesurer une hypothèse moyenne-réversion hors tendance haussière, sans
     # jamais l'exposer au runtime (aucun chemin de configuration ne le pose).
     if not config.allow_counter_trend:
-        trend_floor = market.ema_200_h4 * (Decimal(1) + config.trend_buffer_pct)
+        trend_floor = macro_ema * (Decimal(1) + config.trend_buffer_pct)
         if market.price <= trend_floor:
             return _reject(
                 RejectionCode.REJECTED_COUNTER_TREND_EMA200,
-                f"prix {market.price} <= EMA200 H4 + marge ({trend_floor:.4f})",
+                f"prix {market.price} <= EMA{config.macro_ema_period} H4 + marge ({trend_floor:.4f})",
                 passed,
             )
     passed.append("long_term_trend")

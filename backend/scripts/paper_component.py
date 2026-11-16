@@ -92,10 +92,13 @@ async def engine_state_check(conn):
     row = await conn.fetchrow(
         "SELECT state::text AS state, "
         "EXISTS(SELECT 1 FROM execution_requests WHERE mode='PAPER' AND state IN ('PREPARED','ACKNOWLEDGED','FILLED','UNKNOWN')) AS requests, "
-        "EXISTS(SELECT 1 FROM pending_exits WHERE mode='PAPER') AS exits "
+        "EXISTS(SELECT 1 FROM pending_exits WHERE mode='PAPER') AS exits, "
+        "EXISTS(SELECT 1 FROM positions WHERE mode='PAPER' AND status='OPEN') AS position "
         "FROM bot_state WHERE mode='PAPER'"
     )
-    if not row or row["state"] not in {"IDLE", "IN_POSITION", "COOLDOWN"} or row["requests"] or row["exits"]:
+    if (not row or row["state"] not in {"IDLE", "IN_POSITION", "COOLDOWN", "EVALUATING"}
+            or row["requests"] or row["exits"]
+            or (row["state"] == "EVALUATING" and row["position"])):
         raise ValueError("reprise PAPER bloquée : état ou intentions à rapprocher")
 
 

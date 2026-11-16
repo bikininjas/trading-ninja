@@ -596,3 +596,16 @@ def test_chandelier_period_must_stay_in_bounds(period):
 def test_chandelier_multiple_must_be_positive_and_finite(multiple):
     with pytest.raises(ValueError, match="swing_chandelier_atr_multiple"):
         RiskConfig(swing_chandelier_atr_multiple=multiple)
+
+
+@pytest.mark.parametrize("period", [50, 100])
+def test_laboratory_macro_uses_selected_ema_without_bypassing_gateway(period):
+    from dataclasses import replace
+    snap = replace(market(ema="110"), **{f"ema_{period}_h4": Decimal("99")})
+    assert run(m=snap).rejection_code is RejectionCode.REJECTED_COUNTER_TREND_EMA200
+    config = RiskConfig(macro_ema_period=period)
+    result = run(m=snap, cfg=config)
+    assert result.approved
+    assert result.stop_loss_price == Decimal("95.00")
+    assert not run(m=replace(snap, **{f"ema_{period}_h4": Decimal("NaN")}), cfg=config).approved
+    assert not run(m=replace(snap, **{f"ema_{period}_h4": Decimal("0")}), cfg=config).approved

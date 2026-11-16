@@ -312,3 +312,27 @@ def test_unknown_entry_mode_is_refused_at_construction():
 def test_incoherent_h1_rsi_bounds_are_refused_at_construction():
     with pytest.raises(ValueError, match="RSI H1"):
         RiskConfig(entry_h1_rsi_min=Decimal("60"), entry_h1_rsi_max=Decimal("40"))
+
+
+@pytest.mark.parametrize("period", [50, 100, 200])
+def test_macro_period_selects_both_price_and_slope(period):
+    from dataclasses import replace
+    snap = replace(snapshot(ema200="110"), ema_50_h4=Decimal("99.5"),
+                   ema_100_h4=Decimal("99.4"), ema_50_slope_atr=Decimal("2"),
+                   ema_100_slope_atr=Decimal("2"), ema_200_slope_atr=Decimal("-1"))
+    config = replace(CONFIG, macro_ema_period=period, entry_ema200_slope_min=Decimal("1"))
+    assert evaluate_entry(snap, context(ema50="99.5"), config).triggered is (period != 200)
+    if period != 200:
+        falling = replace(snap, **{f"ema_{period}_slope_atr": Decimal("-1")})
+        assert not evaluate_entry(falling, context(), config).triggered
+
+
+def test_missing_macro_indicator_is_refused():
+    from dataclasses import replace
+    assert not evaluate_entry(snapshot(), context(), replace(CONFIG, macro_ema_period=50)).triggered
+
+
+@pytest.mark.parametrize("period", [0, 49, 51, 300, True, 50.0])
+def test_invalid_macro_period_is_refused(period):
+    with pytest.raises(ValueError, match="macro_ema_period"):
+        RiskConfig(macro_ema_period=period)

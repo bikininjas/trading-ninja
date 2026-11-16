@@ -286,3 +286,19 @@ def test_replay_exchange_only_serves_closed_candles():
     served = replay.fetch_ohlcv("BTC/EUR", "4h", limit=100)
     assert len(served) == 6
     assert served[-1][0] == h4[5][0]
+
+
+@pytest.mark.asyncio
+async def test_snapshot_cache_preserves_backtest_and_golden_metrics():
+    from app.backtest.golden import metrics_of
+    h4 = candles(START, 260, H4_MS)
+    async def buy(snapshot, context, has_position=False):
+        return StubSignal("BUY")
+    kwargs = dict(symbol="BTC/EUR", info=market_info(), h4=h4, h1=h1_series(),
+                  settings=settings(), propose=buy, counterfactuals=False, use_entry_rule=False)
+    plain = await run_backtest(**kwargs)
+    cache = {}
+    cached = await run_backtest(**kwargs, snapshot_cache=cache)
+    assert cache and plain.trades
+    assert metrics_of(cached) == metrics_of(plain)
+    assert cached.trades == plain.trades

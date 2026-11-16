@@ -269,6 +269,7 @@ class ReplayCursor:
                 f"{self.offset}: arguments différents pour {target}.{method}"
             )
         if "error" in call:
+            import ccxt
             from app.market.feed import FeedError
             from app.db.repository import StateTransitionError
             from app.execution.live import LiveExecutionError
@@ -283,6 +284,11 @@ class ReplayCursor:
                     ValueError,
                     TypeError,
                     KeyError,
+                    ccxt.NetworkError,
+                    ccxt.RequestTimeout,
+                    ccxt.ExchangeNotAvailable,
+                    ccxt.DDoSProtection,
+                    ccxt.RateLimitExceeded,
                 )
             }
             raise classes.get(call["error"]["type"], RuntimeError)(

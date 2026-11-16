@@ -26,6 +26,20 @@ ni absence totale de panne.
 
 ## Ordre et responsabilités
 
+✅ **R4 — comparatif macro H4 EMA50/100/200, laboratoire** *(16 novembre 2026)* :
+72 scénarios exécutés sur 24 mois BTC/ETH/SOL, deux entrées/pentes/coûts ;
+885 tests hors base et golden identique, défaut 200 conservé. À 80 pb tous
+les scénarios perdent, aucun N≥100. Rapport, faux rebonds et lag dans
+`BACKTEST.md`, D-095. La qualification économique R4 reste ouverte.
+
+🟨 **Erreur réseau Kraken pendant un cycle** *(commencé le 12 novembre 2026)* :
+correction et reprise PAPER sans exposition testées localement ; installation et
+cycle de reprise sur la release systemd restent à vérifier.
+
+🟨 **Supervision systemd PAPER du moteur** *(commencé le 12 novembre 2026)* :
+identité SQL limitée préparée et prévol réussi ; installation suspendue à la
+demande de Seb. Moteur, API et dashboard arrêtés ; reprise à qualifier.
+
 🟨 **Disponibilité du modèle et reprise du moteur** *(commencé le 12 novembre 2026)* :
 préparer le modèle avant une décision et vérifier les possibilités de supervision
 PAPER sans modification du système ; qualification de panne et maintien à vérifier.

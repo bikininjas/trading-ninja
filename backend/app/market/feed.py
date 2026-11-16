@@ -23,6 +23,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
+import ccxt
+
 from app.engine.risk_gate import MarketSnapshot
 from app.exchange.kraken import KrakenMarketInfo, market_info
 
@@ -133,7 +135,10 @@ def closed_candles(exchange: Any, symbol: str, timeframe: str, limit: int,
     """Bougies dont la fenêtre est terminée, la plus ancienne d'abord."""
     if timeframe not in TIMEFRAME_MS:
         raise FeedError(f"timeframe non géré : {timeframe}")
-    candles = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+    try:
+        candles = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+    except ccxt.NetworkError as exc:
+        raise FeedError(f"{symbol} : données {timeframe} indisponibles ({type(exc).__name__})") from exc
     now = now_ms if now_ms is not None else exchange.milliseconds()
     duration = TIMEFRAME_MS[timeframe]
     return [c for c in candles if c[0] + duration <= now]
@@ -394,6 +399,16 @@ def build_snapshot(
         now=moment,
         ema_200_slope_atr=ema_200_slope_atr,
         swing_low_10d=d1_context.swing_low_10 if d1_context is not None else Decimal(0),
+        ema_50_h4=context.ema_50_h4,
+        ema_100_h4=ema(closes, 100),
+        ema_50_slope_atr=(
+            (context.ema_50_h4 - ema(closes[:-TREND_SLOPE_LOOKBACK], 50)) / atr_h4
+            if atr_h4 > 0 else Decimal(0)
+        ),
+        ema_100_slope_atr=(
+            (ema(closes, 100) - ema(closes[:-TREND_SLOPE_LOOKBACK], 100)) / atr_h4
+            if atr_h4 > 0 else Decimal(0)
+        ),
     )
     return SymbolState(
         symbol=symbol,

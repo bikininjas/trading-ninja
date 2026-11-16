@@ -82,10 +82,13 @@ def _pullback_h4(snapshot: MarketSnapshot, context: MarketContext,
 
     distance = (price - ema_50) / atr
 
-    if config.entry_require_ema50_above_ema200 and ema_50 <= snapshot.ema_200_h4:
+    macro_ema, _ = snapshot.macro_ema(config.macro_ema_period)
+    # À période 50, les deux EMA sont identiques : ce contrôle est redondant.
+    if (config.entry_require_ema50_above_ema200 and config.macro_ema_period != 50
+            and ema_50 <= macro_ema):
         return _verdict(
             False,
-            f"EMA50 {ema_50:.4f} sous EMA200 {snapshot.ema_200_h4:.4f} : structure baissière",
+            f"EMA50 {ema_50:.4f} sous EMA{config.macro_ema_period} {macro_ema:.4f} : structure baissière",
             rsi, distance, atr / price,
         )
 
@@ -332,34 +335,34 @@ def evaluate_entry(
     modèle. Un refus ici n'est pas une décision de risque, c'est une absence de
     setup.
 
-    Les garde-fous communs (structure H4, pente de l'EMA200, bande de volatilité,
+    Les garde-fous communs (structure H4, pente de l'EMA macro, bande de volatilité,
     couteau qui tombe) passent avant le mode : le mode ne choisit que la finesse du
     repli, jamais la direction ni le risque.
     """
     price = snapshot.price
-    ema_200 = snapshot.ema_200_h4
+    macro_ema, macro_slope = snapshot.macro_ema(config.macro_ema_period)
     atr = snapshot.atr_14_h4
     rsi = context.rsi_14_h4
 
-    if not all(v.is_finite() for v in (price, ema_200, atr, rsi)):
+    if not all(v.is_finite() for v in (price, macro_ema, atr, rsi, macro_slope)):
         return _verdict(False, "valeurs non finies (NaN ou infini)", rsi, Decimal(0), Decimal(0))
-    if price <= 0 or ema_200 <= 0 or atr <= 0:
+    if price <= 0 or macro_ema <= 0 or atr <= 0:
         return _verdict(False, "prix/EMA/ATR non strictement positifs", rsi, Decimal(0), Decimal(0))
 
     atr_pct = atr / price
 
-    trend_floor = ema_200 * (Decimal(1) + config.trend_buffer_pct)
+    trend_floor = macro_ema * (Decimal(1) + config.trend_buffer_pct)
     if price <= trend_floor:
         return _verdict(
             False,
-            f"prix {price:.4f} sous EMA200 + marge ({trend_floor:.4f})",
+            f"prix {price:.4f} sous EMA{config.macro_ema_period} + marge ({trend_floor:.4f})",
             rsi, (price - context.ema_50_h4) / atr, atr_pct,
         )
 
-    if snapshot.ema_200_slope_atr < config.entry_ema200_slope_min:
+    if macro_slope < config.entry_ema200_slope_min:
         return _verdict(
             False,
-            f"EMA200 monte de {snapshot.ema_200_slope_atr:+.2f} ATR sur 10 jours "
+            f"EMA{config.macro_ema_period} monte de {macro_slope:+.2f} ATR sur 10 jours "
             f"(minimum {config.entry_ema200_slope_min:.2f}) : tendance pas assez haussière",
             rsi, (price - context.ema_50_h4) / atr, atr_pct,
         )

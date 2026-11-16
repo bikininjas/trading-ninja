@@ -47,6 +47,7 @@ from app.market.feed import (
     TIMEFRAME_MS,
     FeedError,
     MarketContext,
+    SymbolState,
     build_snapshot,
 )
 
@@ -390,9 +391,25 @@ def _drawdowns(curve: list[tuple[datetime, Decimal]], at: datetime) -> tuple[Dec
     )
 
 
+def _state_at(replay, symbol, info, at, cache):
+    # Cache local à une paire et un jeu de bougies, partagé par les scénarios.
+    # Les états sont immuables et ne dépendent ni des frais ni de la politique.
+    if cache is None:
+        return build_snapshot(replay, symbol, info=info, now=at, with_order_book=False)
+    if at not in cache:
+        try:
+            cache[at] = build_snapshot(replay, symbol, info=info, now=at, with_order_book=False)
+        except FeedError:
+            cache[at] = None
+    if cache[at] is None:
+        raise FeedError("fenêtre enregistrée indisponible")
+    return cache[at]
+
+
 def zone_is_open(snapshot: MarketSnapshot, context: MarketContext, config: RiskConfig) -> bool:
     """Les conditions où un BUY a seulement le droit d'exister (miroir du client LLM)."""
-    if snapshot.price <= snapshot.ema_200_h4 * (1 + config.trend_buffer_pct):
+    macro_ema = getattr(snapshot, f"ema_{config.macro_ema_period}_h4")
+    if snapshot.price <= macro_ema * (1 + config.trend_buffer_pct):
         return False
     if context.rsi_14_h4 >= RSI_MAX_BUY:
         return False
@@ -454,6 +471,7 @@ async def _simulate_trade(
     config: RiskConfig,
     max_hold_candles: int = 0,
     stop_index: int | None = None,
+    snapshot_cache: dict[datetime, SymbolState | None] | None = None,
 ) -> tuple[int, Fill, str, list[Any], bool]:
     """Simule une position bougie par bougie, avec sorties stop/TP et LLM.
 
@@ -491,9 +509,7 @@ async def _simulate_trade(
 
         at = _close_time(h4[j])
         try:
-            state = build_snapshot(
-                replay, symbol, info=info, now=at, with_order_book=False
-            )
+            state = _state_at(replay, symbol, info, at, snapshot_cache)
         except FeedError:
             continue
 
@@ -554,6 +570,7 @@ async def run_backtest(
     counterfactuals: bool = True,
     progress: Callable[[int, int], None] | None = None,
     use_entry_rule: bool = True,
+    snapshot_cache: dict[datetime, SymbolState | None] | None = None,
 ) -> BacktestResult:
     """Rejoue une fenêtre et rend les métriques. Ne touche ni au réseau ni à la base."""
     if len(h4) < EMA_PERIOD + 2:
@@ -594,13 +611,7 @@ async def run_backtest(
         replay.set_now(h4[i][0] + DECISION_MS)
         at = _close_time(h4[i])
         try:
-            state = build_snapshot(
-                replay,
-                symbol,
-                info=info,
-                now=at,
-                with_order_book=False,
-            )
+            state = _state_at(replay, symbol, info, at, snapshot_cache)
         except FeedError:
             i += 1
             continue
@@ -729,6 +740,7 @@ async def run_backtest(
             exit_index, exit_fill, reason, exit_signals, halted_trade = await _simulate_trade(
                 h4, h1, symbol, info, i, decision, paper_broker, propose, config,
                 max_hold_candles=max_hold_candles, stop_index=last,
+                snapshot_cache=snapshot_cache,
             )
             for exit_signal in exit_signals:
                 exit_action = str(getattr(exit_signal, "action", "HOLD"))

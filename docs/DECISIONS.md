@@ -2153,3 +2153,30 @@ Les erreurs SQL restent fatales. Les résultats déjà clos ne sont pas recalcul
 Aucune nouvelle migration, aucun changement de règle d’achat ni de plafond de
 risque. Ces corrections ne mesurent pas l’effet économique de la mémoire et
 ne changent pas la limite des plans fixes : ils ne simulent pas le trailing.
+
+## D-095 — EMA macro H4 configurable au laboratoire, défaut 200 conservé (2026-11-16)
+
+**Contexte** : Seb demande de mesurer si EMA50/100 débloque davantage de reprises
+que le filtre EMA200 H4, sans changer la politique déployée.
+
+**Décision** : `RiskConfig.macro_ema_period` accepte 50/100/200, défaut strict 200,
+absent de l’env et de l’administration. Snapshot : les trois EMA et leurs pentes
+sur les mêmes 60 H4. Règle d’entrée et `evaluate()` sélectionnent la même EMA ;
+le contrôle EMA50 > macro devient redondant lorsque macro=50. Le seuil de pente
+conserve son nom historique `entry_ema200_slope_min`, la valeur s’appliquant à
+l’EMA choisie. L’empreinte de risque historique reste identique au défaut 200.
+Aucune migration ni modification des presets ou des fichiers de secrets.
+
+**Mesure** : 72 scénarios mécaniques sur 24 mois clos au 10 novembre 2026,
+BTC/ETH/SOL, deux entrées, trois EMA, deux pentes, deux coûts. Profil `micro`
+chargé, capital indépendant de 1 000 EUR, stops/TP et sizing du vrai pare-feu.
+Tous les scénarios à 80 pb perdent ; EMA50 produit 23–33 trades contre 24–37
+pour EMA200, aucun N≥100. Les résultats à 25 pb sont une sensibilité de coût,
+avec quelques gains, sans simulation d’exécution maker.
+
+**Conséquence** : conserver EMA200 en PAPER par défaut. L’effectif ne justifie
+pas un abaissement, ni une promotion d’EMA100 malgré certaines améliorations.
+Faux rebonds immédiats et lag sont définis et comptés dans `BACKTEST.md` ; un
+lag apparié sur un unique événement ne valide aucune anticipation moyenne.
+Couverture imparfaite et sélection rétrospective explicites. Le statut réel
+reste NO-GO. Résultats et trades archivés sous `docs/backtests/2026-11-16/`.

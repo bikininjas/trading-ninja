@@ -58,6 +58,14 @@ die()  { printf '[erreur] %s\n' "$*" >&2; exit 1; }
 pidfile() { printf '%s/%s.pid' "$RUN_DIR" "$1"; }
 logfile() { printf '%s/%s.log' "$RUN_DIR" "$1"; }
 
+engine_systemd_installed() {
+  [[ -f /etc/systemd/system/trading-ninja@.service && -f /etc/systemd/system/trading-ninja@engine.service.d/controlled-restart.conf ]]
+}
+
+engine_systemctl() {
+  if [[ $EUID == 0 ]]; then systemctl "$@"; else sudo systemctl "$@"; fi
+}
+
 # Motif présent dans la ligne de commande du processus attendu.
 pattern() {
   case "$1" in
@@ -197,6 +205,19 @@ wait_ready() {
 
 start_one() {
   local name="$1" pid log dir
+  if [[ "$name" == engine ]] && engine_systemd_installed; then
+    if systemctl is-active --quiet trading-ninja@engine; then
+      ok 'engine systemd déjà actif'
+      return 0
+    fi
+    if pid="$(running_pid engine)"; then
+      die "un moteur hors systemd tourne déjà (PID $pid) : l'arrêter avant la bascule"
+    fi
+    engine_systemctl start trading-ninja@engine || return 1
+    systemctl is-active --quiet trading-ninja@engine || { warn 'engine systemd non actif ; consulter les journaux'; return 1; }
+    info 'engine systemd PAPER lancé ; initialisation en cours, vérifier le premier cycle dans les journaux'
+    return 0
+  fi
   if pid="$(running_pid "$name")"; then
     printf '[déjà] %s tourne (PID %s)\n' "$name" "$pid"
     return 0
@@ -250,6 +271,15 @@ start_one() {
 
 stop_one() {
   local name="$1" pid i
+  if [[ "$name" == engine ]] && engine_systemd_installed; then
+    if systemctl is-active --quiet trading-ninja@engine; then
+      engine_systemctl stop trading-ninja@engine || return 1
+      ok 'engine systemd arrêté'
+    else
+      printf '[arrêté] engine systemd\n'
+    fi
+    return 0
+  fi
   pid="$(read_pid "$name")"
 
   if [[ -z "$pid" ]]; then
@@ -289,6 +319,15 @@ stop_one() {
 
 status_one() {
   local name="$1" pid port
+  if [[ "$name" == engine ]] && engine_systemd_installed; then
+    if systemctl is-active --quiet trading-ninja@engine; then
+      pid="$(systemctl show trading-ninja@engine -p MainPID --value)"
+      printf '%-10s %-9s PID %-7s %s\n' "$name" 'en cours' "$pid" 'PAPER (systemd, bougies H4)'
+    else
+      printf '%-10s %-9s %-11s %s\n' "$name" "$(systemctl is-failed --quiet trading-ninja@engine && printf échec || printf arrêté)" '-' 'PAPER (systemd)'
+    fi
+    return 0
+  fi
   port="$(port "$name")"
   if pid="$(running_pid "$name")"; then
     printf '%-10s %-9s PID %-7s %s\n' "$name" "en cours" "$pid" "$(url "$name")"
@@ -302,6 +341,11 @@ status_one() {
 
 logs_one() {
   local name="$1" file
+  if [[ "$name" == engine ]] && engine_systemd_installed; then
+    printf '%s\n' '--- engine (systemd) ---'
+    journalctl --no-pager -u trading-ninja@engine -n "${MANAGE_LOG_LINES:-60}"
+    return
+  fi
   file="$(logfile "$name")"
   printf '%s\n' "--- $name ($file) ---"
   if [[ -f "$file" ]]; then
@@ -326,7 +370,7 @@ do_stop() {
     api)       stop_one api ;;
     dashboard) stop_one dashboard ;;
     engine)    stop_one engine ;;
-    all)       stop_one engine || true; stop_one dashboard || true; stop_one api || true ;;
+    all)       local failed=0; stop_one engine || failed=1; stop_one dashboard || failed=1; stop_one api || failed=1; return "$failed" ;;
     *)         usage; exit 2 ;;
   esac
 }
@@ -341,7 +385,8 @@ Usage : scripts/manage.sh <action> [composant]
   status                              état des trois composants
   logs    api|dashboard|engine|all   dernières lignes des journaux
 
-Journaux et fichiers PID : scripts/.run/
+Journaux et fichiers PID : scripts/.run/ ; moteur systemd : journalctl.
+Si le service systemd est installé, start/stop du moteur peuvent demander sudo.
 EOF
 }
 

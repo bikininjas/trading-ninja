@@ -83,6 +83,34 @@ def test_closed_candles_drop_the_unfinished_one():
     assert len(closed_candles(exchange, "BTC/EUR", "4h", 10)) == 9
 
 
+def test_network_failure_is_reported_as_unavailable_market_data():
+    import ccxt
+
+    class Unavailable:
+        def fetch_ohlcv(self, *args, **kwargs):
+            raise ccxt.NetworkError("connection reset")
+
+    with pytest.raises(FeedError, match="BTC/EUR.*4h.*NetworkError"):
+        closed_candles(Unavailable(), "BTC/EUR", "4h", 10)
+
+
+def test_recorded_network_error_remains_a_network_error_during_replay():
+    import ccxt
+    from app.insights.replay import ReplayCursor, encode
+
+    packet = {"trace": [{"target": "exchange", "method": "fetch_ohlcv",
+                         "args": {"value": encode(("BTC/EUR", "4h"))},
+                         "kwargs": {"value": encode({"limit": 10})},
+                         "error": {"type": "NetworkError", "message": "connection reset"}}]}
+    class Recorded:
+        def fetch_ohlcv(self, *args, **kwargs):
+            return ReplayCursor(packet).call("exchange", "fetch_ohlcv", args, kwargs)
+
+    with pytest.raises(FeedError, match="NetworkError") as error:
+        closed_candles(Recorded(), "BTC/EUR", "4h", 10)
+    assert isinstance(error.value.__cause__, ccxt.NetworkError)
+
+
 def test_snapshot_with_d1_exposes_the_structural_swing_low():
     t0 = 1_700_000_000_000
     d1 = []
@@ -165,3 +193,18 @@ def test_build_snapshot_refuses_insufficient_history():
 
     with pytest.raises(FeedError, match="EMA200"):
         build_snapshot(exchange, "BTC/EUR", info=Info())
+
+
+def test_snapshot_macro_indicators_use_only_closed_candles():
+    h4 = candles(321)
+    now_ms = h4[-1][0]  # dernière bougie encore ouverte
+    exchange = FakeExchange(h4, h4, now_ms)
+    class Info:
+        constraints = None
+        quote = "EUR"
+    state = build_snapshot(exchange, "BTC/EUR", info=Info(), with_order_book=False)
+    closes = [c[4] for c in h4[:-1]]
+    for period in (50, 100, 200):
+        value, slope = state.snapshot.macro_ema(period)
+        assert value == ema(closes, period)
+        assert slope == (value - ema(closes[:-60], period)) / state.snapshot.atr_14_h4

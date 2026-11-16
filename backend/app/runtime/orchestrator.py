@@ -726,10 +726,14 @@ class Orchestrator:
             report.errors.append(f"{position.symbol} : {exc}")
             return
 
-        candles = closed_candles(
-            self._exchange, position.symbol,
-            self._settings.exchange.daily_timeframe_decision, 720,
-        )
+        try:
+            candles = closed_candles(
+                self._exchange, position.symbol,
+                self._settings.exchange.daily_timeframe_decision, 720,
+            )
+        except FeedError as exc:
+            report.errors.append(f"{position.symbol} : {exc}")
+            return
         if not candles:
             report.errors.append(f"{position.symbol} : aucune bougie clôturée")
             return

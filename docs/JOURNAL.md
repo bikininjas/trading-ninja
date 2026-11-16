@@ -4,6 +4,65 @@ Une entrée par session de travail, **la plus récente en haut**. Chaque entrée
 qui a été fait, ce qui l'a vérifié (`commande → résultat réel`), et ce qui a été décidé.
 Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
+## 2026-11-16 — Comparatif de réactivité macro H4 vérifié
+
+- Brief : mesurer EMA50/100/200 sur BTC/ETH/SOL, 24 mois, entrées H4/H1,
+  pentes 0/1 ATR et coûts 80/25 pb, capital indépendant de 1 000 EUR.
+- Défaut 200 conservé ; aucune modification de `.env` ni activation réelle.
+- Protocole : stop immédiat = première H4 après l'entrée ; lag apparié dans
+  une même reprise sous EMA200, confirmation ultérieure par une entrée EMA200
+  gagnante, sans utiliser cette classification rétrospective pour trader.
+- Implémenté : EMA50/100/200 et pentes H4, sélection commune règle/pare-feu,
+  CLI `--macro-ema-periods`, fenêtre datée et export des sources/trades. Cache
+  de snapshots commun aux scénarios, vérifié contre le rejeu sans cache.
+- Exécuté : 72 scénarios sur 2024-11-10 12:00 → 2026-11-10 12:00 UTC,
+  profil `micro` chargé (1,75 % / 50 %), 60 jours d’échauffement hors mesure.
+  À 80 pb, tous déficitaires ; EMA50 N=23–33 contre N=24–37 pour EMA200.
+  À 25 pb quelques gains, aucun N≥100. D-095 : conserver EMA200 par défaut.
+- Rapport et 72 lignes comparatives dans `docs/BACKTEST.md`, JSON et archive
+  des trades sous `docs/backtests/2026-11-16/`. Un trou H4 et trois trous H1
+  par paire, sans imputation ; le taux étroit de stops immédiats ne compte pas
+  les pertes ultérieures. Appariements de lag très rares et rétrospectifs.
+- Vérifié avec le venv disponible Python 3.15.2 : `python -m pytest -o addopts='' -q`
+  → **885 passed, 63 skipped** (contrats PostgreSQL opt-in non demandés).
+  `scripts/backtest.py replay` → métriques et empreinte identiques, aucun bless.
+  `bash scripts/check.sh` → **TOUT EST VERT**, 15 migrations appliquées,
+  drawdowns vérifiés avec transaction annulée, index à jour, **32 tests Node**.
+  Le runtime de livraison 3.13.17 n’est pas installé dans cet environnement ;
+  cette mesure ne constitue pas une qualification de release sur ce runtime.
+
+## 2026-11-12 — Erreur réseau Kraken pendant un cycle (en cours)
+
+- Le moteur systemd s'est arrêté sur `ccxt.NetworkError` après réinitialisation
+  de la connexion OHLC BTC/EUR. Kraken répond ensuite HTTP 200. L'état PAPER est
+  `EVALUATING`, heartbeat nul, aucune position ouverte, intention financière
+  en attente ni sortie en attente observée. Aucune reprise automatique effectuée.
+- Correction locale : les erreurs réseau de bougies deviennent des données
+  indisponibles, y compris pour une position ; le rejeu conserve leur type.
+  Prévol de reprise autorisé en `EVALUATING` seulement sans position ni intentions
+  non résolues. Prévol SQL réel réussi avec l'identité limitée. Tests ciblés avec
+  Python 3.13.17 et rejeu golden réussis ; installation systemd à effectuer.
+
+## 2026-11-12 — Supervision systemd PAPER du moteur (en cours)
+
+- Seb a installé et démarré `trading-ninja@engine` : prévol de la release réussi,
+  systemd actif avec `Restart=no` et `manage.sh status` retrouve le PID 2541681.
+  Ollama a confirmé le chargement du modèle ; premier cycle non encore observé
+  au moment de ce contrôle. Le service n'est pas activé au boot.
+- À la demande de Seb, arrêt de la préparation et des composants :
+  `bash scripts/manage.sh stop all` puis `status` confirment moteur, API et
+  dashboard arrêtés ; aucune unité Trading Ninja active. Aucun service installé.
+- Le LOGIN SQL privé `tn_engine_wsl`, membre de `tn_paper_engine`, et sa
+  configuration privée ont été créés ; le prévol PAPER, migrations, état et
+  identité du modèle a réussi. Ils restent en place pour une éventuelle reprise.
+- Un installateur moteur seul et l'intégration systemd de `manage.sh` sont
+  préparés ; l'installation et la recette effective restent à effectuer.
+- Seb demande la préparation d'une alternative à tmux. `ps -p 1` confirme systemd ;
+  aucune unité Trading Ninja n'est installée. Le contrôle d'installation signale
+  Node 24 absent. Le moteur courant reste actif pendant la préparation.
+- Le service livré impose une identité SQL PAPER isolée et une reprise manuelle
+  après panne ; `sudo -n true` indique qu'une authentification interactive est requise.
+
 ## 2026-11-12 — Disponibilité du modèle et reprise du moteur (en cours)
 
 - Le client préchauffe le modèle avant une décision LLM, avec délai borné à

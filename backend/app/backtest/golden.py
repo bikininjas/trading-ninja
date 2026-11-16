@@ -96,6 +96,9 @@ def prompt_fingerprint(settings: Any) -> str:
 def risk_fingerprint(settings: Any, info: Any) -> str:
     """Identité du risque, des frais et du capital de départ. Change les résultats."""
     risk = asdict(settings.risk)
+    # 200 est le contrat historique ; les variantes modifient l'empreinte.
+    if settings.risk.macro_ema_period == 200:
+        risk.pop("macro_ema_period")
     # Préserver l'identité des anciens profils lorsque les nouveaux mécanismes
     # sont désactivés ; leur activation reste bien couverte par l'empreinte.
     if not settings.risk.cost_aware and not settings.risk.profit_trailing_enabled:

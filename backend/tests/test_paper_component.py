@@ -30,6 +30,7 @@ def test_remote_sql_tls_cannot_be_disabled_or_overridden(query):
 @pytest.mark.parametrize("row", [None,
     {"state": "EMERGENCY_HALT", "requests": False, "exits": False},
     {"state": "EXECUTING", "requests": False, "exits": False},
+    {"state": "EVALUATING", "requests": False, "exits": False, "position": True},
     {"state": "IDLE", "requests": True, "exits": False},
     {"state": "IN_POSITION", "requests": False, "exits": True},
 ])
@@ -42,6 +43,15 @@ async def test_restart_requires_known_state_without_unresolved_intent(row):
 
     with pytest.raises(ValueError, match="bloquée"):
         await engine_state_check(Conn())
+
+
+@pytest.mark.asyncio
+async def test_restart_allows_interrupted_evaluation_only_with_no_exposure():
+    class Conn:
+        async def fetchrow(self, sql):
+            return {"state": "EVALUATING", "requests": False, "exits": False, "position": False}
+
+    await engine_state_check(Conn())
 
 
 def test_missing_or_public_configuration_refuses_without_executing(tmp_path):

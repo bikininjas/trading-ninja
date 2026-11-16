@@ -540,7 +540,7 @@ async def _always_buy(snapshot, context, has_position: bool = False):
 
 
 async def sweep(args) -> int:
-    """Balaye le filtre de pente EMA200 sur l'historique multi-années, sans LLM.
+    """Balaye période et pente EMA macro sur l’historique multi-années, sans LLM.
 
     Objectif : répondre à « le filtre de pente est-il un avantage ou un
     sur-ajustement ? » sur ≥ 100 trades et plusieurs régimes, ce qu'une fenêtre
@@ -557,9 +557,17 @@ async def sweep(args) -> int:
 
     settings = with_overrides(load_settings(), args)
     equity = Decimal(str(args.equity))
-    settings = replace(settings, paper_start_equity=equity)
+    settings = replace(settings, paper_start_equity=equity, mode="paper")
     symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
     slopes = [Decimal(s.strip()) for s in args.slopes.split(",") if s.strip()]
+    try:
+        periods = list(dict.fromkeys(int(p.strip()) for p in args.macro_ema_periods.split(",")))
+        if not periods or any(p not in (50, 100, 200) for p in periods):
+            raise ValueError
+    except ValueError as exc:
+        raise SystemExit("--macro-ema-periods : choisir parmi 50,100,200") from exc
+    if not symbols or not slopes:
+        raise SystemExit("grille de sweep vide")
     fees = fee_grid(args)
     try:
         modes = [EntryMode(m.strip()) for m in args.entry_modes.split(",") if m.strip()]
@@ -586,11 +594,11 @@ async def sweep(args) -> int:
     exchange.load_markets()
 
     conn = await asyncpg.connect(**settings.database().asyncpg_kwargs())
-    now = datetime.now(timezone.utc)
+    now = datetime.fromisoformat(args.as_of).astimezone(timezone.utc) if args.as_of else datetime.now(timezone.utc)
     start = now - timedelta(days=int(args.months * 30.44))
     print(f"Fenêtre : {start:%Y-%m-%d} → {now:%Y-%m-%d} ({args.months} mois) · "
           f"équité initiale {equity} EUR · {len(symbols)} paires")
-    print(f"Pente EMA200 testée (ATR sur 10 j) : "
+    print(f"EMA macro H4 : {periods} · pentes (ATR sur 10 j) : "
           f"{', '.join(str(s) for s in slopes)} · frais par côté : "
           f"{', '.join(str(f) + ' pb' for f in fees)}")
     print(f"Mode(s) de la règle d'entrée : {', '.join(m.value for m in modes)}")
@@ -599,12 +607,13 @@ async def sweep(args) -> int:
     print()
 
     rows: list[dict] = []
+    sources = {}
     try:
         for symbol in symbols:
-            h4 = await load_candles(conn, symbol, "4h", start=start, end=now)
-            h1 = await load_candles(
-                conn, symbol, "1h", start=start - timedelta(days=10), end=now
-            )
+            # Même échauffement pour les trois EMA, hors fenêtre mesurée.
+            warmup_start = start - timedelta(days=60)
+            h4 = await load_candles(conn, symbol, "4h", start=warmup_start, end=now)
+            h1 = await load_candles(conn, symbol, "1h", start=warmup_start, end=now)
             if len(h4) < 400 or len(h1) < 300:
                 print(f"{symbol} : historique insuffisant ({len(h4)} H4, {len(h1)} H1) — ignoré")
                 continue
@@ -614,78 +623,121 @@ async def sweep(args) -> int:
                 maker_fee=settings.exchange.maker_fee,
             )
             window_gaps = detect_gaps(h4, "4h")
-            start_index = first_index(h4, h1)
+            start_index = max(first_index(h4, h1), next(
+                (i for i, c in enumerate(h4) if c[0] + DECISION_MS >= int(start.timestamp()*1000)), len(h4)))
+            if start_index >= len(h4):
+                print(f"{symbol} : aucune bougie évaluable dans la fenêtre")
+                continue
             print(
                 f"{symbol} : {len(h4)} H4 ({h4[0][0] and datetime.fromtimestamp(h4[0][0]/1000, tz=timezone.utc):%Y-%m-%d} → "
                 f"{datetime.fromtimestamp(h4[-1][0]/1000, tz=timezone.utc):%Y-%m-%d}) · "
                 f"{len(h1)} H1 · {len(window_gaps)} trou(s) H4 dans la fenêtre"
             )
-            for mode in modes:
-                for slope in slopes:
-                    for fee_bps in fees:
-                        scenario = replace(
-                            settings,
-                            risk=replace(
-                                settings.risk,
-                                entry_rule_enabled=True,
-                                entry_ema200_slope_min=slope,
-                                entry_mode=mode,
-                                **breaker,
-                            ),
-                        )
-                        broker = PaperBroker(
-                            fee_bps / Decimal(10_000), settings.paper_slippage_bps
-                        )
-                        result = await run_backtest(
-                            symbol=symbol,
-                            info=info,
-                            h4=h4,
-                            h1=h1,
-                            settings=scenario,
-                            propose=_always_buy,
-                            broker=broker,
-                            mechanical=False,
-                            counterfactuals=False,
-                            start_index=start_index,
-                        )
-                        rows.append({
-                            "symbol": symbol,
-                            "mode": str(mode),
-                            "slope": str(slope),
-                            "fee_bps": str(fee_bps),
-                            "trades": len(result.trades),
-                            "win_rate": str(result.win_rate),
-                            "profit_factor": (
-                                str(result.profit_factor)
-                                if result.profit_factor is not None else None
-                            ),
-                            "expectancy": str(result.expectancy_quote),
-                            "net_pnl": str(result.net_pnl),
-                            "return_pct": str(result.return_pct),
-                            "max_drawdown_pct": str(result.max_drawdown_pct),
-                            # Coupe-circuits permanents : s'ils ont rejeté, la
-                            # fenêtre mesurée est plus courte que demandée.
-                            "gel": int(
-                                result.rejections.get("CIRCUIT_BREAKER_CONSECUTIVE_LOSSES", 0)
-                                + result.rejections.get("CIRCUIT_BREAKER_MAX_DRAWDOWN", 0)
-                            ),
-                            "last_exit": (
-                                result.trades[-1].exit_at.strftime("%Y-%m-%d")
-                                if result.trades else "—"
-                            ),
-                            "result": result,
-                        })
+            from app.backtest.macro import bull_traps, entry_lag
+            import hashlib
+            sources[symbol] = {
+                "h4_count": len(h4), "h1_count": len(h1),
+                "evaluation_start": datetime.fromtimestamp((h4[start_index][0]+DECISION_MS)/1000, timezone.utc).isoformat(),
+                "first_h4": datetime.fromtimestamp(h4[0][0]/1000, timezone.utc).isoformat(),
+                "last_h4": datetime.fromtimestamp(h4[-1][0]/1000, timezone.utc).isoformat(),
+                "h4_gaps": len(window_gaps), "h1_gaps": len(detect_gaps(h1, "1h")),
+                "candles_sha256": hashlib.sha256(json.dumps([h4,h1], default=str).encode()).hexdigest(),
+                "market": {"amount_step": str(info.constraints.amount_step),
+                           "min_amount": str(info.constraints.min_amount),
+                           "min_notional": str(info.constraints.min_notional),
+                           "price_tick": str(info.constraints.price_tick)},
+            }
+            state_cache = {}
+            for period in periods:
+                for mode in modes:
+                    for slope in slopes:
+                        for fee_bps in fees:
+                            scenario = replace(
+                                settings,
+                                risk=replace(
+                                    settings.risk,
+                                    entry_rule_enabled=True,
+                                    macro_ema_period=period,
+                                    entry_ema200_slope_min=slope,
+                                    entry_mode=mode,
+                                    **breaker,
+                                ),
+                            )
+                            broker = PaperBroker(
+                                fee_bps / Decimal(10_000), settings.paper_slippage_bps
+                            )
+                            result = await run_backtest(
+                                symbol=symbol,
+                                info=info,
+                                h4=h4,
+                                h1=h1,
+                                settings=scenario,
+                                propose=_always_buy,
+                                broker=broker,
+                                mechanical=False,
+                                counterfactuals=False,
+                                start_index=start_index,
+                                snapshot_cache=state_cache,
+                            )
+                            rows.append({
+                                "symbol": symbol,
+                                "mode": str(mode),
+                                "macro_ema_period": period,
+                                "payoff_ratio": str(result.payoff_ratio) if result.payoff_ratio is not None else None,
+                                **bull_traps(result.trades, state_cache),
+                                "slope": str(slope),
+                                "fee_bps": str(fee_bps),
+                                "trades": len(result.trades),
+                                "win_rate": str(result.win_rate),
+                                "profit_factor": (
+                                    str(result.profit_factor)
+                                    if result.profit_factor is not None else None
+                                ),
+                                "expectancy": str(result.expectancy_quote),
+                                "net_pnl": str(result.net_pnl),
+                                "return_pct": str(result.return_pct),
+                                "max_drawdown_pct": str(result.max_drawdown_pct),
+                                # Coupe-circuits permanents : s'ils ont rejeté, la
+                                # fenêtre mesurée est plus courte que demandée.
+                                "gel": int(
+                                    result.rejections.get("CIRCUIT_BREAKER_CONSECUTIVE_LOSSES", 0)
+                                    + result.rejections.get("CIRCUIT_BREAKER_MAX_DRAWDOWN", 0)
+                                ),
+                                "last_exit": (
+                                    result.trades[-1].exit_at.strftime("%Y-%m-%d")
+                                    if result.trades else "—"
+                                ),
+                                "result": result,
+                            })
+            symbol_rows = [r for r in rows if r["symbol"] == symbol]
+            for row in symbol_rows:
+                reference = next((r for r in symbol_rows if r["macro_ema_period"] == 200
+                                  and all(r[k] == row[k] for k in ("mode", "slope", "fee_bps"))), None)
+                row.update(entry_lag(row["result"].trades, reference["result"].trades,
+                                     state_cache, h4) if reference else {"lag_pairs": None})
     finally:
         await conn.close()
 
     _print_sweep(rows)
-    if args.json:
+    if args.json or args.output_json:
         payload = [
             {key: value for key, value in row.items() if key != "result"}
             for row in rows
         ]
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
-    return 0
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        if args.output_json:
+            from dataclasses import asdict
+            report = {"as_of": now.isoformat(), "requested_start": start.isoformat(),
+                      "equity": str(equity), "slippage_bps": settings.paper_slippage_bps,
+                      "risk": asdict(settings.risk), "capital_policy": asdict(settings.capital_policy),
+                      "risk_profile": settings.risk_profile, "breakers": breaker,
+                      "sources": sources, "rows": payload,
+                      "trades": [{"symbol": r["symbol"], "period": r["macro_ema_period"],
+                                  "mode": r["mode"], "slope": r["slope"], "fee_bps": r["fee_bps"],
+                                  "trades": r["result"].to_dict()["trades"]} for r in rows]}
+            Path(args.output_json).write_text(json.dumps(report, default=str, indent=2) + "\n")
+    return 0 if rows else 1
 
 
 async def swing_sweep(args) -> int:
@@ -931,7 +983,7 @@ def _print_sweep(rows: list[dict]) -> None:
     min_pf = Decimal("1.30")
     max_dd = Decimal("0.15")
     header = (
-        f"{'paire':10s} {'mode':>12s} {'pente':>6s} {'frais':>7s} {'trades':>7s} "
+        f"{'paire':10s} {'mode':>12s} {'EMA':>4s} {'pente':>6s} {'frais':>7s} {'trades':>7s} "
         f"{'réussite':>9s} {'PF':>6s} {'espérance':>11s} {'net':>10s} {'dd max':>8s} "
         f"{'gel':>4s} {'dernier':>10s}  verdict"
     )
@@ -941,7 +993,7 @@ def _print_sweep(rows: list[dict]) -> None:
         pf = row["profit_factor"]
         label = "n/a" if pf is None else f"{Decimal(pf):.2f}"
         print(
-            f"{row['symbol']:10s} {row['mode']:>12s} {row['slope']:>6s} "
+            f"{row['symbol']:10s} {row['mode']:>12s} {row.get('macro_ema_period', 200):4d} {row['slope']:>6s} "
             f"{row['fee_bps'] + 'pb':>7s} "
             f"{row['trades']:7d} {Decimal(row['win_rate']):9.1%} {label:>6s} "
             f"{Decimal(row['expectancy']):+11.4f} {Decimal(row['net_pnl']):+10.4f} "
@@ -1178,8 +1230,12 @@ def main() -> int:
                         help="sweep : profondeur de la fenêtre en mois (défaut 24)")
     parser.add_argument("--equity", type=float, default=1000.0,
                         help="sweep : équité virtuelle de départ en EUR (défaut 1000)")
+    parser.add_argument("--macro-ema-periods", default="200",
+                        help="sweep : périodes EMA macro H4 (50,100,200), défaut 200")
+    parser.add_argument("--as-of", help="sweep : fin UTC ISO figée pour reproduire la fenêtre")
+    parser.add_argument("--output-json", help="sweep : fichier du rapport avec sources et trades")
     parser.add_argument("--slopes", default="0,1.0,1.5,2.0",
-                        help="sweep : pentes EMA200 testées, en ATR sur 10 jours")
+                        help="sweep : pentes de l’EMA macro testées, en ATR sur 10 jours")
     parser.add_argument("--entry-modes", default="EMA50_H4",
                         help="sweep : modes de la règle d'entrée testés "
                              "(EMA50_H4, PULLBACK_H1)")

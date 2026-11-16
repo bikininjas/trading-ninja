@@ -683,3 +683,207 @@ d'accord, ce n'est plus du bruit.
   juste avant l'ordre.
 - Le scénario de seuil est dépendant du chemin : une position ouverte saute des
   décisions, donc les compteurs diffèrent de la fenêtre complète.
+
+## 16 novembre 2026 — Réactivité du filtre macro H4 : conserver EMA200
+
+**Verdict : conserver le filtre EMA200 en PAPER par défaut.** L’EMA50 ne
+transforme pas l’effectif : **23–33 trades par scénario**, contre **24–37** pour
+EMA200. Les **36 scénarios à 80 pb par côté sont déficitaires**. L’EMA100 améliore
+certaines mesures ; quelques variantes à 25 pb deviennent positives, mais aucun
+scénario n’atteint N=100 et aucun résultat ne qualifie un changement de politique.
+Ce verdict ne valide pas la rentabilité de l’EMA200, elle aussi déficitaire au coût
+taker testé. Les variantes restent disponibles au laboratoire uniquement.
+
+Mesure mécanique, sans LLM, chaque paire/scénario repartant de **1 000 EUR**.
+Fenêtre évaluée : **10 novembre 2024 12:00 → 10 novembre 2026 12:00 UTC**
+(730 jours, 24 × 30,44 arrondis). Fin fixée à la dernière H4 disponible en base,
+aucune donnée du 11 au 16 novembre inventée. Échauffement commun de 60 jours
+avant cette fenêtre ; EMA calculées sur les bougies clôturées uniquement.
+
+Le profil chargé est `micro` : risque 1,75 %, exposition maximale 50 %, stop
+2,5 ATR, TP 2 R, marge macro 0,5 %, glissement 5 pb par côté. Les limites
+journalière/hebdomadaire restent 8 %/15 %, le ralentissement après deux pertes
+reste actif. Seuls les coupe-circuits permanents demandés sont portés à 999 pertes
+et 100 % de drawdown ; **zéro rejet par ces deux coupe-circuits**. La pente est
+celle de l’EMA choisie, sur les mêmes 60 H4 (10 jours), divisée par l’ATR H4.
+Le contrôle structurel EMA50 > EMA macro s’applique à 100/200 ; à 50 il est
+redondant. L’EMA du repli demeure EMA50, quel que soit le filtre macro.
+À 25 pb, le broker garde ses fills de marché et son glissement : sensibilité
+au coût maker, aucune promesse de remplissage maker.
+
+La base contient par paire 4 739 H4 et 18 951 H1 avec échauffement : un trou H4
+(le 1er novembre 2025 à 16:00) et trois trous H1 (25 janvier, 28 août et
+1er novembre 2025, neuf heures manquantes au total). Aucun remplissage synthétique.
+Le rejeu historique conserve son traitement existant des trous ; cette couverture
+imparfaite limite la mesure, notamment les extrêmes traversés pendant une lacune.
+Contraintes Kraken publiques observées à la mesure, données et paramètres
+empreintés dans le [rapport JSON](backtests/2026-11-16/macro-h4.json) ;
+[archive complète avec les trades](backtests/2026-11-16/macro-h4-full.json.gz).
+
+La production conserve `macro_ema_period=200`, absent des variables d’environnement
+et des réglages administratifs. Aucune modification de `.env`, aucun redémarrage
+ni changement de profil PAPER actif. Le Risk Gateway lit la même EMA que la règle
+d’entrée ; le code de rejet historique garde son nom `...EMA200` pour compatibilité,
+avec la période effective dans le détail.
+
+### Synthèse des scénarios, sans additionner les variantes corrélées
+
+Les intervalles sont les minima/maxima des douze scénarios (trois paires × deux
+modes × deux pentes). Ils ne constituent pas un portefeuille.
+
+| EMA macro | Frais/côté | N par scénario | PF net | PnL net par 1 000 EUR |
+|---|---:|---:|---:|---:|
+| 50 | 80 pb | 23–33 | 0.28–0.62 | -268.00 à -123.67 EUR |
+| 50 | 25 pb | 23–33 | 0.45–0.85 | -168.12 à -49.54 EUR |
+| 100 | 80 pb | 22–34 | 0.43–0.84 | -223.16 à -57.36 EUR |
+| 100 | 25 pb | 22–34 | 0.61–1.19 | -107.49 à 56.74 EUR |
+| 200 | 80 pb | 24–37 | 0.31–0.72 | -280.85 à -101.19 EUR |
+| 200 | 25 pb | 24–37 | 0.41–1.04 | -157.75 à 11.48 EUR |
+
+### Faux rebonds et délai d’entrée
+
+**Faux rebond immédiat** : achat dont le prix de décision est strictement entre
+EMA50 et EMA200, puis `STOP_LOSS` à la première H4 suivante (4 h). Le taux est
+`stops immédiats / achats de cette cohorte`, jamais divisé par tous les trades.
+`—` signifie cohorte vide, pas zéro risque. Les stops ultérieurs, pertes dues aux
+frais et fins de fenêtre déficitaires ne sont pas comptés dans ce taux étroit :
+un taux nul peut donc coexister avec un PnL nettement négatif.
+
+**Lag** : une entrée anticipée gagnante dans cette cohorte est appariée à la
+première entrée EMA200 ultérieure gagnante, à mode/pente/frais identiques, sous
+30 jours et sans retour au stop initial entre les deux. Appariement un-à-un,
+les premières entrées de référence perdantes ne sont pas sautées. C’est une
+qualification rétrospective des reprises réussies ; elle ne sert jamais de signal
+et sélectionne les succès. Prix comparés : fills d’entrée, écart `prix200 − prixcourt`,
+pourcentage relatif au prix court. Les non-appariés et horodatages sont dans le JSON.
+
+Seuls les appariements suivants existent (prix identiques aux deux coûts) :
+
+| Paire | Entrée | EMA courte | Pente | Paires par coût | Écart moyen EUR | Écart relatif | Délai |
+|---|---|---:|---:|---:|---:|---:|---:|
+| ETH/EUR | EMA50_H4 | 50 | 0.0 | 1 | 905.99 | 42.3% | 448.00 h |
+| ETH/EUR | EMA50_H4 | 50 | 1.0 | 1 | 907.10 | 42.4% | 428.00 h |
+| SOL/EUR | EMA50_H4 | 50 | 0.0 | 1 | 6.74 | 5.3% | 216.00 h |
+| SOL/EUR | EMA50_H4 | 100 | 0.0 | 1 | 6.51 | 5.1% | 96.00 h |
+
+**Un appariement par ligne est insuffisant pour estimer un délai moyen fiable.**
+Les mêmes événements répétés aux deux frais ou deux pentes ne deviennent pas
+plusieurs observations indépendantes. Pour BTC et le mode H1, aucun lag mesurable
+selon ce protocole ; aucune valeur zéro n’est substituée à cette absence.
+
+### Détail des 72 combinaisons
+
+WR = gagnants / N ; payoff = gain net moyen / perte nette moyenne ; PF = somme
+des gains nets / pertes nettes absolues. PnL en EUR, capital initial 1 000 EUR.
+BT = stops immédiats / cohorte sous EMA200, avec pourcentage. Les nombres de trades
+ne sont jamais additionnés entre stratégies pour atteindre artificiellement N=100.
+
+
+**Frais : 80 pb par côté**
+
+| Paire | Entrée | Pente | EMA | N | WR | Payoff | PF | PnL net EUR | BT |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---|
+| BTC/EUR | EMA50_H4 | 0.0 | 50 | 31 | 22.6% | 0.97 | 0.28 | -268.00 | 0/8 (0.0%) |
+| BTC/EUR | EMA50_H4 | 0.0 | 100 | 30 | 40.0% | 0.84 | 0.56 | -148.33 | 0/2 (0.0%) |
+| BTC/EUR | EMA50_H4 | 0.0 | 200 | 35 | 31.4% | 0.89 | 0.41 | -236.73 | — |
+| BTC/EUR | EMA50_H4 | 1.0 | 50 | 23 | 30.4% | 0.93 | 0.41 | -170.58 | 0/6 (0.0%) |
+| BTC/EUR | EMA50_H4 | 1.0 | 100 | 27 | 40.7% | 0.82 | 0.57 | -136.68 | 0/1 (0.0%) |
+| BTC/EUR | EMA50_H4 | 1.0 | 200 | 31 | 32.3% | 0.91 | 0.43 | -201.43 | — |
+| BTC/EUR | PULLBACK_H1 | 0.0 | 50 | 33 | 30.3% | 0.95 | 0.41 | -234.04 | 0/5 (0.0%) |
+| BTC/EUR | PULLBACK_H1 | 0.0 | 100 | 34 | 32.4% | 0.96 | 0.46 | -223.16 | 0/1 (0.0%) |
+| BTC/EUR | PULLBACK_H1 | 0.0 | 200 | 37 | 29.7% | 0.87 | 0.37 | -280.85 | — |
+| BTC/EUR | PULLBACK_H1 | 1.0 | 50 | 29 | 31.0% | 0.96 | 0.43 | -205.12 | 0/3 (0.0%) |
+| BTC/EUR | PULLBACK_H1 | 1.0 | 100 | 30 | 30.0% | 1.01 | 0.43 | -217.53 | 0/1 (0.0%) |
+| BTC/EUR | PULLBACK_H1 | 1.0 | 200 | 31 | 32.3% | 0.93 | 0.44 | -208.19 | — |
+| ETH/EUR | EMA50_H4 | 0.0 | 50 | 33 | 39.4% | 0.96 | 0.62 | -156.67 | 0/8 (0.0%) |
+| ETH/EUR | EMA50_H4 | 0.0 | 100 | 30 | 46.7% | 0.96 | 0.84 | -57.36 | 0/3 (0.0%) |
+| ETH/EUR | EMA50_H4 | 0.0 | 200 | 31 | 41.9% | 1.00 | 0.72 | -101.19 | — |
+| ETH/EUR | EMA50_H4 | 1.0 | 50 | 31 | 38.7% | 0.92 | 0.58 | -167.55 | 0/8 (0.0%) |
+| ETH/EUR | EMA50_H4 | 1.0 | 100 | 26 | 42.3% | 1.07 | 0.79 | -64.16 | 1/2 (50.0%) |
+| ETH/EUR | EMA50_H4 | 1.0 | 200 | 29 | 41.4% | 0.94 | 0.66 | -117.37 | — |
+| ETH/EUR | PULLBACK_H1 | 0.0 | 50 | 25 | 36.0% | 1.02 | 0.58 | -123.67 | 0/6 (0.0%) |
+| ETH/EUR | PULLBACK_H1 | 0.0 | 100 | 26 | 42.3% | 0.96 | 0.70 | -93.12 | 0/1 (0.0%) |
+| ETH/EUR | PULLBACK_H1 | 0.0 | 200 | 29 | 37.9% | 0.89 | 0.54 | -158.32 | — |
+| ETH/EUR | PULLBACK_H1 | 1.0 | 50 | 25 | 32.0% | 0.88 | 0.41 | -180.47 | 0/5 (0.0%) |
+| ETH/EUR | PULLBACK_H1 | 1.0 | 100 | 25 | 40.0% | 0.91 | 0.60 | -121.85 | 0/1 (0.0%) |
+| ETH/EUR | PULLBACK_H1 | 1.0 | 200 | 26 | 34.6% | 0.96 | 0.51 | -150.53 | — |
+| SOL/EUR | EMA50_H4 | 0.0 | 50 | 31 | 32.3% | 1.13 | 0.54 | -181.24 | 0/9 (0.0%) |
+| SOL/EUR | EMA50_H4 | 0.0 | 100 | 27 | 37.0% | 1.19 | 0.70 | -97.76 | 0/5 (0.0%) |
+| SOL/EUR | EMA50_H4 | 0.0 | 200 | 29 | 27.6% | 1.38 | 0.53 | -163.26 | — |
+| SOL/EUR | EMA50_H4 | 1.0 | 50 | 27 | 29.6% | 1.33 | 0.56 | -144.73 | 0/5 (0.0%) |
+| SOL/EUR | EMA50_H4 | 1.0 | 100 | 22 | 31.8% | 1.21 | 0.57 | -121.28 | 0/1 (0.0%) |
+| SOL/EUR | EMA50_H4 | 1.0 | 200 | 24 | 20.8% | 1.35 | 0.35 | -184.15 | — |
+| SOL/EUR | PULLBACK_H1 | 0.0 | 50 | 30 | 33.3% | 0.97 | 0.48 | -196.18 | 0/4 (0.0%) |
+| SOL/EUR | PULLBACK_H1 | 0.0 | 100 | 31 | 32.3% | 1.08 | 0.52 | -184.79 | 0/3 (0.0%) |
+| SOL/EUR | PULLBACK_H1 | 0.0 | 200 | 28 | 21.4% | 1.41 | 0.39 | -204.83 | — |
+| SOL/EUR | PULLBACK_H1 | 1.0 | 50 | 30 | 30.0% | 1.08 | 0.46 | -198.76 | 0/4 (0.0%) |
+| SOL/EUR | PULLBACK_H1 | 1.0 | 100 | 23 | 26.1% | 1.34 | 0.47 | -145.24 | — |
+| SOL/EUR | PULLBACK_H1 | 1.0 | 200 | 25 | 20.0% | 1.24 | 0.31 | -213.07 | — |
+
+**Frais : 25 pb par côté**
+
+| Paire | Entrée | Pente | EMA | N | WR | Payoff | PF | PnL net EUR | BT |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---|
+| BTC/EUR | EMA50_H4 | 0.0 | 50 | 31 | 22.6% | 1.53 | 0.45 | -168.12 | 0/8 (0.0%) |
+| BTC/EUR | EMA50_H4 | 0.0 | 100 | 30 | 40.0% | 1.38 | 0.92 | -21.59 | 0/2 (0.0%) |
+| BTC/EUR | EMA50_H4 | 0.0 | 200 | 35 | 31.4% | 1.45 | 0.67 | -110.02 | — |
+| BTC/EUR | EMA50_H4 | 1.0 | 50 | 23 | 30.4% | 1.48 | 0.65 | -81.42 | 0/6 (0.0%) |
+| BTC/EUR | EMA50_H4 | 1.0 | 100 | 27 | 40.7% | 1.36 | 0.93 | -16.75 | 0/1 (0.0%) |
+| BTC/EUR | EMA50_H4 | 1.0 | 200 | 31 | 32.3% | 1.50 | 0.71 | -82.85 | — |
+| BTC/EUR | PULLBACK_H1 | 0.0 | 50 | 33 | 30.3% | 1.50 | 0.65 | -113.47 | 0/5 (0.0%) |
+| BTC/EUR | PULLBACK_H1 | 0.0 | 100 | 34 | 32.4% | 1.56 | 0.75 | -84.83 | 0/1 (0.0%) |
+| BTC/EUR | PULLBACK_H1 | 0.0 | 200 | 37 | 29.7% | 1.43 | 0.61 | -143.16 | — |
+| BTC/EUR | PULLBACK_H1 | 1.0 | 50 | 29 | 31.0% | 1.51 | 0.68 | -94.70 | 0/3 (0.0%) |
+| BTC/EUR | PULLBACK_H1 | 1.0 | 100 | 30 | 30.0% | 1.59 | 0.68 | -98.38 | 0/1 (0.0%) |
+| BTC/EUR | PULLBACK_H1 | 1.0 | 200 | 31 | 32.3% | 1.56 | 0.74 | -78.54 | — |
+| ETH/EUR | EMA50_H4 | 0.0 | 50 | 33 | 39.4% | 1.31 | 0.85 | -54.99 | 0/8 (0.0%) |
+| ETH/EUR | EMA50_H4 | 0.0 | 100 | 30 | 46.7% | 1.36 | 1.19 | 56.74 | 0/3 (0.0%) |
+| ETH/EUR | EMA50_H4 | 0.0 | 200 | 31 | 41.9% | 1.44 | 1.04 | 11.48 | — |
+| ETH/EUR | EMA50_H4 | 1.0 | 50 | 31 | 38.7% | 1.26 | 0.79 | -72.58 | 0/8 (0.0%) |
+| ETH/EUR | EMA50_H4 | 1.0 | 100 | 26 | 42.3% | 1.52 | 1.11 | 29.40 | 1/2 (50.0%) |
+| ETH/EUR | EMA50_H4 | 1.0 | 200 | 29 | 41.4% | 1.36 | 0.96 | -11.51 | — |
+| ETH/EUR | PULLBACK_H1 | 0.0 | 50 | 25 | 36.0% | 1.43 | 0.80 | -49.54 | 0/6 (0.0%) |
+| ETH/EUR | PULLBACK_H1 | 0.0 | 100 | 26 | 42.3% | 1.35 | 0.99 | -1.72 | 0/1 (0.0%) |
+| ETH/EUR | PULLBACK_H1 | 0.0 | 200 | 29 | 37.9% | 1.28 | 0.79 | -64.17 | — |
+| ETH/EUR | PULLBACK_H1 | 1.0 | 50 | 25 | 32.0% | 1.23 | 0.58 | -112.36 | 0/5 (0.0%) |
+| ETH/EUR | PULLBACK_H1 | 1.0 | 100 | 25 | 40.0% | 1.29 | 0.86 | -37.40 | 0/1 (0.0%) |
+| ETH/EUR | PULLBACK_H1 | 1.0 | 200 | 26 | 34.6% | 1.40 | 0.74 | -68.45 | — |
+| SOL/EUR | EMA50_H4 | 0.0 | 50 | 31 | 32.3% | 1.48 | 0.70 | -102.86 | 0/9 (0.0%) |
+| SOL/EUR | EMA50_H4 | 0.0 | 100 | 27 | 37.0% | 1.56 | 0.92 | -23.02 | 0/5 (0.0%) |
+| SOL/EUR | EMA50_H4 | 0.0 | 200 | 29 | 27.6% | 1.85 | 0.71 | -87.90 | — |
+| SOL/EUR | EMA50_H4 | 1.0 | 50 | 27 | 29.6% | 1.74 | 0.73 | -78.08 | 0/5 (0.0%) |
+| SOL/EUR | EMA50_H4 | 1.0 | 100 | 22 | 31.8% | 1.59 | 0.74 | -63.43 | 0/1 (0.0%) |
+| SOL/EUR | EMA50_H4 | 1.0 | 200 | 24 | 20.8% | 1.72 | 0.45 | -134.89 | — |
+| SOL/EUR | PULLBACK_H1 | 0.0 | 50 | 30 | 33.3% | 1.27 | 0.63 | -120.48 | 0/4 (0.0%) |
+| SOL/EUR | PULLBACK_H1 | 0.0 | 100 | 31 | 32.3% | 1.42 | 0.68 | -107.49 | 0/3 (0.0%) |
+| SOL/EUR | PULLBACK_H1 | 0.0 | 200 | 28 | 21.4% | 1.84 | 0.50 | -143.48 | — |
+| SOL/EUR | PULLBACK_H1 | 1.0 | 50 | 30 | 30.0% | 1.41 | 0.60 | -127.46 | 0/4 (0.0%) |
+| SOL/EUR | PULLBACK_H1 | 1.0 | 100 | 23 | 26.1% | 1.73 | 0.61 | -92.86 | — |
+| SOL/EUR | PULLBACK_H1 | 1.0 | 200 | 25 | 20.0% | 1.64 | 0.41 | -157.75 | — |
+
+Reproduction, depuis `backend` avec le même profil `micro` et ses paramètres
+ci-dessus (les paramètres financiers complets sont dans le JSON) :
+
+```bash
+.venv/bin/python scripts/backtest.py sweep \
+  --symbols BTC/EUR,ETH/EUR,SOL/EUR --months 24 --equity 1000 \
+  --as-of 2026-11-10T12:00:00+00:00 \
+  --entry-modes EMA50_H4,PULLBACK_H1 --macro-ema-periods 50,100,200 \
+  --slopes 0.0,1.0 --fee-bps 80,25 \
+  --max-consecutive-losses 999 --max-hwm-drawdown 1.0 \
+  --output-json /tmp/macro-h4.json
+.venv/bin/python scripts/backtest.py replay  # sans --bless
+```
+
+Le sweep lit des contraintes exchange courantes et la base courante : vérifier
+leurs empreintes contre l’archive avant de prétendre reproduire exactement le
+résultat. Il mesure une politique mécanique, pas les décisions du LLM. Fenêtre
+exploratoire déjà examinée, aucune validation hors échantillon ni preuve de
+rentabilité robuste. Les écarts entre EMA ne suffisent donc pas à promouvoir une
+variante, ni à autoriser de l’argent réel.
+
+Validation du changement : golden et empreinte strictement identiques sans bless ;
+`pytest -o addopts='' -q` : 885 réussis, 63 contrats PostgreSQL locaux opt-in sautés ;
+`bash scripts/check.sh` : **TOUT EST VERT**, dont 32 tests Node et 15 migrations
+conformes. Vérifications effectuées sur le venv Python 3.15.2 disponible ; runtime
+de livraison 3.13.17 non installé ici, qualification de release distincte.
