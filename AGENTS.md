@@ -16,6 +16,12 @@ prix et stop sont toujours calculés par le code.
 
 ## 2. État de reprise — 16 novembre 2026
 
+- 17 novembre 2026 : après application de 0018 et un arrêt du moteur, Seb a
+  installé `paper-news9b-schema0018-6e5484ed5911` ; moteur PAPER actif, premier
+  cycle COMPLETE en 49 s sans position. Les optimisations de latence sont dans le
+  dépôt mais pas dans cette release ; le budget de 30 s reste dépassé. Le profil
+  appliqué est `micro_budget` à 3 % de risque. Voir `docs/JOURNAL.md`.
+
 - D-099 : vue `/#intel` livrée et installée, news datées liées à l’analyse,
   réponse finale du 9B et contexte des signaux de trading. 0017 appliquée sur
   Supabase, droits publics toujours fermés. Release courante worker/API/
@@ -61,7 +67,7 @@ prix et stop sont toujours calculés par le code.
   Les quinze premières avaient leurs droits vérifiés le 11 novembre. Preuve :
   `docs/audits/2026-11-11/learning-migration-verification.json` ; journal et limites
   de sauvegarde : `docs/JOURNAL.md`.
-- 1078 tests Python sont collectés, dont 83 contrats PostgreSQL locaux opt-in ;
+- 1082 tests Python sont collectés, dont 83 contrats PostgreSQL locaux opt-in ;
   34 tests Node et un contrôle navigateur complètent les preuves.
 - Le statut reste **NO-GO** pour le réel. Les corrections intégrées et leurs
   preuves sont dans `docs/JOURNAL.md` ; le plan de passage est

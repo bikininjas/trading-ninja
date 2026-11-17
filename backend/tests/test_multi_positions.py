@@ -84,6 +84,7 @@ def market_data(monkeypatch):
                        snapshot=replace(st.snapshot, symbol=symbol))
     monkeypatch.setattr(runtime, 'build_snapshot', snapshot)
     monkeypatch.setattr(runtime, 'last_price', lambda exchange, symbol: D('100'))
+    monkeypatch.setattr(runtime, 'order_book_imbalance', lambda exchange, symbol: D('0'))
     monkeypatch.setattr(runtime, 'closed_candles', lambda *args, **kwargs: [flat_candle()])
 
 

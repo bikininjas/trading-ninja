@@ -27,6 +27,20 @@ ni absence totale de panne.
 
 ## Ordre et responsabilités
 
+✅ **Reprise PAPER après migration 0018** *(17 novembre 2026)* :
+préparer une release compatible sans changer la stratégie ni contourner les
+contrôles de migrations ou d'identité. `deploy/restore-engine-0018.sh --check`
+vérifie la release installée et les 18 empreintes sans toucher aux services.
+Seb a installé la release compatible ; moteur actif, premier cycle COMPLETE,
+sans position ni achat, heartbeat confirmé. Cycle à 49 s, hors budget de 30 s.
+
+🟨 **Risque PAPER pour les petits budgets** *(commencé le 17 novembre 2026)* :
+comparer les niveaux de risque et la faisabilité à moins de 10 EUR, en conservant
+les protections et en distinguant les frais, les minima et l'absence de signal.
+Mesure publique BTC/ETH/SOL : à 9,37 EUR, 3 % et 50 % suffisent pour les minima
+selon les hypothèses datées ; à 5 EUR, 50 % d'exposition les empêche. Scénarios
+7,5/10 % hypothétiques : la limite du code reste 5 %, aucune modification appliquée.
+
 ✅ **Quota Supabase : surveillance 450 Mo et rétention** *(17 novembre 2026)* :
 migration 0018 appliquée, job `pg_cron` toutes les 15 minutes et première exécution
 réelle réussie, zéro ligne purgée. Alerte à 390 Mo, nettoyage borné et conservation
@@ -126,7 +140,11 @@ IDENTICAL sur 181 appels. Preuves : journal et audit de déploiement.
 🟨 **Latence des cycles et contention du 9B** *(commencé le 16 novembre 2026)* :
 premier cycle installé à 43,5 s pour douze paires, supérieur au budget de
 surveillance de 30 s. Budget conservé ; optimiser/mesurer les cycles et la veille
-horaire sur WSL avant qualification R3/R5.
+horaire sur WSL avant qualification R3/R5. Nouvelle investigation le 17 novembre :
+cycles entre 43 et 51 s et moteur en échec. Le dernier cycle lit 25 séries et
+12 carnets sans appel LLM. Candidate locale : lecture du carnet différée jusqu'au
+signal ; sonde publique des seules bougies à 28,8 s. Cycle complet, contention,
+reprise du moteur et déploiement restent à qualifier ; budget inchangé.
 
 ✅ **Macro multi-bougies, résilience OHLCV et MarketIntel — code qualifié**
 *(16 novembre 2026)* : macro et cadence H1/H4/D1 indépendantes, défaut H4/200,

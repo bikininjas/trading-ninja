@@ -181,6 +181,7 @@ async def test_runtime_revalidates_sizing_at_the_price_used_for_paper_fill(monke
     prices = iter([D(100),D(120)])
     monkeypatch.setattr(module,'build_snapshot',lambda *a,**kw:symbol_state())
     monkeypatch.setattr(module,'last_price',lambda *a,**kw:next(prices))
+    monkeypatch.setattr(module,'order_book_imbalance',lambda *a,**kw:D('0'))
     bot = module.Orchestrator(settings,repo,object(),FakeLLM(llm_signal('BUY')),
                                PaperBroker(D('.008'),5),now=lambda:NOW)
     report = await bot.run_once()

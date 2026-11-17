@@ -99,6 +99,37 @@ async def test_worker_failure_does_not_leave_a_live_heartbeat():
     assert conn.cleared and conn.closed
 
 
+@pytest.mark.asyncio
+async def test_heartbeat_close_error_does_not_hide_worker_failure():
+    class BrokenClose(Connection):
+        async def close(self, **kwargs):
+            raise TimeoutError('close failed')
+    conn = BrokenClose()
+    async def connect(**kwargs):
+        return conn
+    async def fail():
+        raise ValueError('original worker failure')
+    with pytest.raises(ValueError, match='original worker failure'):
+        await run_with_heartbeat(fail, CONFIG, 'PAPER', connect=connect)
+
+
+@pytest.mark.asyncio
+async def test_main_close_failure_does_not_hide_original_error(monkeypatch):
+    from types import SimpleNamespace
+    from app import main as main_module
+    from tests.test_insights import config
+    class Repo:
+        async def close(self):
+            raise TimeoutError('close failed')
+    async def connect(config):
+        return Repo()
+    monkeypatch.setattr(main_module, 'load_settings', lambda **kwargs: config(DATABASE_URL='postgresql://postgres:test@127.0.0.1/test?sslmode=disable'))
+    monkeypatch.setattr(main_module.PostgresRepository, 'connect', connect)
+    monkeypatch.setattr(main_module, 'build_exchange', lambda **kwargs: (_ for _ in ()).throw(ValueError('original failure')))
+    with pytest.raises(ValueError, match='original failure'):
+        await main_module._run(SimpleNamespace(config=None, status=False))
+
+
 @pytest.mark.parametrize(("at", "reason"), [
     (None, "RUNTIME_HEARTBEAT_MISSING"),
     (NOW - timedelta(seconds=31), "RUNTIME_HEARTBEAT_STALE"),

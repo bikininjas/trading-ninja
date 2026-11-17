@@ -57,7 +57,7 @@ from app.execution.live import LiveExecutionError
 from app.execution.paper import Fill
 from app.llm.client import LLMSignal, SignalClient, SYSTEM_PROMPT, D1_SYSTEM_PROMPT
 from app.market.feed import (
-    FeedError, SymbolState, build_snapshot, closed_candles, last_price,
+    FeedError, SymbolState, build_snapshot, closed_candles, last_price, order_book_imbalance,
 )
 
 __all__ = ["CycleReport", "Orchestrator"]
@@ -1279,6 +1279,7 @@ class Orchestrator:
                     with_d1=self._settings.risk.entry_mode is EntryMode.SWING_MACRO_D1,
                     chandelier_period=self._settings.risk.swing_chandelier_period,
                     validate_windows=True,
+                    with_order_book=False,
                 )
             except FeedError as exc:
                 await self._event("DATA_UNAVAILABLE",symbol=symbol,terminal=True,body={"reason":str(exc)})
@@ -1320,6 +1321,10 @@ class Orchestrator:
                     report.actions.append(f"{symbol} : pas de setup ({setup.reason})")
                     continue
 
+            # Le carnet ne sert pas à la règle d'entrée. Le lire seulement pour
+            # une paire qui va réellement être soumise au modèle.
+            imbalance = await asyncio.to_thread(order_book_imbalance, self._exchange, symbol)
+            state = replace(state, context=replace(state.context, order_book_imbalance=imbalance))
             signal = await self._llm.propose(
                 symbol, state.snapshot, state.context, has_position=False,
                 trend_buffer_pct=self._settings.risk.trend_buffer_pct,

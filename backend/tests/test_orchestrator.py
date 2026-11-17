@@ -269,6 +269,8 @@ def _patch_feed(monkeypatch):
                         lambda exchange, symbol, **kwargs: symbol_state())
     monkeypatch.setattr(orch_module, "last_price",
                         lambda exchange, symbol: Decimal("100"))
+    monkeypatch.setattr(orch_module, "order_book_imbalance",
+                        lambda exchange, symbol: Decimal("0.1"))
 
 
 @pytest.mark.asyncio
@@ -745,6 +747,29 @@ async def test_entry_rule_blocks_a_far_pullback(tmp_path, monkeypatch):
     assert llm.calls == 0
     assert repo.signals == []
     assert any("pas de setup" in action for action in report.actions)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('setup', [False, True])
+async def test_order_book_read_only_when_model_is_consulted(tmp_path, monkeypatch, setup):
+    reads = []
+    seen = []
+    def snapshot(exchange, symbol, **kwargs):
+        assert kwargs['with_order_book'] is False
+        return symbol_state(ema50='99.5' if setup else '95')
+    def book(exchange, symbol):
+        reads.append(symbol)
+        return Decimal('0.42')
+    class CapturingLLM(FakeLLM):
+        async def propose(self, symbol, snapshot, context, **kwargs):
+            seen.append(context.order_book_imbalance)
+            return await super().propose(symbol, snapshot, context, **kwargs)
+    monkeypatch.setattr(orch_module, 'build_snapshot', snapshot)
+    monkeypatch.setattr(orch_module, 'order_book_imbalance', book)
+    llm = CapturingLLM(llm_signal('HOLD'))
+    await orchestrator(tmp_path, FakeRepo(), llm).run_once()
+    assert reads == (['BTC/EUR'] if setup else [])
+    assert seen == ([Decimal('0.42')] if setup else [])
 
 
 # ---------------------------------------------------------------------------

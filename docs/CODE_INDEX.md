@@ -3,18 +3,18 @@
 > Fichier **généré** par `scripts/index_codebase.py`. Ne pas éditer à la main :
 > lancer le script. `bash scripts/check.sh` refuse un index périmé.
 
-Empreinte des sources : `c5df25e51e7b89ca`
+Empreinte des sources : `500de074a2612a89`
 
 ## 1. Vue d'ensemble
 
 | Mesure | Valeur |
 |---|---|
 | Modules Python | 184 |
-| Lignes Python | 38664 |
+| Lignes Python | 38740 |
 | Classes | 163 |
-| Fonctions et méthodes | 1313 |
-| Cas de test collectés par pytest | 1078 |
-| Fonctions de test (comptage statique) | 813 |
+| Fonctions et méthodes | 1316 |
+| Cas de test collectés par pytest | 1082 |
+| Fonctions de test (comptage statique) | 816 |
 | Migrations SQL | 18 |
 | Scripts shell | 6 |
 
@@ -90,7 +90,7 @@ Empreinte des sources : `c5df25e51e7b89ca`
 | `backend/app/llm/__init__.py` | 1 | Client LLM local. Aucune I/O à l'import. |
 | `backend/app/llm/client.py` | 615 | Client LLM local (Ollama) — auditeur de confluences, jamais exécutant. |
 | `backend/app/llm/lessons.py` | 201 | Mémoire de leçons — apprendre des résultats, pas du bruit de marché. |
-| `backend/app/main.py` | 237 | Point d'entrée du moteur — papier par défaut, live sous verrous explicites. |
+| `backend/app/main.py` | 243 | Point d'entrée du moteur — papier par défaut, live sous verrous explicites. |
 | `backend/app/market/__init__.py` | 1 | Couche marché : flux Kraken et indicateurs. Aucune I/O à l'import. |
 | `backend/app/market/dataset.py` | 88 | Jeu de marché figé : empreintes, Decimal, continuité explicite et aucun réseau. |
 | `backend/app/market/feed.py` | 506 | Flux de marché Kraken et indicateurs — bougies **clôturées** uniquement. |
@@ -99,8 +99,8 @@ Empreinte des sources : `c5df25e51e7b89ca`
 | `backend/app/market/trade_history.py` | 54 | Reconstruit des bougies seulement à partir de transactions publiques prouvées. |
 | `backend/app/runtime/__init__.py` | 1 | app/runtime |
 | `backend/app/runtime/execution_recovery.py` | 133 | Rapproche les reçus durables sans renvoyer les ordres retrouvés. |
-| `backend/app/runtime/heartbeat.py` | 66 | Preuve de vie du processus moteur, indépendante de sa cadence de décision. |
-| `backend/app/runtime/orchestrator.py` | 1640 | Boucle d'exécution : toutes les protections, puis au plus un nouvel achat par cycle. |
+| `backend/app/runtime/heartbeat.py` | 73 | Preuve de vie du processus moteur, indépendante de sa cadence de décision. |
+| `backend/app/runtime/orchestrator.py` | 1645 | Boucle d'exécution : toutes les protections, puis au plus un nouvel achat par cycle. |
 | `backend/app/runtime/reconciliation.py` | 419 | Réconciliation au démarrage — la base et l'exchange doivent décrire le même état. |
 | `backend/app/runtime/recovery.py` | 359 | Liquidation d'urgence — le seul chemin qui ferme une position sans pare-feu. |
 | `backend/app/runtime/scheduler.py` | 62 | Cadence d'évaluation : une décision par bougie clôturée, pas par minute. |
@@ -158,7 +158,7 @@ Empreinte des sources : `c5df25e51e7b89ca`
 | `backend/tests/test_exit_guard.py` | 71 | Tests du garde-fou de sortie — le LLM solde, il ne shorte jamais. |
 | `backend/tests/test_exit_rule.py` | 67 | Tests du Chandelier Exit : niveau, cliquet et sortie à la clôture. |
 | `backend/tests/test_feed.py` | 292 | Tests du flux de marché et des indicateurs, sur bougies synthétiques. |
-| `backend/tests/test_heartbeat.py` | 301 | Vie continue du moteur : veille, panne SQL, sortie et arrêt brutal. |
+| `backend/tests/test_heartbeat.py` | 332 | Vie continue du moteur : veille, panne SQL, sortie et arrêt brutal. |
 | `backend/tests/test_history.py` | 255 | Historique OHLCVT : analyse pure du CSV Kraken, trous, agrégation, cohérence. |
 | `backend/tests/test_insights.py` | 908 | Contrats des dix briefs : calculs purs, frontières de rejeu et runtime réel. |
 | `backend/tests/test_insights_api.py` | 307 | Parcours administratifs privés : observation, révisions et aucune exécution. |
@@ -180,17 +180,17 @@ Empreinte des sources : `c5df25e51e7b89ca`
 | `backend/tests/test_market_intel.py` | 145 | Veille publique bornée, repli neutre et veto sans achat forcé. |
 | `backend/tests/test_market_intel_postgres.py` | 94 | Migration 0016, quota, RLS et cache OHLCV sur PostgreSQL jetable uniquement. |
 | `backend/tests/test_mean_reversion.py` | 149 | Tests du laboratoire Mean Reversion — aucun réseau, aucun ordre. |
-| `backend/tests/test_multi_positions.py` | 389 | Portefeuille PAPER : positions simultanées, risque et cash réellement partagés. |
+| `backend/tests/test_multi_positions.py` | 390 | Portefeuille PAPER : positions simultanées, risque et cash réellement partagés. |
 | `backend/tests/test_multi_positions_deploy.py` | 62 | Le préparateur d'environnement conserve les secrets et refuse une cible réelle. |
 | `backend/tests/test_multi_positions_postgres.py` | 65 | Deux clôtures sur PostgreSQL jetable : les autres actifs restent dans l'équité. |
 | `backend/tests/test_multiframe.py` | 177 | Commutation à chaud, sérialisation causale et contexte transmis au modèle. |
 | `backend/tests/test_notifications.py` | 301 | Preuves de reprise : disque, arrêt brutal, récidive et réponse perdue. |
-| `backend/tests/test_orchestrator.py` | 791 | Tests de bout en bout de l'orchestrateur, avec des doubles. |
+| `backend/tests/test_orchestrator.py` | 816 | Tests de bout en bout de l'orchestrateur, avec des doubles. |
 | `backend/tests/test_paper.py` | 78 | Tests de l'exécution papier : frais, slippage, gaps, priorité du stop. |
 | `backend/tests/test_paper_component.py` | 83 | Le service PAPER ne peut hériter d'un armement réel ni reprendre une intention inconnue. |
 | `backend/tests/test_paper_roles_postgres.py` | 122 | Droits réels des services PAPER, cible locale jetable uniquement. |
 | `backend/tests/test_pre_live_fixes.py` | 233 | Contre-exemples pré live convertis en contrats à respecter. |
-| `backend/tests/test_progressif.py` | 190 | Le petit budget ne doit ni forcer un achat ni masquer ses coûts. |
+| `backend/tests/test_progressif.py` | 191 | Le petit budget ne doit ni forcer un achat ni masquer ses coûts. |
 | `backend/tests/test_qualify_economics.py` | 29 |  |
 | `backend/tests/test_reconciliation.py` | 268 | Tests de la réconciliation base ↔ exchange, sans réseau ni base réelle. |
 | `backend/tests/test_recovery.py` | 285 | Tests du kill-switch : liquidation, annulation des ordres, halte forcée. |
@@ -1157,7 +1157,7 @@ le code, pas une copie de celui-ci.
 - `async def _status(repo: PostgresRepository, mode: str) -> None` (l.32)
 - `async def _serve(orchestrator: Orchestrator, timeframe: str, *, max_cycles: int=0, repo: PostgresRepository | None=None) -> None` (l.60) — Boucle alignée sur les clôtures de bougies, pas sur un intervalle fixe.
 - `async def _run(args: argparse.Namespace) -> int` (l.130)
-- `def main(argv: list[str] | None=None) -> int` (l.208)
+- `def main(argv: list[str] | None=None) -> int` (l.214)
 
 ### `backend/app/market/dataset.py`
 
@@ -1267,7 +1267,7 @@ le code, pas une copie de celui-ci.
 
 *Preuve de vie du processus moteur, indépendante de sa cadence de décision.*
 
-- `async def run_with_heartbeat(work, config, mode, *, interval=INTERVAL_SECONDS, connect=asyncpg.connect)` (l.13) — Une erreur de heartbeat arrête le travail ; aucun ordre n'est créé ici.
+- `async def run_with_heartbeat(work, config, mode, *, interval=INTERVAL_SECONDS, connect=asyncpg.connect)` (l.14) — Une erreur de heartbeat arrête le travail ; aucun ordre n'est créé ici.
 
 ### `backend/app/runtime/orchestrator.py`
 
@@ -1307,7 +1307,7 @@ le code, pas une copie de celui-ci.
   - `async def _close_trade(self, machine: StateMachine, position: PositionRow, account: AccountSnapshot, exit_price: Decimal, reason: str, report: CycleReport, *, purpose: str, halt: bool=False, fill: Any=None) -> None` (l.1100) — Séquence unique de clôture : stop, TP, SELL LLM et HALT LLM.
   - `async def _book_close(self, machine, position, account, reason, report, *, purpose, halt, fill, live_cash)` (l.1153)
   - `async def _evaluate_cycle(self, machine: StateMachine, account: AccountSnapshot, report: CycleReport) -> None` (l.1255)
-  - `async def _enter(self, machine: StateMachine, state: SymbolState, decision: Any, signal_id: uuid.UUID, evaluation_id: uuid.UUID, account: AccountSnapshot, report: CycleReport, *, signal_created_at: datetime) -> None` (l.1449)
+  - `async def _enter(self, machine: StateMachine, state: SymbolState, decision: Any, signal_id: uuid.UUID, evaluation_id: uuid.UUID, account: AccountSnapshot, report: CycleReport, *, signal_created_at: datetime) -> None` (l.1454)
 
 ### `backend/app/runtime/reconciliation.py`
 
@@ -2082,14 +2082,16 @@ le code, pas une copie de celui-ci.
 - `async def test_heartbeat_renews_during_idle_and_stops_with_worker()` (l.48)
 - `async def test_database_failure_prevents_or_cancels_work(fail_at)` (l.66)
 - `async def test_worker_failure_does_not_leave_a_live_heartbeat()` (l.88)
-- `def test_recent_observer_without_current_runtime_never_passes(at, reason)` (l.109)
-- `async def test_observer_halts_even_between_two_daily_decisions()` (l.116)
-- `async def test_alive_engine_with_failed_last_cycle_is_not_healthy(status)` (l.135)
-- `async def test_equity_snapshot_cannot_refresh_runtime_liveness(postgres_test_url)` (l.152)
-- `async def test_normal_exit_clears_only_its_own_heartbeat(postgres_test_url)` (l.169)
-- `async def test_real_engine_process_death_is_detectable_without_new_cycle(postgres_test_url)` (l.193)
-- `async def test_database_session_loss_stops_the_engine_worker(postgres_test_url)` (l.236)
-- `async def test_main_wraps_all_engine_work_in_heartbeat(serve, monkeypatch)` (l.267)
+- `async def test_heartbeat_close_error_does_not_hide_worker_failure()` (l.103)
+- `async def test_main_close_failure_does_not_hide_original_error(monkeypatch)` (l.117)
+- `def test_recent_observer_without_current_runtime_never_passes(at, reason)` (l.140)
+- `async def test_observer_halts_even_between_two_daily_decisions()` (l.147)
+- `async def test_alive_engine_with_failed_last_cycle_is_not_healthy(status)` (l.166)
+- `async def test_equity_snapshot_cannot_refresh_runtime_liveness(postgres_test_url)` (l.183)
+- `async def test_normal_exit_clears_only_its_own_heartbeat(postgres_test_url)` (l.200)
+- `async def test_real_engine_process_death_is_detectable_without_new_cycle(postgres_test_url)` (l.224)
+- `async def test_database_session_loss_stops_the_engine_worker(postgres_test_url)` (l.267)
+- `async def test_main_wraps_all_engine_work_in_heartbeat(serve, monkeypatch)` (l.298)
 
 ### `backend/tests/test_history.py`
 
@@ -2572,29 +2574,29 @@ le code, pas une copie de celui-ci.
   - `async def recent(self, *args)` (l.67)
 - `def config(tmp_path, **overrides)` (l.71)
 - `def market_data(monkeypatch)` (l.80)
-- `async def test_three_entries_keep_every_position_and_shared_cash(tmp_path, monkeypatch)` (l.91)
-- `async def test_exits_are_all_booked_without_erasing_remaining_value(tmp_path, monkeypatch)` (l.118)
-- `async def test_closed_trade_keeps_monitoring_sibling_during_cooldown(tmp_path, monkeypatch)` (l.135)
-- `async def test_missing_quote_does_not_prevent_other_stop_exit(tmp_path, monkeypatch)` (l.151)
-- `async def test_halt_preserves_stop_management_for_all_other_positions(tmp_path, monkeypatch)` (l.175)
-- `async def test_model_halt_does_not_skip_a_sibling_stop(tmp_path, monkeypatch)` (l.188)
-- `async def test_progressive_capital_does_not_make_invested_cash_available_again(tmp_path)` (l.201)
-- `async def test_status_exposes_every_position(tmp_path)` (l.222)
-- `async def test_lowered_slot_limit_keeps_all_existing_positions_and_global_marks(tmp_path)` (l.230)
-- `async def test_panic_closes_all_positions_and_preserves_intermediate_equity(tmp_path, monkeypatch)` (l.244)
-- `async def _orders()` (l.259)
-- `async def test_panic_continues_after_one_market_fails(tmp_path, monkeypatch)` (l.264)
-- `def test_portfolio_risk_remaining_is_sized_net_of_fees()` (l.282)
-- `def test_full_portfolio_risk_rejects_another_buy()` (l.294)
-- `def test_loss_throttle_also_reduces_the_total_portfolio_budget()` (l.300)
-- `async def test_entry_refreshes_equity_before_sizing_another_position(tmp_path, monkeypatch)` (l.307)
-- `async def test_final_candidate_price_is_read_after_portfolio_refresh(tmp_path, monkeypatch)` (l.319)
-- `async def test_final_valuation_failure_keeps_existing_positions_and_resting_state(tmp_path, monkeypatch)` (l.342)
-- `async def test_broken_history_does_not_skip_another_position_stop(tmp_path, monkeypatch, cursor_missing)` (l.357)
-- `def test_multi_position_configuration_reports_cost_aware_sizing(tmp_path)` (l.369)
-- `def test_portfolio_notional_limit_is_shared()` (l.373)
-- `def test_position_count_is_bounded(tmp_path, limit)` (l.382)
-- `def test_live_cannot_enable_multiple_positions(tmp_path)` (l.387)
+- `async def test_three_entries_keep_every_position_and_shared_cash(tmp_path, monkeypatch)` (l.92)
+- `async def test_exits_are_all_booked_without_erasing_remaining_value(tmp_path, monkeypatch)` (l.119)
+- `async def test_closed_trade_keeps_monitoring_sibling_during_cooldown(tmp_path, monkeypatch)` (l.136)
+- `async def test_missing_quote_does_not_prevent_other_stop_exit(tmp_path, monkeypatch)` (l.152)
+- `async def test_halt_preserves_stop_management_for_all_other_positions(tmp_path, monkeypatch)` (l.176)
+- `async def test_model_halt_does_not_skip_a_sibling_stop(tmp_path, monkeypatch)` (l.189)
+- `async def test_progressive_capital_does_not_make_invested_cash_available_again(tmp_path)` (l.202)
+- `async def test_status_exposes_every_position(tmp_path)` (l.223)
+- `async def test_lowered_slot_limit_keeps_all_existing_positions_and_global_marks(tmp_path)` (l.231)
+- `async def test_panic_closes_all_positions_and_preserves_intermediate_equity(tmp_path, monkeypatch)` (l.245)
+- `async def _orders()` (l.260)
+- `async def test_panic_continues_after_one_market_fails(tmp_path, monkeypatch)` (l.265)
+- `def test_portfolio_risk_remaining_is_sized_net_of_fees()` (l.283)
+- `def test_full_portfolio_risk_rejects_another_buy()` (l.295)
+- `def test_loss_throttle_also_reduces_the_total_portfolio_budget()` (l.301)
+- `async def test_entry_refreshes_equity_before_sizing_another_position(tmp_path, monkeypatch)` (l.308)
+- `async def test_final_candidate_price_is_read_after_portfolio_refresh(tmp_path, monkeypatch)` (l.320)
+- `async def test_final_valuation_failure_keeps_existing_positions_and_resting_state(tmp_path, monkeypatch)` (l.343)
+- `async def test_broken_history_does_not_skip_another_position_stop(tmp_path, monkeypatch, cursor_missing)` (l.358)
+- `def test_multi_position_configuration_reports_cost_aware_sizing(tmp_path)` (l.370)
+- `def test_portfolio_notional_limit_is_shared()` (l.374)
+- `def test_position_count_is_bounded(tmp_path, limit)` (l.383)
+- `def test_live_cannot_enable_multiple_positions(tmp_path)` (l.388)
 
 ### `backend/tests/test_multi_positions_deploy.py`
 
@@ -2684,50 +2686,51 @@ le code, pas une copie de celui-ci.
 - **class FakeLLM** (l.223)
   - `def __init__(self, signal: LLMSignal)` (l.224)
   - `async def propose(self, symbol, snapshot, context, **kwargs)` (l.229)
-- **class LiveFakeBroker** (l.457) — Broker live minimal : l'exchange dit si la position existe encore.
-  - `def __init__(self, *, base_free: Decimal, stop_ok: bool, fill: Fill)` (l.460)
-  - `def fee(self, notional)` (l.467)
-  - `def exit_trigger(stop_loss_price, take_profit_price, candle)` (l.471)
-  - `async def position_state(self, symbol, amount, stop_price)` (l.474)
-  - `async def last_sell_fill(self, symbol, *, since=None, limit=20)` (l.480)
-  - `async def exit(self, amount, market_price, *, symbol, stop_price=None)` (l.483)
-  - `async def emergency_exit(self, amount, *, symbol, stop_price=None, market_price=None)` (l.487)
-  - `async def free_quote(self)` (l.492)
+- **class LiveFakeBroker** (l.459) — Broker live minimal : l'exchange dit si la position existe encore.
+  - `def __init__(self, *, base_free: Decimal, stop_ok: bool, fill: Fill)` (l.462)
+  - `def fee(self, notional)` (l.469)
+  - `def exit_trigger(stop_loss_price, take_profit_price, candle)` (l.473)
+  - `async def position_state(self, symbol, amount, stop_price)` (l.476)
+  - `async def last_sell_fill(self, symbol, *, since=None, limit=20)` (l.482)
+  - `async def exit(self, amount, market_price, *, symbol, stop_price=None)` (l.485)
+  - `async def emergency_exit(self, amount, *, symbol, stop_price=None, market_price=None)` (l.489)
+  - `async def free_quote(self)` (l.494)
 - `def symbol_state(price: str='100', ema: str='90', ema50: str | None=None) -> SymbolState` (l.50)
 - `def llm_signal(action: str='BUY', confidence: str='0.9', *, degraded: bool=False, reason: str | None=None) -> LLMSignal` (l.235)
 - `def settings(tmp_path: Path, **extra)` (l.245)
 - `def orchestrator(tmp_path: Path, repo: FakeRepo, llm: FakeLLM, settings_=None) -> Orchestrator` (l.256)
 - `def _patch_feed(monkeypatch)` (l.267)
-- `async def test_approved_intent_opens_a_paper_position(tmp_path)` (l.275)
-- `async def test_hold_never_reaches_the_risk_gate(tmp_path)` (l.289)
-- `async def test_active_lessons_are_passed_to_the_model(tmp_path)` (l.301)
-- `async def test_rejected_buy_is_recorded_as_a_shadow_trade(tmp_path)` (l.310)
-- `async def test_degraded_llm_produces_no_evaluation(tmp_path)` (l.326)
-- `async def test_counter_trend_buy_is_refused_by_the_gate(tmp_path, monkeypatch)` (l.337)
-- `async def test_cooldown_is_resumed_after_a_restart(tmp_path)` (l.358)
-- `async def test_expired_cooldown_returns_to_idle(tmp_path)` (l.371)
-- `async def test_a_closed_candle_is_evaluated_only_once(tmp_path)` (l.381)
-- `async def test_open_position_is_recovered_after_a_restart(tmp_path, monkeypatch)` (l.400)
-- `def test_drawdown_maths_are_exact()` (l.421)
-- `async def test_candle_hitting_the_stop_closes_the_position_and_cools_down(tmp_path, monkeypatch)` (l.431)
-- `def live_position() -> PositionRow` (l.496)
-- `def stop_fill() -> Fill` (l.506)
-- `async def test_a_live_stop_already_triggered_is_recorded_without_another_sell(tmp_path)` (l.515)
-- `async def test_a_live_position_without_a_stop_is_sold_then_halted(tmp_path)` (l.535)
-- `async def test_winning_trade_sweeps_thirty_percent(tmp_path, monkeypatch)` (l.556)
-- `async def test_small_win_is_recorded_as_skipped(tmp_path, monkeypatch)` (l.594)
-- `async def test_deferred_sweeps_accumulate_until_the_threshold(tmp_path, monkeypatch)` (l.618)
-- `def open_position(opened_hours_ago: int=5) -> PositionRow` (l.653)
-- `def flat_candle() -> list` (l.664)
-- `async def test_llm_sell_closes_the_position(tmp_path, monkeypatch)` (l.669)
-- `async def test_llm_sell_without_a_position_is_ignored(tmp_path)` (l.684)
-- `async def test_llm_halt_liquidates_and_halts(tmp_path, monkeypatch)` (l.697)
-- `async def test_llm_halt_when_flat_halts_without_trade(tmp_path)` (l.711)
-- `async def test_low_confidence_halt_is_ignored(tmp_path)` (l.723)
-- `async def test_entry_rule_blocks_a_far_pullback(tmp_path, monkeypatch)` (l.735)
-- `async def test_llm_halt_sets_a_24h_auto_resume(tmp_path)` (l.756)
-- `async def test_llm_halt_resumes_automatically_after_the_deadline(tmp_path)` (l.765)
-- `async def test_human_halt_is_not_resumed_automatically(tmp_path)` (l.780)
+- `async def test_approved_intent_opens_a_paper_position(tmp_path)` (l.277)
+- `async def test_hold_never_reaches_the_risk_gate(tmp_path)` (l.291)
+- `async def test_active_lessons_are_passed_to_the_model(tmp_path)` (l.303)
+- `async def test_rejected_buy_is_recorded_as_a_shadow_trade(tmp_path)` (l.312)
+- `async def test_degraded_llm_produces_no_evaluation(tmp_path)` (l.328)
+- `async def test_counter_trend_buy_is_refused_by_the_gate(tmp_path, monkeypatch)` (l.339)
+- `async def test_cooldown_is_resumed_after_a_restart(tmp_path)` (l.360)
+- `async def test_expired_cooldown_returns_to_idle(tmp_path)` (l.373)
+- `async def test_a_closed_candle_is_evaluated_only_once(tmp_path)` (l.383)
+- `async def test_open_position_is_recovered_after_a_restart(tmp_path, monkeypatch)` (l.402)
+- `def test_drawdown_maths_are_exact()` (l.423)
+- `async def test_candle_hitting_the_stop_closes_the_position_and_cools_down(tmp_path, monkeypatch)` (l.433)
+- `def live_position() -> PositionRow` (l.498)
+- `def stop_fill() -> Fill` (l.508)
+- `async def test_a_live_stop_already_triggered_is_recorded_without_another_sell(tmp_path)` (l.517)
+- `async def test_a_live_position_without_a_stop_is_sold_then_halted(tmp_path)` (l.537)
+- `async def test_winning_trade_sweeps_thirty_percent(tmp_path, monkeypatch)` (l.558)
+- `async def test_small_win_is_recorded_as_skipped(tmp_path, monkeypatch)` (l.596)
+- `async def test_deferred_sweeps_accumulate_until_the_threshold(tmp_path, monkeypatch)` (l.620)
+- `def open_position(opened_hours_ago: int=5) -> PositionRow` (l.655)
+- `def flat_candle() -> list` (l.666)
+- `async def test_llm_sell_closes_the_position(tmp_path, monkeypatch)` (l.671)
+- `async def test_llm_sell_without_a_position_is_ignored(tmp_path)` (l.686)
+- `async def test_llm_halt_liquidates_and_halts(tmp_path, monkeypatch)` (l.699)
+- `async def test_llm_halt_when_flat_halts_without_trade(tmp_path)` (l.713)
+- `async def test_low_confidence_halt_is_ignored(tmp_path)` (l.725)
+- `async def test_entry_rule_blocks_a_far_pullback(tmp_path, monkeypatch)` (l.737)
+- `async def test_order_book_read_only_when_model_is_consulted(tmp_path, monkeypatch, setup)` (l.754)
+- `async def test_llm_halt_sets_a_24h_auto_resume(tmp_path)` (l.781)
+- `async def test_llm_halt_resumes_automatically_after_the_deadline(tmp_path)` (l.790)
+- `async def test_human_halt_is_not_resumed_automatically(tmp_path)` (l.805)
 
 ### `backend/tests/test_paper.py`
 
@@ -3152,7 +3155,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_exit_guard.py` | 8 |
 | `backend/tests/test_exit_rule.py` | 10 |
 | `backend/tests/test_feed.py` | 28 |
-| `backend/tests/test_heartbeat.py` | 18 |
+| `backend/tests/test_heartbeat.py` | 20 |
 | `backend/tests/test_history.py` | 22 |
 | `backend/tests/test_insights.py` | 29 |
 | `backend/tests/test_insights_api.py` | 24 |
@@ -3179,7 +3182,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_multi_positions_postgres.py` | 2 |
 | `backend/tests/test_multiframe.py` | 17 |
 | `backend/tests/test_notifications.py` | 10 |
-| `backend/tests/test_orchestrator.py` | 26 |
+| `backend/tests/test_orchestrator.py` | 28 |
 | `backend/tests/test_paper.py` | 9 |
 | `backend/tests/test_paper_component.py` | 19 |
 | `backend/tests/test_paper_roles_postgres.py` | 11 |
@@ -3200,7 +3203,7 @@ Cas réellement collectés par pytest (les `parametrize` sont comptés à leur j
 | `backend/tests/test_swing_backtest.py` | 8 |
 | `backend/tests/test_trade_history.py` | 8 |
 | `backend/tests/test_watchdog.py` | 12 |
-| **Total** | **1078** |
+| **Total** | **1082** |
 
 ## 5. Schéma SQL
 

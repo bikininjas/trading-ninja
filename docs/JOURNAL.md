@@ -4,6 +4,62 @@ Une entrée par session de travail, **la plus récente en haut**. Chaque entrée
 qui a été fait, ce qui l'a vérifié (`commande → résultat réel`), et ce qui a été décidé.
 Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
+## 2026-11-17 — Reprise PAPER après migration 0018
+
+- Seb a exécuté l'installation de reprise : `/opt/trading-ninja/current` pointe
+  vers `paper-news9b-schema0018-6e5484ed5911`, moteur systemd PID 2993390.
+  La release est D-099 avec uniquement la migration 0018 ajoutée ; les candidats
+  locaux de latence et de nettoyage SQL ne sont pas installés.
+- Premier cycle après préchauffage : journal moteur 43,391 s, capture SQL
+  COMPLETE de 20:52:20 à 20:53:09 UTC (49,0 s), aucune erreur, aucun signal,
+  aucune position ouverte, état IDLE et heartbeat confirmé. Le cycle complet
+  dépasse toujours le budget de 30 s ; la qualification de latence reste ouverte.
+- `bash scripts/check.sh` vert : 999 tests Python hors base, 34 Node et 18
+  migrations ; rejeu golden identique. Aucun ajustement de risque effectué.
+
+## 2026-11-17 — Investigation de la latence et de l'arrêt du moteur
+
+- Investigation commencée après transmission de huit durées supérieures à 30 s.
+  Le service moteur PAPER est en échec depuis 20:50 CET ; la veille et l'API
+  tournent. La fin du journal indique une erreur de connexion asyncpg lors du
+  nettoyage ; la cause initiale reste à établir.
+- Seb souhaite aussi examiner une hausse du risque PAPER pour les budgets inférieurs
+  à 10 EUR. La lecture SQL indique le profil appliqué `micro_budget`, révision 7 :
+  risque par position de 3 % et exposition maximale de 50 %. Aucun changement
+  de configuration effectué pendant l'investigation.
+- Lecture SQL : aucune position ouverte, aucun ordre en attente, aucune sortie
+  en attente ni requête d'exécution non résolue ; état PAPER `IDLE`, dernier
+  heartbeat à 19:49:38 UTC. L'arrêt ne signifie pas qu'un cycle est en cours.
+- Dernier cycle complet : 51,3 s, 25 lectures OHLCV et 12 carnets, sans appel
+  au LLM ; environ 3,8 s entre deux paires. Candidate locale : ne lire le carnet
+  que lorsqu'une paire atteint le modèle ; le carnet reste calculé avant le prompt.
+  Sonde publique sur 12 paires : 28,765 s pour les seules bougies, sans base,
+  modèle ou cycle complet ; ne prouve pas le respect du budget de 30 s. Données :
+  `audits/2026-11-17/latency-public-probe.json`.
+- Vérification finale : 1 082 tests Python réussis sur PostgreSQL 17 jetable et
+  Python 3.13.17 ; `scripts/check.sh` vert (999 Python hors base, 34 Node),
+  rejeu golden identique. Candidate locale non installée sur le moteur.
+- Une erreur de fermeture SQL masquait l'exception initiale : candidate locale
+  limite l'attente et conserve l'exception principale. La cause de l'arrêt reste
+  inconnue ; aucun redémarrage ni changement du service installé ici.
+- Le prévol du moteur exige exactement les migrations de sa release. La release
+  système n'a que 0017 alors que la cible a 0018 : une reprise ne passera pas sans
+  nouvelle release. L'accès root générique exige un mot de passe ; préparer un
+  installateur contrôlé sans modifier la release figée ni sauter le prévol.
+- `bash deploy/restore-engine-0018.sh --check` : release D-099 et dix-huit
+  empreintes conformes, aucun service modifié. Le mode d'installation prépare une
+  copie D-099 avec la seule migration 0018, vérifie le rôle moteur et l'absence
+  d'intention ambiguë puis démarre PAPER ; il ne contient pas la candidate locale
+  d'optimisation. Le mode root et le premier cycle ne sont pas exercés ici.
+- Diagnostic public BTC/ETH/SOL au 17 novembre 20:06 UTC, frais hypothétiques
+  0,8 % et glissement 5 pb par côté : à 9,37 EUR, les minima tiennent à 3 %
+  et 50 % d'exposition ; à 5 EUR, l'exposition de 50 % bloque les trois paires
+  même avec un risque de 10 %. Avec exposition 100 %, 5 % finance BTC/ETH et
+  7,5 % finance aussi SOL sur cette mesure. Ce diagnostic n'est pas un verdict
+  complet du pare-feu ; 7,5/10 % sont refusés par la limite de 5 % du code.
+  Aucune modification de risque ou de budget ; détail et hypothèses :
+  `audits/2026-11-17/small-risk-observation.json`.
+
 ## 2026-11-17 — Quota Supabase et rétention
 
 - Travail commencé à la demande de Seb : contenir la base sous 450 Mo et organiser

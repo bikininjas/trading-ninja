@@ -202,7 +202,13 @@ async def _run(args: argparse.Namespace) -> int:
         await run_with_heartbeat(work, settings.database(), settings.execution_mode)
         return 0
     finally:
-        await repo.close()
+        original_error = sys.exc_info()[1]
+        try:
+            await asyncio.wait_for(repo.close(), timeout=3)
+        except Exception as exc:
+            if original_error is None:
+                raise
+            print(f"fermeture PostgreSQL impossible ({type(exc).__name__}) ; erreur initiale conservée", file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> int:

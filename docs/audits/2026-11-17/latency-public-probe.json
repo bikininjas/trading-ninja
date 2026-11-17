@@ -1,0 +1,80 @@
+{
+  "observed_at": "2026-11-17T20:08:59.517721+00:00",
+  "total_seconds": 28.765,
+  "symbols": 12,
+  "method": "public data only; serial snapshots H4/H1 without order books, no ledger, model, capture, risk or full engine cycle",
+  "rows": [
+    {
+      "symbol": "BTC/EUR",
+      "seconds": 2.342,
+      "status": "OK",
+      "close_at": "2026-11-17T20:00:00+00:00"
+    },
+    {
+      "symbol": "ETH/EUR",
+      "seconds": 2.4,
+      "status": "OK",
+      "close_at": "2026-11-17T20:00:00+00:00"
+    },
+    {
+      "symbol": "ADA/EUR",
+      "seconds": 2.411,
+      "status": "OK",
+      "close_at": "2026-11-17T20:00:00+00:00"
+    },
+    {
+      "symbol": "DOGE/EUR",
+      "seconds": 2.418,
+      "status": "OK",
+      "close_at": "2026-11-17T20:00:00+00:00"
+    },
+    {
+      "symbol": "PAXG/EUR",
+      "seconds": 2.401,
+      "status": "OK",
+      "close_at": "2026-11-17T20:00:00+00:00"
+    },
+    {
+      "symbol": "HBAR/EUR",
+      "seconds": 2.391,
+      "status": "OK",
+      "close_at": "2026-11-17T20:00:00+00:00"
+    },
+    {
+      "symbol": "BNB/EUR",
+      "seconds": 2.393,
+      "status": "OK",
+      "close_at": "2026-11-17T20:00:00+00:00"
+    },
+    {
+      "symbol": "SOL/EUR",
+      "seconds": 2.405,
+      "status": "OK",
+      "close_at": "2026-11-17T20:00:00+00:00"
+    },
+    {
+      "symbol": "LINK/EUR",
+      "seconds": 2.394,
+      "status": "OK",
+      "close_at": "2026-11-17T20:00:00+00:00"
+    },
+    {
+      "symbol": "AAVE/EUR",
+      "seconds": 2.414,
+      "status": "OK",
+      "close_at": "2026-11-17T20:00:00+00:00"
+    },
+    {
+      "symbol": "SUI/EUR",
+      "seconds": 2.393,
+      "status": "OK",
+      "close_at": "2026-11-17T20:00:00+00:00"
+    },
+    {
+      "symbol": "NEAR/EUR",
+      "seconds": 2.403,
+      "status": "OK",
+      "close_at": "2026-11-17T20:00:00+00:00"
+    }
+  ]
+}

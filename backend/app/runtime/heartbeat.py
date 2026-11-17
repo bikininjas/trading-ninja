@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import sys
 
 import asyncpg
 
@@ -49,6 +50,7 @@ async def run_with_heartbeat(work, config, mode, *, interval=INTERVAL_SECONDS,
             raise RuntimeError("heartbeat interrompu")
         return await worker
     finally:
+        original_error = sys.exc_info()[1]
         tasks = [task for task in (pulse, worker) if task is not None]
         for task in tasks:
             task.cancel()
@@ -63,4 +65,9 @@ async def run_with_heartbeat(work, config, mode, *, interval=INTERVAL_SECONDS,
         except Exception as exc:
             logging.getLogger(__name__).warning("heartbeat cleanup: %s", type(exc).__name__)
         finally:
-            await conn.close(timeout=2)
+            try:
+                await conn.close(timeout=2)
+            except Exception as exc:
+                if original_error is None:
+                    raise
+                logging.getLogger(__name__).warning("heartbeat close: %s", type(exc).__name__)

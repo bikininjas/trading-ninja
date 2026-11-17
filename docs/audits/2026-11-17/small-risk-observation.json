@@ -1,0 +1,472 @@
+{
+  "observed_at": "2026-11-17T20:06:40.242864+00:00",
+  "mode": "hypothetical_read_only",
+  "limitations": "Calcul de financement du minimum, pas de signal ni d’approbation du pare-feu ; >5% refusé par la configuration actuelle. Frais .8% et glissement 5 pb par côté.",
+  "markets": [
+    {
+      "symbol": "BTC/EUR",
+      "price": "57872.7",
+      "atr_h4": "969.6428571428571428571428571",
+      "last_closed_open_ms": 1794931200000,
+      "minimum_amount": "0.00006",
+      "amount_step": "1E-8",
+      "min_notional": "0.45",
+      "scenarios": [
+        {
+          "equity": "5",
+          "exposure": "0.5",
+          "risk": "0.03",
+          "minimum_quote": "3.472362",
+          "risk_at_minimum_pct": "0.0406492787616",
+          "binding": "exposure",
+          "affordable": false
+        },
+        {
+          "equity": "5",
+          "exposure": "0.5",
+          "risk": "0.05",
+          "minimum_quote": "3.472362",
+          "risk_at_minimum_pct": "0.0406492787616",
+          "binding": "exposure",
+          "affordable": false
+        },
+        {
+          "equity": "5",
+          "exposure": "0.5",
+          "risk": "0.075",
+          "minimum_quote": "3.472362",
+          "risk_at_minimum_pct": "0.0406492787616",
+          "binding": "exposure",
+          "affordable": false
+        },
+        {
+          "equity": "5",
+          "exposure": "0.5",
+          "risk": "0.10",
+          "minimum_quote": "3.472362",
+          "risk_at_minimum_pct": "0.0406492787616",
+          "binding": "exposure",
+          "affordable": false
+        },
+        {
+          "equity": "5",
+          "exposure": "1",
+          "risk": "0.03",
+          "minimum_quote": "3.472362",
+          "risk_at_minimum_pct": "0.0406492787616",
+          "binding": "risk",
+          "affordable": false
+        },
+        {
+          "equity": "5",
+          "exposure": "1",
+          "risk": "0.05",
+          "minimum_quote": "3.472362",
+          "risk_at_minimum_pct": "0.0406492787616",
+          "binding": "risk",
+          "affordable": true
+        },
+        {
+          "equity": "5",
+          "exposure": "1",
+          "risk": "0.075",
+          "minimum_quote": "3.472362",
+          "risk_at_minimum_pct": "0.0406492787616",
+          "binding": "cash",
+          "affordable": true
+        },
+        {
+          "equity": "5",
+          "exposure": "1",
+          "risk": "0.10",
+          "minimum_quote": "3.472362",
+          "risk_at_minimum_pct": "0.0406492787616",
+          "binding": "cash",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "0.5",
+          "risk": "0.03",
+          "minimum_quote": "3.472362",
+          "risk_at_minimum_pct": "0.02169118397097118463180362860",
+          "binding": "exposure",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "0.5",
+          "risk": "0.05",
+          "minimum_quote": "3.472362",
+          "risk_at_minimum_pct": "0.02169118397097118463180362860",
+          "binding": "exposure",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "0.5",
+          "risk": "0.075",
+          "minimum_quote": "3.472362",
+          "risk_at_minimum_pct": "0.02169118397097118463180362860",
+          "binding": "exposure",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "0.5",
+          "risk": "0.10",
+          "minimum_quote": "3.472362",
+          "risk_at_minimum_pct": "0.02169118397097118463180362860",
+          "binding": "exposure",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "1",
+          "risk": "0.03",
+          "minimum_quote": "3.472362",
+          "risk_at_minimum_pct": "0.02169118397097118463180362860",
+          "binding": "risk",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "1",
+          "risk": "0.05",
+          "minimum_quote": "3.472362",
+          "risk_at_minimum_pct": "0.02169118397097118463180362860",
+          "binding": "risk",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "1",
+          "risk": "0.075",
+          "minimum_quote": "3.472362",
+          "risk_at_minimum_pct": "0.02169118397097118463180362860",
+          "binding": "cash",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "1",
+          "risk": "0.10",
+          "minimum_quote": "3.472362",
+          "risk_at_minimum_pct": "0.02169118397097118463180362860",
+          "binding": "cash",
+          "affordable": true
+        }
+      ]
+    },
+    {
+      "symbol": "ETH/EUR",
+      "price": "1627.44",
+      "atr_h4": "34.825",
+      "last_closed_open_ms": 1794931200000,
+      "minimum_amount": "0.002",
+      "amount_step": "1E-8",
+      "min_notional": "0.45",
+      "scenarios": [
+        {
+          "equity": "5",
+          "exposure": "0.5",
+          "risk": "0.03",
+          "minimum_quote": "3.25488",
+          "risk_at_minimum_pct": "0.045598693312",
+          "binding": "risk",
+          "affordable": false
+        },
+        {
+          "equity": "5",
+          "exposure": "0.5",
+          "risk": "0.05",
+          "minimum_quote": "3.25488",
+          "risk_at_minimum_pct": "0.045598693312",
+          "binding": "exposure",
+          "affordable": false
+        },
+        {
+          "equity": "5",
+          "exposure": "0.5",
+          "risk": "0.075",
+          "minimum_quote": "3.25488",
+          "risk_at_minimum_pct": "0.045598693312",
+          "binding": "exposure",
+          "affordable": false
+        },
+        {
+          "equity": "5",
+          "exposure": "0.5",
+          "risk": "0.10",
+          "minimum_quote": "3.25488",
+          "risk_at_minimum_pct": "0.045598693312",
+          "binding": "exposure",
+          "affordable": false
+        },
+        {
+          "equity": "5",
+          "exposure": "1",
+          "risk": "0.03",
+          "minimum_quote": "3.25488",
+          "risk_at_minimum_pct": "0.045598693312",
+          "binding": "risk",
+          "affordable": false
+        },
+        {
+          "equity": "5",
+          "exposure": "1",
+          "risk": "0.05",
+          "minimum_quote": "3.25488",
+          "risk_at_minimum_pct": "0.045598693312",
+          "binding": "risk",
+          "affordable": true
+        },
+        {
+          "equity": "5",
+          "exposure": "1",
+          "risk": "0.075",
+          "minimum_quote": "3.25488",
+          "risk_at_minimum_pct": "0.045598693312",
+          "binding": "cash",
+          "affordable": true
+        },
+        {
+          "equity": "5",
+          "exposure": "1",
+          "risk": "0.10",
+          "minimum_quote": "3.25488",
+          "risk_at_minimum_pct": "0.045598693312",
+          "binding": "cash",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "0.5",
+          "risk": "0.03",
+          "minimum_quote": "3.25488",
+          "risk_at_minimum_pct": "0.02433228031590181430096051227",
+          "binding": "risk",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "0.5",
+          "risk": "0.05",
+          "minimum_quote": "3.25488",
+          "risk_at_minimum_pct": "0.02433228031590181430096051227",
+          "binding": "exposure",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "0.5",
+          "risk": "0.075",
+          "minimum_quote": "3.25488",
+          "risk_at_minimum_pct": "0.02433228031590181430096051227",
+          "binding": "exposure",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "0.5",
+          "risk": "0.10",
+          "minimum_quote": "3.25488",
+          "risk_at_minimum_pct": "0.02433228031590181430096051227",
+          "binding": "exposure",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "1",
+          "risk": "0.03",
+          "minimum_quote": "3.25488",
+          "risk_at_minimum_pct": "0.02433228031590181430096051227",
+          "binding": "risk",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "1",
+          "risk": "0.05",
+          "minimum_quote": "3.25488",
+          "risk_at_minimum_pct": "0.02433228031590181430096051227",
+          "binding": "risk",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "1",
+          "risk": "0.075",
+          "minimum_quote": "3.25488",
+          "risk_at_minimum_pct": "0.02433228031590181430096051227",
+          "binding": "cash",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "1",
+          "risk": "0.10",
+          "minimum_quote": "3.25488",
+          "risk_at_minimum_pct": "0.02433228031590181430096051227",
+          "binding": "cash",
+          "affordable": true
+        }
+      ]
+    },
+    {
+      "symbol": "SOL/EUR",
+      "price": "66.16",
+      "atr_h4": "1.601428571428571428571428571",
+      "last_closed_open_ms": 1794931200000,
+      "minimum_amount": "0.05",
+      "amount_step": "1E-8",
+      "min_notional": "0.45",
+      "scenarios": [
+        {
+          "equity": "5",
+          "exposure": "0.5",
+          "risk": "0.03",
+          "minimum_quote": "3.3080",
+          "risk_at_minimum_pct": "0.05100651040",
+          "binding": "risk",
+          "affordable": false
+        },
+        {
+          "equity": "5",
+          "exposure": "0.5",
+          "risk": "0.05",
+          "minimum_quote": "3.3080",
+          "risk_at_minimum_pct": "0.05100651040",
+          "binding": "exposure",
+          "affordable": false
+        },
+        {
+          "equity": "5",
+          "exposure": "0.5",
+          "risk": "0.075",
+          "minimum_quote": "3.3080",
+          "risk_at_minimum_pct": "0.05100651040",
+          "binding": "exposure",
+          "affordable": false
+        },
+        {
+          "equity": "5",
+          "exposure": "0.5",
+          "risk": "0.10",
+          "minimum_quote": "3.3080",
+          "risk_at_minimum_pct": "0.05100651040",
+          "binding": "exposure",
+          "affordable": false
+        },
+        {
+          "equity": "5",
+          "exposure": "1",
+          "risk": "0.03",
+          "minimum_quote": "3.3080",
+          "risk_at_minimum_pct": "0.05100651040",
+          "binding": "risk",
+          "affordable": false
+        },
+        {
+          "equity": "5",
+          "exposure": "1",
+          "risk": "0.05",
+          "minimum_quote": "3.3080",
+          "risk_at_minimum_pct": "0.05100651040",
+          "binding": "risk",
+          "affordable": false
+        },
+        {
+          "equity": "5",
+          "exposure": "1",
+          "risk": "0.075",
+          "minimum_quote": "3.3080",
+          "risk_at_minimum_pct": "0.05100651040",
+          "binding": "risk",
+          "affordable": true
+        },
+        {
+          "equity": "5",
+          "exposure": "1",
+          "risk": "0.10",
+          "minimum_quote": "3.3080",
+          "risk_at_minimum_pct": "0.05100651040",
+          "binding": "cash",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "0.5",
+          "risk": "0.03",
+          "minimum_quote": "3.3080",
+          "risk_at_minimum_pct": "0.02721798847385272145144076841",
+          "binding": "risk",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "0.5",
+          "risk": "0.05",
+          "minimum_quote": "3.3080",
+          "risk_at_minimum_pct": "0.02721798847385272145144076841",
+          "binding": "exposure",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "0.5",
+          "risk": "0.075",
+          "minimum_quote": "3.3080",
+          "risk_at_minimum_pct": "0.02721798847385272145144076841",
+          "binding": "exposure",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "0.5",
+          "risk": "0.10",
+          "minimum_quote": "3.3080",
+          "risk_at_minimum_pct": "0.02721798847385272145144076841",
+          "binding": "exposure",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "1",
+          "risk": "0.03",
+          "minimum_quote": "3.3080",
+          "risk_at_minimum_pct": "0.02721798847385272145144076841",
+          "binding": "risk",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "1",
+          "risk": "0.05",
+          "minimum_quote": "3.3080",
+          "risk_at_minimum_pct": "0.02721798847385272145144076841",
+          "binding": "risk",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "1",
+          "risk": "0.075",
+          "minimum_quote": "3.3080",
+          "risk_at_minimum_pct": "0.02721798847385272145144076841",
+          "binding": "risk",
+          "affordable": true
+        },
+        {
+          "equity": "9.37",
+          "exposure": "1",
+          "risk": "0.10",
+          "minimum_quote": "3.3080",
+          "risk_at_minimum_pct": "0.02721798847385272145144076841",
+          "binding": "cash",
+          "affordable": true
+        }
+      ]
+    }
+  ]
+}
