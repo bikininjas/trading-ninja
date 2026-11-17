@@ -174,6 +174,40 @@ async def test_health_reports_unknown_quota_and_normalizes_ollama_url():
     )
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(('size', 'alert'), [(389_999_999, False), (390_000_000, True)])
+async def test_database_health_warns_at_390_decimal_megabytes(size, alert):
+    from app.api.main import _default_system_health
+    class Repo:
+        async def storage_state(self):
+            return {'db_size_bytes': size, 'free_space_bytes': 1}
+    with patch('app.exchange.kraken.build_exchange', side_effect=RuntimeError), \
+         patch('urllib.request.urlopen', side_effect=OSError):
+        health = await _default_system_health(Repo(), config())
+    assert health['supabase']['status'] == 'KNOWN'
+    assert health['supabase']['quota_alert_triggered'] is alert
+    assert health['supabase']['target_bytes'] == 450_000_000
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(('minutes', 'expected'), [(2, 'OK'), (46, 'UNKNOWN'), (None, 'UNKNOWN')])
+async def test_database_health_detects_stale_maintenance(minutes, expected):
+    from datetime import datetime, timedelta, timezone
+    from app.api.main import _default_system_health
+    class Repo:
+        async def storage_state(self):
+            return {'db_size_bytes': 80_000_000, 'free_space_bytes': 1}
+        async def storage_budget(self):
+            if minutes is None:
+                raise RuntimeError('storage unavailable')
+            return {'checked_at': datetime.now(timezone.utc) - timedelta(minutes=minutes)}
+    with patch('app.exchange.kraken.build_exchange', side_effect=RuntimeError), \
+         patch('urllib.request.urlopen', side_effect=OSError):
+        health = await _default_system_health(Repo(), config())
+    assert health['supabase']['maintenance_status'] == expected
+    assert health['supabase']['quota_alert_triggered'] is (expected == 'UNKNOWN')
+
+
 def test_quote_without_source_time_is_rejected():
     from app.market.feed import last_price,FeedError
     class Exchange:

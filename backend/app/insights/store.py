@@ -211,6 +211,22 @@ class InsightsStore:
             )
         ]
 
+    async def latest_cycle_universe(self, mode):
+        """Univers du dernier cycle capturé ; il peut différer de la config de l'API."""
+        data = await self._conn.fetchrow(
+            "SELECT started_at,manifest FROM decision_cycles WHERE mode=$1::execution_mode "
+            "ORDER BY started_at DESC,id LIMIT 1", mode,
+        )
+        if data is None:
+            return None
+        manifest = obj(data['manifest'])
+        exchange = manifest['settings']['fields']['exchange']['fields']
+        symbols = exchange['allowed_symbols']
+        if not isinstance(symbols, dict) or symbols.get('@') != 'tuple':
+            raise ValueError('univers du cycle illisible')
+        return {'symbols': symbols['items'], 'exchange_id': exchange['exchange_id'],
+                'quote': exchange['quote_currency'], 'observed_at': data['started_at']}
+
     async def cycle_packet(self, mode, cycle_id):
         r = row(
             await self._conn.fetchrow(

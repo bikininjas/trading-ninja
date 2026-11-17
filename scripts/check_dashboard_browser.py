@@ -151,10 +151,17 @@ async def main():
    elif path=='/api/control/entries':
     body=r.request.post_data_json;sent.append((path,body));controls.update(enabled=body['enabled'],revision=controls['revision']+1);payload=controls
    elif path=='/api/insights/overview':payload={'entries':controls,'opportunities':opportunities,
-     'cycles':[{'id':cycle_id,'started_at':datetime.now(timezone.utc).isoformat(),'status':'COMPLETE'}],
+     'cycles':[{'id':cycle_id,'started_at':'2026-11-17T10:00:00Z','finished_at':'2026-11-17T10:00:43.5Z','status':'COMPLETE'},
+               {'id':'00000000-0000-0000-0000-000000000002','started_at':'2026-11-17T09:00:00Z','finished_at':None,'status':'RUNNING'}],
      'experiments':[],'protection':protection,
      'settings':{'revision':0,'applied_revision':0,'apply_error':None}}
    elif path=='/api/insights/learning':payload=learning_data
+   elif path=='/api/insights/feasibility':
+    payload=({'symbol':'BTC/EUR','quote':'EUR','observed_at':datetime.now(timezone.utc).isoformat(),
+      'ticker_timestamp_ms':None,'price':'100','min_amount':'.01','min_notional':'5','amount_step':'.01',
+      'minimum_quantity':'.05','minimum_order_quote':'5','estimated_entry_fee':'.04','estimated_entry_total':'5.04',
+      'free_quote':'4','cash_sufficient':False,'balance_fresh':True,'balance_at':datetime.now(timezone.utc).isoformat(),
+      'applied_revision':1,'requested_revision':2} if '?symbol=' in r.request.url else {'symbols':['BTC/EUR']})
    elif path=='/api/insights/policy':payload={'next_position':{'id':'a'*64},'legacy_adoption':{'id':'b'*64},'positions':[]}
    elif path.endswith('/events') and path.startswith('/api/insights/cycles/'):
     payload={'events':[{'stage':'APPROVED','symbol':'BTC/EUR','body':{}},{'stage':'RANKING','body':{'mode':'observe','candidates':[]}}]}
@@ -341,6 +348,20 @@ async def main():
   await page.wait_for_function("document.querySelector('#entries-status').textContent.includes('autorisés')")
   assert sent[-1][1]['totp']=='123456'
   await page.locator('#insights-cycles').evaluate('(node) => { node.parentElement.open = true; }')
+  await page.wait_for_function("document.querySelector('#feasibility-symbol').value === 'BTC/EUR'")
+  await page.locator('#feasibility-form button').click()
+  await page.wait_for_function("document.querySelector('#feasibility-current').textContent.includes('insuffisant')")
+  assert '5.04' in await page.locator('#feasibility-current').inner_text()
+  assert 'date' in (await page.locator('#feasibility-current').inner_text()).lower()
+  assert '43,5 s' in await page.locator('#cycle-latency-results').inner_text()
+  assert 'budget dépassé' in await page.locator('#cycle-latency-results').inner_text()
+  assert 'Durée inconnue' in await page.locator('#cycle-latency-results').inner_text()
+  await page.get_by_role('button',name='Voir le parcours').first.click()
+  await page.locator('.journey').first.wait_for(state='visible')
+  assert 'BTC/EUR' in await page.locator('.journey').first.inner_text()
+  assert 'Pare-feu : achat autorisé' in await page.locator('.journey').first.inner_text()
+  await page.get_by_role('button',name='Voir le parcours').first.click()
+  assert await page.locator('.journey').first.is_hidden()
   await page.get_by_role('button',name='Vérifier le rejeu').click()
   await page.get_by_text('Décisions et rapport reproduits à l’identique.').wait_for()
   await page.locator('#insights-panel summary').filter(has_text='Comprendre une position').click()
@@ -464,6 +485,12 @@ async def main():
   await page.locator('[data-nav=activity]').click()
   await page.locator('#activity-search').fill('')
   history_rows['risk_evaluations']=[{'id':cycle_id,'created_at':now,'symbol':'BTC/EUR','approved':None,'rejection_code':None,'market_price':'0.0000000001','effective_risk_quote':None}]
+  await page.locator('[data-nav=decisions]').click()
+  await page.locator('#insights-refresh').click()
+  await page.wait_for_function("document.querySelector('#feasibility-results').textContent.includes('BTC/EUR')")
+  assert 'Verdict inconnu' in await page.locator('#feasibility-results').inner_text()
+  assert 'Quantité calculée : indisponible' in await page.locator('#feasibility-results').inner_text()
+  await page.locator('[data-nav=activity]').click()
   await page.locator('#tab-risk_evaluations').click()
   await page.wait_for_function("document.querySelector('#activity-body').textContent.includes('Inconnu')")
   assert 'Refusé' not in await page.locator('#activity-body').inner_text(), 'Un verdict manquant est inconnu.'

@@ -785,3 +785,14 @@ th { font-size: 12px; }
   .intel-facts dd { max-width: 60%; }
   .intel-article h3 { font-size: 17px; }
 }
+/* Observations : chaque durée et chaque étape reste lisible sans couleur. */
+.cycle-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+.cycle-list li, .feasibility-card { padding: 12px; border: 1px solid var(--border, #35443e); border-radius: 8px; }
+.cycle-list li { display: flex; flex-direction: column; gap: 4px; }
+.cycle-list li[data-over="true"] { border-color: #c68b49; }
+.cycle-list span, .feasibility-card p, .journey-list p { font-size: .85rem; margin: 4px 0; }
+.feasibility-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 10px; margin: 12px 0; }
+.journey { margin-top: 14px; }
+.journey-group { margin: 12px 0; }
+.journey-list { margin: 8px 0 0 6px; padding-left: 22px; border-left: 2px solid #648f78; list-style: decimal; }
+.journey-list li { padding: 2px 0 12px 6px; }

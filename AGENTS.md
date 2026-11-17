@@ -52,20 +52,21 @@ prix et stop sont toujours calculés par le code.
   cagnotte. Seul le capital actif dimensionne ; les pertes ne sont pas rechargées
   depuis la réserve ou la cagnotte. Voir le capital progressif dans
   `docs/OBSERVATION_ET_RECHERCHE.md`, D-069 et D-070.
-- Dix-sept migrations sont versionnées, dont `0010_capital_ledger.sql`,
+- Dix-huit migrations sont versionnées, dont `0010_capital_ledger.sql`,
   `0015_paper_learning.sql`, `0016_market_intel.sql` et
-  `0017_market_intel_sources.sql`. Les dix-sept sont
-  appliquées sur Supabase trninja et leurs empreintes vérifiées le 16 novembre.
+  `0017_market_intel_sources.sql` et `0018_storage_budget.sql`. Les dix-huit sont
+  appliquées sur Supabase trninja et leurs empreintes vérifiées le 17 novembre.
+  Le quota et ses limites sont décrits dans `docs/QUOTA_SUPABASE.md`.
   Preuve de 0016 : `docs/audits/2026-11-16/market-intel-target-verification.json`.
   Les quinze premières avaient leurs droits vérifiés le 11 novembre. Preuve :
   `docs/audits/2026-11-11/learning-migration-verification.json` ; journal et limites
   de sauvegarde : `docs/JOURNAL.md`.
-- 1061 tests Python sont collectés, dont 77 contrats PostgreSQL locaux opt-in ;
+- 1078 tests Python sont collectés, dont 83 contrats PostgreSQL locaux opt-in ;
   34 tests Node et un contrôle navigateur complètent les preuves.
 - Le statut reste **NO-GO** pour le réel. Les corrections intégrées et leurs
   preuves sont dans `docs/JOURNAL.md` ; le plan de passage est
   `docs/ROADMAP.md` (R0–R7). L’audit historique de 39db447 reste référencé dans
-  `docs/audits/2026-11-09/README.md`. La cible est désormais en 0017, droits
+  `docs/audits/2026-11-09/README.md`. La cible est désormais en 0018, droits
   privilégiés fermés ; l’exploitation et l’économie restent à qualifier.
 - D-093 : la mémoire PAPER automatique est livrée dans `app/learning/`. Worker
   distinct `scripts/learning.py --serve`, 20 résultats puis 5 nouveaux et 24 h,

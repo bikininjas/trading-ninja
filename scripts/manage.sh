@@ -282,16 +282,16 @@ start_one() {
   (
     cd "$dir"
     if [[ "$name" == api ]]; then
-      nohup "$PYTHON" -m uvicorn app.api.main:create_app --factory \
+      nohup setsid "$PYTHON" -m uvicorn app.api.main:create_app --factory \
         --host "$API_HOST" --port "$API_PORT" >>"$log" 2>&1 </dev/null &
     elif [[ "$name" == engine ]]; then
-      nohup env TRADING_MODE=paper I_UNDERSTAND_REAL_MONEY=false \
+      nohup setsid env TRADING_MODE=paper I_UNDERSTAND_REAL_MONEY=false \
         EXCHANGE_SANDBOX_MODE=true EXCHANGE_API_KEY= EXCHANGE_SECRET= \
         KRAKEN_API_KEY= KRAKEN_SECRET= KRAKEN_SECRET_KEY= \
         BINANCE_API_KEY= BINANCE_SECRET_KEY= \
         "$PYTHON" -m app.main --serve >>"$log" 2>&1 </dev/null &
     else
-      nohup node server.js >>"$log" 2>&1 </dev/null &
+      nohup setsid node server.js >>"$log" 2>&1 </dev/null &
     fi
     echo $! >"$(pidfile "$name")"
   )

@@ -1,6 +1,7 @@
 """API privée des observations ; aucune route analytique n'envoie d'ordre."""
 
 import asyncio
+import re
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
@@ -65,6 +66,49 @@ def router(config, loader, session, get_repo, totp):
         except Exception as exc:
             raise HTTPException(status_code=503,detail='Mémoire indisponible : vérifier service et migrations') from exc
     research_slots = asyncio.Semaphore(1)
+    feasibility_slot = asyncio.Lock()
+
+    @api.get('/api/insights/feasibility')
+    async def feasibility(symbol: str | None = Query(None, max_length=30), repo=Depends(get_repo)):
+        universe = None
+        method = getattr(repo, 'latest_cycle_universe', None)
+        if method:
+            try:
+                universe = await method(config.execution_mode)
+                if universe is not None and (universe['exchange_id'] != config.exchange.exchange_id
+                    or universe['quote'] != config.exchange.quote_currency
+                    or not isinstance(universe['symbols'], list) or len(universe['symbols']) > 50
+                    or not all(isinstance(s, str) and re.fullmatch(r'[A-Z0-9]{2,15}/[A-Z0-9]{2,15}', s)
+                               and s.endswith('/' + universe['quote']) for s in universe['symbols'])):
+                    raise ValueError('univers incompatible')
+            except Exception as exc:
+                raise HTTPException(503, 'Univers du moteur indisponible ou incompatible') from exc
+        symbols = list(universe['symbols'] if universe else config.exchange.allowed_symbols)
+        if symbol is None:
+            return public({'symbols': symbols, 'source': 'last_cycle' if universe else 'api_config',
+                           'observed_at': universe['observed_at'] if universe else None})
+        if symbol not in symbols:
+            raise HTTPException(422, 'Paire hors univers configuré')
+        if feasibility_slot.locked():
+            raise HTTPException(429, 'Diagnostic déjà en cours')
+        async with feasibility_slot:
+            try:
+                balances = await repo.equity_curve(config.execution_mode, 1)
+                snapshot = await repo.runtime_snapshot(config.execution_mode)
+                from app.api.feasibility import read_market
+                result = await asyncio.to_thread(read_market, config.exchange.exchange_id, symbol, config.exchange.quote_currency,
+                                                 balances[-1]['free_quote'] if balances else None,
+                                                 snapshot.get('applied_payload'))
+                balance_at = balances[-1]['taken_at'] if balances else None
+                age = datetime.now(timezone.utc) - balance_at if balance_at is not None else None
+                balance_fresh = age is not None and timedelta(0) <= age <= timedelta(hours=1)
+                if not balance_fresh:
+                    result['cash_sufficient'] = None
+                return public({**result, 'applied_revision': snapshot.get('applied_revision'),
+                               'applied_at': snapshot.get('applied_at'), 'requested_revision': snapshot.get('revision'),
+                               'balance_at': balance_at, 'balance_fresh': balance_fresh})
+            except Exception as exc:
+                raise HTTPException(503, 'Diagnostic indisponible : données publiques, compte ou réglages illisibles') from exc
 
     def require(repo, name):
         method = getattr(repo, name, None)

@@ -1,0 +1,67 @@
+{
+  "migration": {
+    "version": "0018_storage_budget.sql",
+    "checksum": "6e5484ed5911114c4a0b055103a7e1e8b882719c114bd07e6cd1b4446e0249d7",
+    "applied_at": "2026-11-17 08:36:40.840070+00:00"
+  },
+  "job": {
+    "jobid": 1,
+    "jobname": "tn-storage-budget",
+    "schedule": "*/15 * * * *",
+    "active": true,
+    "username": "postgres"
+  },
+  "last_run": {
+    "status": "succeeded",
+    "start_time": "2026-11-17 12:30:00.168203+00:00",
+    "end_time": "2026-11-17 12:30:00.206148+00:00"
+  },
+  "status": {
+    "singleton": true,
+    "checked_at": "2026-11-17 12:30:00.177918+00:00",
+    "db_bytes": 86095539,
+    "level": "OK",
+    "digests_deleted": 0,
+    "candles_deleted": 0,
+    "last_candle_purge_at": null
+  },
+  "roles": [
+    {
+      "rolname": "anon",
+      "schema_usage": false,
+      "can_read": false,
+      "can_write": false,
+      "can_run": false
+    },
+    {
+      "rolname": "authenticated",
+      "schema_usage": false,
+      "can_read": false,
+      "can_write": false,
+      "can_run": false
+    },
+    {
+      "rolname": "tn_market_intel_writer",
+      "schema_usage": false,
+      "can_read": false,
+      "can_write": false,
+      "can_run": false
+    },
+    {
+      "rolname": "tn_paper_api",
+      "schema_usage": true,
+      "can_read": true,
+      "can_write": false,
+      "can_run": false
+    },
+    {
+      "rolname": "tn_paper_engine",
+      "schema_usage": false,
+      "can_read": false,
+      "can_write": false,
+      "can_run": false
+    }
+  ],
+  "checksum_verified": true,
+  "engine_restart": false
+}

@@ -1152,7 +1152,9 @@
       }
       const dbBadge = $('health-db');
       if (dbBadge) {
-        dbBadge.textContent = `Base · ${db.status !== 'KNOWN' ? 'inconnue' : db.quota_alert_triggered ? 'alerte' : 'disponible'}`;
+        const size = Number.isFinite(Number(db.db_size_bytes)) && db.db_size_bytes !== null && db.db_size_bytes !== undefined
+          ? ` · ${(Number(db.db_size_bytes) / 1_000_000).toFixed(1).replace('.', ',')} / 450 Mo` : '';
+        dbBadge.textContent = `Base · ${db.status !== 'KNOWN' ? 'inconnue' : db.maintenance_status === 'UNKNOWN' ? 'maintenance inconnue' : db.quota_alert_triggered ? 'alerte' : 'disponible'}${size}`;
         dbBadge.dataset.health = db.status !== 'KNOWN' || db.quota_alert_triggered ? 'danger' : 'ok';
       }
     } catch {

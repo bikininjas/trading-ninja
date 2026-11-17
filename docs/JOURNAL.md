@@ -4,6 +4,100 @@ Une entrée par session de travail, **la plus récente en haut**. Chaque entrée
 qui a été fait, ce qui l'a vérifié (`commande → résultat réel`), et ce qui a été décidé.
 Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
+## 2026-11-17 — Quota Supabase et rétention
+
+- Travail commencé à la demande de Seb : contenir la base sous 450 Mo et organiser
+  une purge régulière, en préservant les écritures financières et les protections.
+- État initial de trninja : 85 628 595 octets, 324 250 bougies ; aucun digest
+  expiré. `0018_storage_budget.sql` appliquée, 18 empreintes vérifiées. Extension
+  `pg_cron` 1.6.4 activée ; job privé toutes les 15 minutes. Son premier passage
+  réel, temporairement avancé pour la recette, a réussi à 08:37 UTC : statut OK,
+  aucun digest ni bougie supprimé. Planification 15 minutes rétablie.
+- Dès 390 Mo, purge limitée à 10 000 bougies Kraken de plus de trois ans par jour ;
+  digest expiré depuis plus de 30 jours en lots de 1 000. CSV, traces de cycles,
+  signaux, ordres, positions et données financières préservés. Sous 405 Mo sur
+  PostgreSQL jetable, seule la vieille bougie Kraken a été supprimée, CSV et
+  bougie récente conservés ; seconde purge immédiate refusée par la temporisation.
+- Droits ciblés vérifiés sur la cible : anon/authenticated, moteur et veille sans
+  accès ; API en lecture seule. API mise à jour pour afficher le seuil et signaler
+  une maintenance absente depuis 45 min. La base peut néanmoins franchir 450 Mo
+  sous écritures externes ou si le job échoue ; DELETE/VACUUM normal ne rendent
+  pas immédiatement l'espace au système. Aucun VACUUM FULL automatique.
+- PostgreSQL 17 jetable et Python 3.13.17 : 1078 tests réussis ; 34 Node et
+  recette Chromium factice réussis, golden identique. Guide : `QUOTA_SUPABASE.md`.
+- API redémarrée sans toucher au moteur ni à la veille ; `/api/system/health`
+  renvoie la maintenance OK et la cible de 450 Mo. Chromium avec session de test
+  injectée confirme l'indicateur réel. Preuve des droits, empreinte et job :
+  `audits/2026-11-17/storage-budget-verification.json`.
+
+## 2026-11-17 — Qualification WSL du dashboard
+
+- Qualification commencée à la demande de Seb : contrôler la version installée,
+  l'API et les vues avec les données réelles, en conservant le moteur PAPER.
+- Sur la cible, le dernier cycle observait douze paires alors que la configuration
+  de l'API n'en listait que six. Le diagnostic utilise désormais l'univers du dernier
+  cycle capturé et indique sa date. Il suspend la comparaison si le solde date de
+  plus d'une heure : le dernier relevé réel date du 12 novembre.
+- API candidate en Python 3.13.17, SQL réel et Kraken public : douze paires lues,
+  ETH/EUR accepté et solde ancien signalé sans verdict de suffisance ; aucun ordre.
+- `bash scripts/check.sh` : vert, 990 Python hors base, 34 Node et 17 migrations ;
+  six tests ciblés en Python 3.13.17, navigateur factice et rejeu golden réussis.
+- API et dashboard du dépôt redémarrés ; les lancements `manage.sh` ont répondu
+  puis disparu à la fin de leur commande. `manage.sh` utilise maintenant `setsid`
+  pour détacher les processus ; redémarrages réels puis contrôle séparé réussis :
+  PID API 700882 et dashboard 701897. HTTP login 200, route
+  privée sans session 401, asset courant reçu. API effective : douze paires,
+  ETH/EUR et ancienneté du solde vérifiés sur SQL/Kraken réels. Chromium via
+  instance de dashboard temporaire et session injectée : cycles, parcours, douze
+  paires et diagnostic confirmés ; le login réel n'a pas été exercé.
+- PID moteur 21883 et veille 399 inchangés. `/opt/trading-ninja/current` reste
+  sur la release précédente ; API/dashboard actifs depuis le dépôt, sans preuve
+  de supervision durable. L'écoute dashboard préexistante est `0.0.0.0:8081` ;
+  TLS et exposition réseau n'ont pas été qualifiés pendant cette recette.
+
+## 2026-11-17 — Dashboard : latence, parcours et faisabilité
+
+- Reprise à la demande de Seb : compléter le diagnostic courant, en lecture seule,
+  avec les minima publics et une estimation explicitement bornée aux données disponibles.
+- Un diagnostic lancé sur une paire autorisée lit Kraken sans clé, calcule le
+  minimum au pas, les frais et le coût estimés selon les réglages appliqués connus,
+  et compare le dernier solde horodaté. Aucune conclusion globale de risque :
+  le pare-feu garde la décision. Données ou taux absents restent inconnus ; les
+  frais minimaux et arrondis de frais ne sont pas modélisés.
+- Recette Chromium sur API factice : calcul, frais, solde insuffisant et quatre
+  largeurs vérifiés. Cinq tests Python ciblés réussis ; rejeu golden identique.
+  Contrôle global : 989 Python hors base et 34 Node, 17 migrations vérifiées ;
+  77 contrats SQL opt-in non exécutés. L'installation sur la cible reste ouverte.
+- Sonde Kraken publique sans clé : BTC/EUR lu à 08:11:51 UTC, minimum calculé
+  3,520938 EUR ; frais 0,0281815877520 EUR avec taux et solde fictifs fournis au
+  test. Cette sonde ne vérifie ni l'API installée ni la faisabilité réelle du compte.
+- Travail commencé à la demande de Seb sur les trois vues. Contrôle initial
+  `bash scripts/check.sh` : vert, 984 tests Python et 34 tests Node.
+- Le dashboard affiche les durées disponibles et les dépassements de 30 s ; le
+  parcours regroupe les événements par paire. Les 50 dernières évaluations du
+  pare-feu alimentent une vue historique, avec date, verdict, quantité et motif
+  quand ils sont enregistrés. Les minima et frais courants n'y sont pas disponibles.
+- `bash scripts/check.sh` : vert, 984 Python et 34 Node ; Chromium avec API
+  factice : six espaces et quatre largeurs, durée manquante, dépassement, parcours
+  et verdict inconnu vérifiés. Les 503 affichées sont injectées par la recette.
+  Aucune installation ni redémarrage ; faisabilité courante encore à réaliser.
+
+## 2026-11-17 — Documentation Kraken et petit budget
+
+- Étude commencée à la demande de Seb : confronter la documentation officielle
+  Kraken aux frais, minima et mécanismes d'exécution du bot PAPER.
+- Kraken publie 0,40 % maker et 0,80 % taker au premier palier ; le repli de
+  configuration était déjà correct, mais `--maker-fees` sans valeur utilisait
+  25 pb. Défaut de cette sensibilité porté à 40 pb ; 25 reste accessible en
+  valeur explicite, sans changer les mesures historiques. Aucun effet sur les
+  ordres PAPER existants ni sur les limites de risque.
+- `KRAKEN.md` documente les minima base/cotation, le post-only et les frais
+  minimaux/précisions. Une simple baisse du taux simulé ne modélise pas un ordre
+  maker : non-fills, remplissages partiels, annulations et protections restent à
+  qualifier. Aucune rentabilité supplémentaire démontrée.
+- `backtest.py --help` confirme le défaut de 40 pb ; `backtest.py replay` reste
+  identique au golden. Contrôle global final et résultats dans cette session.
+
 ## 2026-11-17 — Requalification des frais et revue des fichiers historiques
 
 - Reprise à la demande de Seb : rechercher les données, réglages et réponses LLM

@@ -284,8 +284,20 @@ async def _default_system_health(repo: Any, config: Settings) -> dict:
              'free_space_bytes':None,'quota_alert_triggered':True}
     try:
         observed=await repo.storage_state()
-        if not isinstance(observed,dict) or observed.get('free_space_bytes') is None:raise ValueError('quota inconnu')
-        storage={**observed,'status':'KNOWN','quota_alert_triggered':int(observed['free_space_bytes'])<100*1024*1024}
+        if not isinstance(observed,dict) or observed.get('db_size_bytes') is None:raise ValueError('quota inconnu')
+        storage={**observed,'status':'KNOWN','quota_alert_triggered':int(observed['db_size_bytes'])>=390_000_000,
+                 'warning_bytes':390_000_000, 'target_bytes':450_000_000}
+        if hasattr(repo, 'storage_budget'):
+            try:
+                maintenance = await repo.storage_budget()
+                checked_at = maintenance.get('checked_at') if maintenance else None
+                age = now - checked_at if checked_at is not None else None
+                fresh = age is not None and timedelta(0) <= age <= timedelta(minutes=45)
+            except Exception:
+                checked_at, fresh = None, False
+            storage['maintenance_status'] = 'OK' if fresh else 'UNKNOWN'
+            storage['maintenance_checked_at'] = checked_at.isoformat() if checked_at else None
+            storage['quota_alert_triggered'] = storage['quota_alert_triggered'] or not fresh
     except Exception:
         pass
 

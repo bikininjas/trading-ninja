@@ -195,7 +195,7 @@ export function createDashboardServer(options = {}) {
     return session;
   }
 
-  async function callApi(pathname, { method = 'GET', token, body } = {}) {
+  async function callApi(pathname, { method = 'GET', token, body, timeout = 10_000 } = {}) {
     const headers = {};
     if (token) headers.Authorization = `Bearer ${token}`;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -204,7 +204,7 @@ export function createDashboardServer(options = {}) {
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(timeout),
       });
       const text = await response.text();
       let data = null;
@@ -321,7 +321,7 @@ export function createDashboardServer(options = {}) {
     const idPart = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
     const insightGet = new Set(['/api/system/health', '/api/insights/overview', '/api/insights/cycles',
       '/api/insights/experiments', '/api/insights/confidence', '/api/insights/protection',
-      '/api/insights/policy', '/api/insights/learning', '/api/insights/market-intel', '/api/diagnostics/opportunities']);
+      '/api/insights/policy', '/api/insights/learning', '/api/insights/market-intel', '/api/insights/feasibility', '/api/diagnostics/opportunities']);
     const insightPost = new Set(['/api/control/entries', '/api/settings/preview',
       '/api/insights/replay', '/api/insights/experiments']);
     const insightRead = method === 'GET' && (insightGet.has(pathname)
@@ -336,7 +336,8 @@ export function createDashboardServer(options = {}) {
       const session = requireSession(req, res);
       if (!session) return;
       const body = insightWrite ? await readJson(req, 8 * 1024 * 1024) : undefined;
-      const result = await callApi(pathname + url.search, { method, token: session.token, body });
+      const result = await callApi(pathname + url.search, { method, token: session.token, body,
+        timeout: pathname === '/api/insights/feasibility' ? 20_000 : 10_000 });
       if (result.status === 401) return expireSession(res, session);
       return sendJson(res, result.status, result.data);
     }

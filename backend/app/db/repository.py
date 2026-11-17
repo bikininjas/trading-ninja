@@ -747,6 +747,13 @@ class PostgresRepository(InsightsStore, LearningStore):
             "quota_alert_triggered": free < 100 * 1024 * 1024,
         }
 
+    async def storage_budget(self):
+        row = await self._conn.fetchrow(
+            "SELECT checked_at,db_bytes,level,digests_deleted,candles_deleted "
+            "FROM tn_storage_maintenance.status WHERE singleton"
+        )
+        return dict(row) if row else None
+
     async def llm_signal_prompt(self, mode: str, signal_id: str):
         import uuid as _uuid
         try:

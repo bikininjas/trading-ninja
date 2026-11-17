@@ -27,6 +27,35 @@ ni absence totale de panne.
 
 ## Ordre et responsabilités
 
+✅ **Quota Supabase : surveillance 450 Mo et rétention** *(17 novembre 2026)* :
+migration 0018 appliquée, job `pg_cron` toutes les 15 minutes et première exécution
+réelle réussie, zéro ligne purgée. Alerte à 390 Mo, nettoyage borné et conservation
+des données financières ; essais sous pression sur PostgreSQL jetable. La taille
+physique ne peut pas être garantie sous 450 Mo face aux écritures non contrôlées ou
+aux pannes. Détails et procédure : `QUOTA_SUPABASE.md`.
+
+✅ **Dashboard : latence, parcours et faisabilité** *(qualifié le 17 novembre 2026)* :
+présenter les durées de cycle disponibles, les événements par paire et les éléments
+de faisabilité enregistrés, en distinguant données absentes et résultats observés.
+Durées des dix cycles et frise par paire vérifiées en navigateur ; faisabilité
+historique sur les 50 dernières évaluations vérifiée. Diagnostic courant à la
+demande : minima publics, dernier solde et frais enregistrés par le moteur ; seule
+la comparaison du solde est évaluée, et suspendue si le relevé a plus d'une heure.
+API et dashboard du dépôt redémarrés et vérifiés sur WSL ; douze paires du dernier
+cycle et navigateur avec SQL/Kraken réels, session de test injectée. Moteur et
+veille inchangés. La release système reste distincte et le maintien autonome du
+dashboard n'est pas qualifié.
+
+✅ **Documentation Kraken et petit budget** *(17 novembre 2026)* : premier palier
+maker/taker vérifié, défaut de sensibilité maker corrigé à 40 pb ; minima et
+limites de la simulation documentés dans `KRAKEN.md`.
+
+🟨 **Évaluer une entrée maker et les frais minimaux** *(constaté le 17 novembre 2026)* :
+avant toute utilisation, qualifier en PAPER les non-fills, fills partiels,
+annulations et protections, ainsi que la précision et le minimum de frais Kraken
+par devise à partir de métadonnées et de reçus. Comparer coûts nets et occasions
+manquées ; aucune rentabilité ni activation ne découle de cette étude.
+
 ✅ **Nouvelle passe ciblée de dette technique et d'obsolescence** *(17 novembre 2026)* :
 trois fonctions non référencées et du code inutilisé retirés, aperçu multi-positions
 et cohérence des frais corrigés. Python 3.13.17 et PostgreSQL 17 jetable :

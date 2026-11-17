@@ -36,7 +36,7 @@ choisit ni quantité, ni prix, ni stop : toute la géométrie vient du code.
 
 ## 2. Ce qui existe, ce qui n'existe pas
 
-**1061 tests** Python (984 hors base et 77 contrats PostgreSQL locaux opt-in)
+**1078 tests** Python (995 hors base et 83 contrats PostgreSQL locaux opt-in)
 et **34 tests** Node (1 084 au total), répartis ci-dessous.
 
 | Composant | Fichier | État |
@@ -71,7 +71,7 @@ et **34 tests** Node (1 084 au total), répartis ci-dessous.
 | Sonde de clé Kraken | `scripts/check_kraken.py` | ✅ lecture seule |
 | Lecture `.env` / `.env.local` | `app/core/env.py` | ✅ écrit |
 | Veille publique indépendante | `app/intel/` | ✅ Qwen 9B, worker actif, sources/réponse par digest et vue privée |
-| Schéma SQL + migrations | `db/migrations/` | ✅ 17 migrations versionnées et appliquées sur trninja |
+| Schéma SQL + migrations | `db/migrations/` | ✅ 18 migrations versionnées et appliquées sur trninja |
 | Coureur de migrations | `scripts/db_migrate.py` | ✅ status / apply / verify |
 | Démonstration du pare-feu | `scripts/demo_guardrails.py` | ✅ exécutable |
 | Sonde de clé exchange (lecture seule) | `scripts/check_exchange.py` | Sonde historique Binance ; utiliser check_kraken.py pour la cible actuelle |

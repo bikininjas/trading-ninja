@@ -115,3 +115,30 @@ systématiquement `validate=true`. Un timeout ou résultat inconnu renvoie un é
 aucune vente compensatoire ni absence d’exécution déduite des seuls ordres ouverts.
 Les commandes de liquidation LIVE exigent leurs confirmations et les verrous de
 configuration ; elles ne sont pas nécessaires pour consulter ces diagnostics.
+
+## Petit budget : documentation Kraken vérifiée le 17 novembre 2026
+
+- Le premier palier spot Kraken Pro est à **0,40 % maker / 0,80 % taker** par
+  côté ; le tarif dépend notamment du compte et de la paire. Le repli du code
+  est déjà aligné. [Barème Kraken](https://www.kraken.com/features/fee-schedule).
+  `backtest.py --maker-fees` sans valeur teste désormais 40 pb ; `--maker-fees 25`
+  reste une hypothèse explicite de sensibilité, pas un tarif garanti.
+- Un ordre limite peut être exécuté taker ; l'option post-only garantit le
+  placement maker ou l'annulation, pas un fill. Une entrée maker puis sortie
+  taker ferait environ 1,20 % de frais nominaux au premier palier, hors spread,
+  glissement et différences de montant. [Kraken : maker et taker](https://support.kraken.com/in/articles/360000526126-what-are-maker-and-taker-fees-).
+  Le broker papier simule aujourd'hui des fills de marché ; tester un taux plus
+  bas ne prouve pas la rentabilité d'un ordre post-only. Une implémentation exige
+  la modélisation des non-fills, exécutions partielles, annulations et protections.
+- Le minimum en EUR du carnet est 0,45 EUR, mais le minimum en crypto et les
+  incréments s'appliquent aussi ; ils varient selon la paire. Le code les prend
+  déjà en compte. [Minimum en devise de cotation](https://support.kraken.com/articles/12425041458708-cost-minimum-for-trading),
+  [minima en crypto](https://support.kraken.com/articles/360001389303-overview-of-cryptocurrency-minimums).
+- Kraken annonce aussi un minimum de frais et une précision de calcul : le
+  broker papier applique seulement un pourcentage. L'effet exact dépend des
+  précisions et de la devise de frais ; il faut le mesurer avec les métadonnées
+  et des reçus de fills avant de modifier le simulateur. [Frais minimums](https://support.kraken.com/articles/201893638-how-trading-fees-work-on-kraken),
+  [précision API](https://support.kraken.com/articles/201988998-decimal-precision-for-api-calculations).
+
+Ces pistes ne prouvent pas de gain net ; aucun seuil de risque ni capital n'est
+augmenté et le passage au réel reste NO-GO.

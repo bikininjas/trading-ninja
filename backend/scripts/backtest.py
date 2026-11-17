@@ -93,7 +93,7 @@ def with_overrides(settings, args):
 def fee_grid(args) -> list[Decimal]:
     """Grille de frais par côté, en points de base.
 
-    ``--maker-fees`` seul remplace la grille par 25 pb (frais maker Kraken) ;
+    ``--maker-fees`` seul remplace la grille par 40 pb (palier maker Kraken) ;
     combiné à ``--fee-bps``, il ajoute des points de comparaison. C'est une
     **sensibilité de coût**, pas un modèle d'exécution maker : le fill reste
     celui du marché au prix de clôture + slippage.
@@ -1263,10 +1263,10 @@ def main() -> int:
                              "(1.0 lève le coupe-circuit)")
     parser.add_argument("--fee-bps", default=None,
                         help="sweep : frais par côté en points de base "
-                             "(défaut 80,100 = taker Kraken réel)")
-    parser.add_argument("--maker-fees", nargs="?", const="25", default=None,
+                             "(défaut 80,100 ; 80 = premier palier taker Kraken)")
+    parser.add_argument("--maker-fees", nargs="?", const="40", default=None,
                         help="sweep/swing/meanrev : frais maker par côté en points de base "
-                             "(25 si l'option est passée sans valeur). Seul, remplace la "
+                             "(40 si l'option est passée sans valeur). Seul, remplace la "
                              "grille ; avec --fee-bps, l'ajoute. Sensibilité de coût, pas "
                              "un modèle d'exécution maker.")
     parser.add_argument("--swing-triggers", default="both,donchian,value",

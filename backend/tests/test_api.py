@@ -224,6 +224,50 @@ def token_of(client) -> str:
     return response.json()["token"]
 
 
+def test_feasibility_is_private_and_rejects_symbols_outside_config(api):
+    client, _, _ = api
+    assert client.get('/api/insights/feasibility').status_code == 401
+    headers = {'Authorization': f'Bearer {token_of(client)}'}
+    response = client.get('/api/insights/feasibility', headers=headers)
+    assert response.status_code == 200 and 'BTC/EUR' in response.json()['symbols']
+    assert client.get('/api/insights/feasibility', params={'symbol': 'BAD/EUR'}, headers=headers).status_code == 422
+
+
+def test_feasibility_uses_recorded_balance_and_applied_settings(api, monkeypatch):
+    from app.api import feasibility
+    client, repo, _ = api
+    async def balances(*args):
+        return [{'taken_at': datetime(2026, 11, 17, tzinfo=timezone.utc), 'free_quote': Decimal('4')}]
+    async def settings(*args):
+        return {'revision': 2, 'applied_revision': 1, 'applied_payload': {'risk': {'execution_fee_pct': '.008'}}, 'applied_at': None}
+    repo.equity_curve, repo.runtime_snapshot = balances, settings
+    seen = []
+    def read(exchange_id, symbol, quote, free, applied):
+        seen.append((exchange_id, symbol, quote, free, applied))
+        return {'symbol': symbol, 'free_quote': free, 'cash_sufficient': True}
+    monkeypatch.setattr(feasibility, 'read_market', read)
+    headers = {'Authorization': f'Bearer {token_of(client)}'}
+    response = client.get('/api/insights/feasibility', params={'symbol': 'BTC/EUR'}, headers=headers)
+    assert response.status_code == 200
+    assert response.json()['balance_at'] == '2026-11-17T00:00:00+00:00'
+    assert response.json()['applied_revision'] == 1 and response.json()['requested_revision'] == 2
+    assert response.json()['balance_fresh'] is False and response.json()['cash_sufficient'] is None
+    assert seen[0][3:] == (Decimal('4'), {'risk': {'execution_fee_pct': '.008'}})
+
+
+def test_feasibility_uses_last_captured_engine_universe(api):
+    client, repo, _ = api
+    async def universe(mode):
+        return {'symbols': ['ETH/EUR', 'BTC/EUR'], 'exchange_id': 'binance',
+                'quote': 'EUR', 'observed_at': datetime(2026, 11, 17, tzinfo=timezone.utc)}
+    repo.latest_cycle_universe = universe
+    headers = {'Authorization': f'Bearer {token_of(client)}'}
+    response = client.get('/api/insights/feasibility', headers=headers)
+    assert response.status_code == 200
+    assert response.json()['symbols'] == ['ETH/EUR', 'BTC/EUR']
+    assert response.json()['source'] == 'last_cycle'
+
+
 # ---------------------------------------------------------------------------
 # Authentification
 # ---------------------------------------------------------------------------

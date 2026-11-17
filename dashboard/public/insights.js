@@ -14,6 +14,7 @@
     FILLED: 'Achat exécuté', ENTRY_DISABLED: 'Achats suspendus', DATA_UNAVAILABLE: 'Données indisponibles',
     ALREADY_EVALUATED: 'Bougie déjà évaluée', REVALIDATION_REJECTED: 'Refus après actualisation' };
   const rejectionLabels = { SIZING_BELOW_EXCHANGE_MINIMUM: 'Quantité finançable inférieure au minimum', EXCHANGE_MIN_NOTIONAL_FAILED: 'Montant inférieur au minimum de la paire', INSUFFICIENT_FREE_BALANCE: 'Disponible insuffisant', RISK_LIMIT_EXCEEDED: 'Budget de risque dépassé', CONFIDENCE_TOO_LOW: 'Score sous le seuil configuré', REJECTED_COUNTER_TREND_EMA200: 'Tendance longue défavorable' };
+  const stages = { OBSERVED: 'Marché observé', SIGNAL: 'Réponse du modèle', APPROVED: 'Pare-feu : achat autorisé', RANKING: 'Comparaison des paires', LLM_HALT: 'Arrêt demandé par le modèle', SELL_WITHOUT_POSITION: 'Vente sans position', REVALIDATION_REJECTED: 'Refus après actualisation', SUBMITTED: 'Envoi préparé', FILLED: 'Achat exécuté' };
   let control = null;
   let busy = false;
   let refreshing = false;
@@ -40,8 +41,8 @@
       && Object.values(data.opportunities.rejection_codes).every(count));
   }
   function status(message) { if ($('insights-status')) $('insights-status').textContent = message; }
-  async function api(path, body) {
-    const response = await fetch(path, body === undefined ? { signal: AbortSignal.timeout(10_000) } : {
+  async function api(path, body, timeout = 10_000) {
+    const response = await fetch(path, body === undefined ? { signal: AbortSignal.timeout(timeout) } : {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
     if (response.status === 401) { window.location.href = '/login'; throw new Error('Session expirée'); }
@@ -65,6 +66,112 @@
     const href = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }));
     const a = document.createElement('a'); a.href = href; a.download = name; a.click(); URL.revokeObjectURL(href);
   }
+  function renderLatency(cycles) {
+    const box = clear('cycle-latency-results');
+    if (!cycles.length) { line(box, 'Aucun cycle enregistré.'); return; }
+    const list = document.createElement('ol'); list.className = 'cycle-list';
+    for (const cycle of cycles) {
+      const item = document.createElement('li');
+      const start = Date.parse(cycle.started_at);
+      const end = cycle.finished_at ? Date.parse(cycle.finished_at) : NaN;
+      const seconds = Number.isFinite(end) && end >= start ? (end - start) / 1000 : null;
+      const value = document.createElement('strong');
+      value.textContent = seconds === null ? 'Durée inconnue' : `${seconds.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} s`;
+      item.dataset.over = String(seconds !== null && seconds > 30);
+      const description = document.createElement('span');
+      description.textContent = `${localDateTime(cycle.started_at)} · ${cycle.status}${seconds !== null && seconds > 30 ? ' · budget dépassé' : ''}`;
+      item.append(value, description); list.append(item);
+    }
+    box.append(list);
+  }
+  async function loadFeasibility() {
+    const box = $('feasibility-results');
+    try {
+      const data = await api('/api/history/risk_evaluations?limit=50');
+      if (!record(data) || !Array.isArray(data.rows) || !data.rows.every((row) => record(row) && typeof row.symbol === 'string' && Number.isFinite(Date.parse(row.created_at)))) throw new Error('Réponse incomplète');
+      box.replaceChildren();
+      if (!data.rows.length) { line(box, 'Aucune évaluation enregistrée dans le lot récent.'); return; }
+      const latest = new Map();
+      for (const row of data.rows) if (!latest.has(row.symbol) || Date.parse(row.created_at) > Date.parse(latest.get(row.symbol).created_at)) latest.set(row.symbol, row);
+      const grid = document.createElement('div'); grid.className = 'feasibility-grid';
+      for (const row of latest.values()) {
+        const card = document.createElement('article'); card.className = 'feasibility-card';
+        const title = document.createElement('strong'); title.textContent = row.symbol; card.append(title);
+        line(card, `${localDateTime(row.created_at)} · ${row.approved === true ? 'Autorisé' : row.approved === false ? 'Refusé' : 'Verdict inconnu'}`);
+        if (row.approved === false) line(card, rejectionLabels[row.rejection_code] || row.rejection_code || 'Motif indisponible');
+        if (row.rejection_details) line(card, row.rejection_details);
+        line(card, `Quantité calculée : ${row.computed_amount ?? 'indisponible'} · prix : ${row.market_price ?? 'indisponible'}`);
+        line(card, `Solde libre : ${row.free_quote_balance ?? 'indisponible'} · risque prévu : ${row.effective_risk_quote ?? 'indisponible'}`);
+        grid.append(card);
+      }
+      box.append(grid);
+      if (data.rows.length === 50) line(box, 'Lot limité à 50 évaluations : certaines paires peuvent être absentes.');
+    } catch (error) { box.replaceChildren(); line(box, `Évaluations indisponibles : ${error.message}`); }
+  }
+  async function loadFeasibilitySymbols() {
+    const select = $('feasibility-symbol');
+    try {
+      const data = await api('/api/insights/feasibility');
+      if (!Array.isArray(data.symbols) || !data.symbols.every((s) => typeof s === 'string')) throw new Error('Univers indisponible');
+      $('feasibility-universe').textContent = data.source === 'last_cycle'
+        ? `Paires du dernier cycle capturé le ${localDateTime(data.observed_at)} ; la configuration du moteur peut avoir changé depuis.`
+        : 'Paires de la configuration de l’API ; univers du moteur non confirmé.';
+      select.replaceChildren();
+      if (!data.symbols.length) { const option = document.createElement('option'); option.value = ''; option.textContent = 'Aucune paire configurée'; select.append(option); }
+      for (const symbol of data.symbols) { const option = document.createElement('option'); option.value = symbol; option.textContent = symbol; select.append(option); }
+    } catch (error) { select.replaceChildren(); $('feasibility-universe').textContent = 'Univers du moteur indisponible.'; const option = document.createElement('option'); option.value = ''; option.textContent = 'Univers indisponible'; select.append(option); line(clear('feasibility-current'), error.message); }
+  }
+  $('feasibility-symbol')?.addEventListener('change', () => {
+    const box = clear('feasibility-current'); line(box, 'Lancez le calcul pour la paire sélectionnée.');
+  });
+  $('feasibility-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const select = $('feasibility-symbol'); const symbol = select.value;
+    const button = event.currentTarget.querySelector('button'); const box = clear('feasibility-current');
+    if (!symbol) { line(box, 'Aucune paire disponible.'); return; }
+    button.disabled = true; select.disabled = true; line(box, 'Lecture des données publiques…');
+    try {
+      const data = await api(`/api/insights/feasibility?symbol=${encodeURIComponent(symbol)}`, undefined, 25_000);
+      if (!record(data) || data.symbol !== symbol || !Number.isFinite(Date.parse(data.observed_at)) || typeof data.quote !== 'string') throw new Error('Réponse incomplète');
+      box.replaceChildren();
+      line(box, `${data.symbol} · lecture ${localDateTime(data.observed_at)} · prix ${data.price ?? 'indisponible'} ${data.quote}`);
+      line(box, `Date du prix fournie par Kraken : ${data.ticker_timestamp_ms == null ? 'indisponible' : localDateTime(data.ticker_timestamp_ms)}`);
+      line(box, `Minimum exchange : ${data.min_amount ?? 'indisponible'} unités et ${data.min_notional ?? 'indisponible'} ${data.quote} · pas ${data.amount_step ?? 'indisponible'}`);
+      line(box, `Plus petit ordre calculé : ${data.minimum_quantity ?? 'indisponible'} unités · ${data.minimum_order_quote ?? 'indisponible'} ${data.quote}, hors frais et glissement`);
+      line(box, `Frais d’entrée estimés : ${data.estimated_entry_fee ?? 'indisponibles'} ${data.quote} · total estimé : ${data.estimated_entry_total ?? 'indisponible'} ${data.quote}`);
+      line(box, `Solde libre enregistré : ${data.free_quote ?? 'indisponible'} ${data.quote} · ${data.balance_at ? localDateTime(data.balance_at) : 'date indisponible'} · ${data.balance_fresh === false ? 'solde ancien ou date invalide : comparaison indisponible' : data.cash_sufficient === true ? 'suffisant pour ce minimum estimé' : data.cash_sufficient === false ? 'insuffisant pour ce minimum estimé' : 'comparaison indisponible'}`);
+      line(box, `Révision de réglages appliquée : ${data.applied_revision ?? 'inconnue'} · demandée : ${data.requested_revision ?? 'inconnue'}. Taux de frais et glissement issus des réglages appliqués.`);
+      line(box, 'Estimation indicative au prix lu : ni taille réelle de l’ordre, ni vérification complète du risque, ni garantie d’exécution. Les frais minimaux et arrondis de frais ne sont pas modélisés.');
+    } catch (error) { box.replaceChildren(); line(box, `Calcul indisponible : ${error.message}`); }
+    finally { button.disabled = false; select.disabled = false; }
+  });
+  function renderJourney(box, events) {
+    if (!Array.isArray(events) || !events.every(record)) throw new Error('Parcours incomplet');
+    box.replaceChildren();
+    if (!events.length) { line(box, 'Aucun événement enregistré pour ce cycle.'); return; }
+    const groups = new Map();
+    for (const event of events) {
+      const symbol = event.symbol || 'Cycle';
+      if (!groups.has(symbol)) groups.set(symbol, []);
+      groups.get(symbol).push(event);
+    }
+    for (const [symbol, items] of groups) {
+      const section = document.createElement('section'); section.className = 'journey-group';
+      const title = document.createElement('strong'); title.textContent = symbol; section.append(title);
+      const list = document.createElement('ol'); list.className = 'journey-list';
+      for (const event of items) {
+        const item = document.createElement('li');
+        const name = document.createElement('strong'); name.textContent = stages[event.stage] || labels[event.stage] || event.stage || 'Étape inconnue'; item.append(name);
+        if (event.body?.action) line(item, `Action : ${event.body.action}`);
+        if (event.body?.code) line(item, rejectionLabels[event.body.code] || event.body.code);
+        if (event.body?.reason) line(item, event.body.reason);
+        if (event.stage === 'RANKING') detail(item, 'Comparaison et coûts enregistrés', event.body);
+        list.append(item);
+      }
+      section.append(list); box.append(section);
+    }
+    if (events.length >= 1000) line(box, 'Parcours limité aux 1 000 premiers événements enregistrés.');
+  }
   async function refresh() {
     if (refreshing) return;
     refreshing = true;
@@ -86,6 +193,8 @@
       if (summary.expected_windows_current_config !== undefined) line(box, `${summary.expected_windows_current_config} fenêtres théoriques avec l’univers actuel ; présence du moteur non garantie.`);
       if (summary.truncated) line(box, 'Période tronquée : réduire la fenêtre pour une lecture complète.');
       const signature = JSON.stringify(data.cycles);
+      renderLatency(data.cycles);
+      await loadFeasibility();
       if (signature !== cyclesSignature) {
         cyclesSignature = signature;
         const cycles = clear('insights-cycles');
@@ -93,21 +202,18 @@
         for (const cycle of data.cycles) {
           const row = document.createElement('article'); row.className = 'card';
           line(row, `${localDateTime(cycle.started_at)} · ${cycle.status}`);
+          const journey = document.createElement('div'); journey.className = 'journey'; journey.hidden = true;
           action(row, 'Voir le parcours', async () => {
+            if (!journey.hidden) { journey.hidden = true; return; }
             const data = await api(`/api/insights/cycles/${cycle.id}/events`);
-            for (const event of data.events) {
-              line(row, `${event.symbol || 'Cycle'} : ${labels[event.stage] || event.stage}`);
-              if (event.body?.code) line(row, rejectionLabels[event.body.code] || event.body.code);
-              if (event.body?.reason) line(row, event.body.reason);
-              if (event.stage === 'RANKING') detail(row, 'Comparaison des paires et coûts observés', event.body);
-            }
+            renderJourney(journey, data.events); journey.hidden = false;
           });
           action(row, 'Exporter le cycle', async () => download(`cycle-${cycle.id}.json`, await api(`/api/insights/cycles/${cycle.id}`)));
           if (cycle.status === 'COMPLETE') action(row, 'Vérifier le rejeu', async () => {
             const result = await api(`/api/insights/cycles/${cycle.id}/replay`, {});
             line(row, result.status === 'IDENTICAL' ? 'Décisions et rapport reproduits à l’identique.' : result.status);
           });
-          cycles.append(row);
+          row.append(journey); cycles.append(row);
         }
       }
       renderProtection(data.protection);
@@ -116,6 +222,8 @@
       status(`Observations à jour. Réglages demandés : ${applied.revision} ; appliqués : ${applied.applied_revision ?? 'aucune preuve'}${applied.apply_error ? ` · ${applied.apply_error}` : ''}.`);
       try { await policies(); } catch (error) { status(`Observations reçues ; politiques indisponibles : ${error.message}`); }
     } catch (error) {
+      const latency = $('cycle-latency-results');
+      if (latency) { latency.replaceChildren(); line(latency, `Durées indisponibles : ${error.message}`); }
       document.dispatchEvent(new CustomEvent('tn:observations-unavailable'));
       if (lastProtection) renderProtection({ ...lastProtection, status: 'UNKNOWN', reason: 'OBSERVATION_UNAVAILABLE' });
       status(`Observations indisponibles : ${error.message}`);
@@ -221,6 +329,7 @@
       detail(box, 'Cohortes, effectifs et limites', data);
     } catch (error) { status(error.message); }
   });
+  loadFeasibilitySymbols();
   refresh();
   setInterval(refresh, 30_000);
 })();

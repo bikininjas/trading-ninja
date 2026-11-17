@@ -19,7 +19,9 @@ after(() => server.close());
 
 test('les observations restent privées et seules les routes précises sont relayées', async () => {
   assert.equal((await fetch(url + '/api/insights/overview')).status, 401);
+  assert.equal((await fetch(url + '/api/insights/feasibility')).status, 401);
   assert.equal((await fetch(url + '/api/insights/overview', { headers: { cookie } })).status, 200);
+  assert.equal((await fetch(url + '/api/insights/feasibility?symbol=BTC%2FEUR', { headers: { cookie } })).status, 200);
   assert.equal((await fetch(url + '/api/insights/arbitrary', { headers: { cookie } })).status, 404);
   const before = calls.length;
   assert.equal((await fetch(url + '/api/control/arbitrary', { method: 'POST', headers: { cookie } })).status, 404);
