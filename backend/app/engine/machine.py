@@ -11,7 +11,7 @@ après un coupe-circuit annule le coupe-circuit.
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Protocol
 
 __all__ = ["ALLOWED", "StateMachine", "StateTransitionRefused"]
 

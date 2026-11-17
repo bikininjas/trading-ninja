@@ -55,6 +55,9 @@ def friendly_settings(config: Settings, *, updated_at: str | None = None) -> dic
     """Vue lisible par le dashboard : labels, valeurs effectives, profils."""
     return {
         "profile": config.risk_profile,
+        "macro_timeframe": config.risk.macro_timeframe,
+        "macro_ema_period": config.risk.macro_ema_period,
+        "eval_timeframe": config.exchange.daily_timeframe_decision,
         "profile_label": PROFILE_LABELS.get(config.risk_profile, config.risk_profile),
         "max_per_trade_pct": str(config.risk.max_notional_pct),
         "max_daily_loss_pct": str(config.risk.max_daily_drawdown_pct),
@@ -75,6 +78,9 @@ def friendly_settings(config: Settings, *, updated_at: str | None = None) -> dic
         "profiles": [
             {
                 "key": key,
+                "macro_timeframe": RISK_PRESETS[key].get("MACRO_TIMEFRAME", "4h"),
+                "macro_ema_period": int(RISK_PRESETS[key].get("MACRO_EMA_PERIOD", "200")),
+                "eval_timeframe": RISK_PRESETS[key].get("EVAL_TIMEFRAME", "4h"),
                 "label": PROFILE_LABELS.get(key, key),
                 "description": PROFILE_DESCRIPTIONS.get(key, ""),
                 "max_per_trade_pct": RISK_PRESETS[key]["MAX_NOTIONAL_PCT"],
@@ -102,6 +108,9 @@ def _as_text(value) -> str:
 def _mapping(update: dict) -> dict[str, str]:
     """Traduit les noms du dashboard vers les variables de configuration."""
     mapping: dict[str, str] = {}
+    for name in ("macro_timeframe", "macro_ema_period", "eval_timeframe"):
+        if update.get(name) is not None:
+            mapping[name.upper()] = _as_text(update[name])
     if update.get("profile") is not None:
         mapping["RISK_PROFILE"] = str(update["profile"])
     if update.get("max_per_trade_pct") is not None:

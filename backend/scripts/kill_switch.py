@@ -22,7 +22,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from decimal import Decimal
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -56,14 +55,14 @@ async def _run(dry_run: bool, confirm_live: bool) -> int:
     repo = await PostgresRepository.connect(settings.database())
     try:
         state, _ = await repo.state(mode)
-        position = await repo.open_position(mode)
-        orders = await repo.open_orders(mode)
-
         if dry_run:
+            positions = await repo.open_positions(mode)
+            orders = await repo.open_orders(mode)
             print(f"mode {mode} · état {state}")
-            print("position ouverte :", "aucune" if position is None else
-                  f"{position.symbol} {position.amount} @ {position.entry_price} "
-                  f"(stop {position.stop_loss_price})")
+            print(f"positions ouvertes : {len(positions)}")
+            for position in positions:
+                print(f"  {position.symbol} {position.amount} @ {position.entry_price} "
+                      f"(stop {position.stop_loss_price})")
             print(f"ordres ouverts : {len(orders)}")
             for order in orders:
                 print(f"  {order['symbol']} {order['purpose']} {order['status']}")
@@ -108,7 +107,7 @@ async def _run(dry_run: bool, confirm_live: bool) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Kill-switch — solde et halte")
     parser.add_argument("--dry-run", action="store_true",
-                        help="affiche la position et les ordres sans rien modifier")
+                        help="affiche les positions et les ordres sans rien modifier")
     parser.add_argument("--confirm-live", action="store_true",
                         help="confirme une vente réelle en mode live")
     args = parser.parse_args()

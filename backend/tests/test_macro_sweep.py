@@ -13,7 +13,8 @@ from app.engine.risk_gate import ExchangeConstraints
 
 
 @pytest.mark.asyncio
-async def test_macro_cli_crosses_72_scenarios_and_exports_sources(tmp_path, monkeypatch):
+@pytest.mark.parametrize('timeframes,expected', [('4h',72),('1h,4h,1d',216)])
+async def test_macro_cli_crosses_72_scenarios_and_exports_sources(tmp_path, monkeypatch,timeframes,expected):
     settings = load_settings(overrides={"TRADING_MODE": "paper"}, use_environment=False)
     monkeypatch.setattr(backtest, "load_settings", lambda: settings)
     monkeypatch.setattr(type(settings), "database", lambda self: NS(asyncpg_kwargs=lambda: {}))
@@ -33,7 +34,7 @@ async def test_macro_cli_crosses_72_scenarios_and_exports_sources(tmp_path, monk
     seen = []
     async def run(**kw):
         risk = kw["settings"].risk
-        seen.append((kw["symbol"], risk.macro_ema_period, risk.entry_mode,
+        seen.append((kw["symbol"], risk.macro_timeframe, risk.macro_ema_period, risk.entry_mode,
                      risk.entry_ema200_slope_min, kw["broker"].execution_fee_pct))
         assert kw["settings"].mode == "paper"
         assert risk.max_consecutive_losses == 999
@@ -44,14 +45,14 @@ async def test_macro_cli_crosses_72_scenarios_and_exports_sources(tmp_path, monk
     monkeypatch.setattr(backtest, "run_backtest", run)
     path = tmp_path / "report.json"
     args = NS(equity="1000", symbols="BTC/EUR,ETH/EUR,SOL/EUR", slopes="0.0,1.0",
-              macro_ema_periods="50,100,200", fee_bps="80,25", maker_fees=None,
+              macro_ema_periods="50,100,200", macro_timeframes=timeframes, fee_bps="80,25", maker_fees=None,
               entry_modes="EMA50_H4,PULLBACK_H1", max_consecutive_losses=999,
               max_hwm_drawdown="1.0", months=24, as_of="2026-11-10T12:00:00+00:00",
               json=False, output_json=str(path))
     assert await backtest.sweep(args) == 0
-    assert len(seen) == len(set(seen)) == 72
+    assert len(seen) == len(set(seen)) == expected
     assert conn.close.await_count == 1
     report = json.loads(path.read_text())
-    assert len(report["rows"]) == 72
+    assert len(report["rows"]) == expected
     assert len(report["sources"]) == 3
     assert all(row["bull_trap_rate"] is None for row in report["rows"])

@@ -29,7 +29,7 @@ from app.backtest.llm_eval import EvalRecord, compute_metrics
 from app.backtest.swing import build_series, run_swing_backtest, snapshot_at
 from app.core.settings import load_settings
 from app.engine.risk_gate import EntryMode, StopMode, SwingExitMode
-from app.exchange.kraken import build_exchange, market_info, resolve_taker_fee
+from app.exchange.kraken import build_exchange, market_info
 from app.llm.client import SignalClient
 from app.market.feed import D1_WARMUP
 from app.market.history import aggregate, load_candles
@@ -65,7 +65,9 @@ async def evaluate(args: argparse.Namespace) -> int:
             f"(connus : {', '.join(m.value.lower() for m in SwingExitMode)})"
         ) from exc
 
-    fee = Decimal(str(args.fee_bps)) / Decimal(10_000)
+    if not 0 <= args.fee_bps < 1_000:
+        raise SystemExit("--fee-bps doit être compris entre 0 et 999")
+    fee = Decimal(args.fee_bps) / Decimal(10_000)
     flags = {
         "both": (True, True),
         "donchian": (True, False),
@@ -120,7 +122,7 @@ async def evaluate(args: argparse.Namespace) -> int:
                 continue
             info = market_info(
                 exchange, symbol,
-                taker_fee=resolve_taker_fee(exchange, symbol, settings.exchange.taker_fee),
+                taker_fee=fee,
                 maker_fee=settings.exchange.maker_fee,
             )
             result = run_swing_backtest(

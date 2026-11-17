@@ -170,6 +170,10 @@ variante utilise son propre ledger, ses frais, stops, cooldowns, pertes, réserv
 et paliers. Les variantes suivent la même grille causale ; chaque bougie doit être
 clôturée à l'heure simulée. Le moteur utilisé est l'Orchestrator et le PaperBroker
 courants, sans service externe.
+Le registre d'expérience ne gère qu'une position ouverte par portefeuille :
+une configuration à plusieurs positions est refusée, et non ramenée silencieusement
+à une seule. Les expériences antérieures menées avec plusieurs places ne prouvent
+pas une comptabilité correcte et doivent être réexaminées.
 
 ```bash
 cd backend

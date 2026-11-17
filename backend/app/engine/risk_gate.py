@@ -136,6 +136,7 @@ class RejectionCode(StrEnum):
     SIZING_BELOW_EXCHANGE_MINIMUM = "SIZING_BELOW_EXCHANGE_MINIMUM"
     EXCHANGE_MIN_NOTIONAL_FAILED = "EXCHANGE_MIN_NOTIONAL_FAILED"
     RISK_LIMIT_EXCEEDED = "RISK_LIMIT_EXCEEDED"
+    REJECTED_INTEL_SYSTEMIC_RISK = "REJECTED_INTEL_SYSTEMIC_RISK"
 
 
 # ---------------------------------------------------------------------------
@@ -180,11 +181,26 @@ class MarketSnapshot:
     ema_100_h4: Decimal = Decimal("0")
     ema_50_slope_atr: Decimal = Decimal("0")
     ema_100_slope_atr: Decimal = Decimal("0")
+    macro_timeframe: str = "4h"
+    macro_ema_period: int = 200
+    macro_ema_value: Decimal | None = None
+    macro_ema_slope_atr: Decimal = Decimal("0")
+    macro_ema_threshold_with_margin: Decimal | None = None
+    eval_timeframe: str = "4h"
+    intel_systemic_risk: bool = False
+    intel_valid_until: datetime | None = None
 
     def macro_ema(self, period: int) -> tuple[Decimal, Decimal]:
         """EMA et pente sur 60 H4 ; aucune substitution si la donnée manque."""
+        if type(period) is not int or not 2 <= period <= 500:
+            raise ValueError("macro_ema_period doit être un entier de 2 à 500")
+        if self.macro_ema_value is not None:
+            if period == self.macro_ema_period:
+                return self.macro_ema_value, self.macro_ema_slope_atr
+            if self.macro_timeframe != self.eval_timeframe:
+                return Decimal(0), Decimal(0)
         if period not in (50, 100, 200):
-            raise ValueError("macro_ema_period doit être 50, 100 ou 200")
+            return Decimal(0), Decimal(0)
         return (getattr(self, f"ema_{period}_h4"),
                 getattr(self, f"ema_{period}_slope_atr"))
 
@@ -261,8 +277,9 @@ class RiskConfig:
     # pour mesurer une hypothèse moyenne-réversion brute. Jamais lu depuis l'env,
     # jamais posé par le runtime : un backtest peut le passer, la production non.
     allow_counter_trend: bool = False
-    # Laboratoire uniquement, absent de l'env et des réglages administratifs.
+    # Boussole indépendante de la cadence d’évaluation.
     macro_ema_period: int = 200
+    macro_timeframe: str = "4h"
 
     # --- Petit portefeuille -------------------------------------------------
     # Autorise 100 % de l'équité en exposition quand elle est sous le seuil, pour
@@ -281,7 +298,7 @@ class RiskConfig:
     reject_trending_down_regime: bool = True
 
     # --- Coupe-circuits -----------------------------------------------------
-    max_daily_drawdown_pct: Decimal = Decimal("0.02")  # 2 % / 24 h glissantes
+    max_daily_drawdown_pct: Decimal = Decimal("0.02")  # 2 % du drawdown fourni
     max_weekly_drawdown_pct: Decimal = Decimal("0.05")  # 5 % / 7 jours glissants
     max_drawdown_from_hwm_pct: Decimal = Decimal("0.10")  # -10 % depuis le plus haut => STOP
     max_consecutive_losses: int = 4  # verrouillage dur
@@ -333,10 +350,12 @@ class RiskConfig:
     min_halt_confidence: Decimal = Decimal("0.80")
 
     def __post_init__(self) -> None:
+        if self.macro_timeframe not in {"1h", "4h", "1d"}:
+            raise ValueError("macro_timeframe doit être 1h, 4h ou 1d")
         if type(self.max_open_positions) is not int or not 1 <= self.max_open_positions <= 5:
             raise ValueError("max_open_positions doit être dans [1, 5]")
-        if type(self.macro_ema_period) is not int or self.macro_ema_period not in (50, 100, 200):
-            raise ValueError("macro_ema_period doit être 50, 100 ou 200")
+        if type(self.macro_ema_period) is not int or not 2 <= self.macro_ema_period <= 500:
+            raise ValueError("macro_ema_period doit être un entier de 2 à 500")
         for name in ("execution_fee_pct", "execution_slippage_pct"):
             value = getattr(self, name)
             if not value.is_finite() or not Decimal(0) <= value < Decimal("0.1"):
@@ -551,6 +570,8 @@ def _evaluate(
             passed,
         )
     macro_ema, _ = market.macro_ema(config.macro_ema_period)
+    if market.macro_ema_value is not None and market.macro_timeframe != config.macro_timeframe:
+        return _reject(RejectionCode.INVALID_MARKET_DATA, "boussole du snapshot incompatible avec la configuration", passed)
     if not all(_is_finite(v) for v in (market.price, macro_ema, market.atr_14_h4)):
         # Decimal('NaN') n'est jamais <= 0 : sans ce test, NaN traverserait tout le
         # dimensionnement sans être arrêté par aucune comparaison.
@@ -596,7 +617,7 @@ def _evaluate(
     if account.daily_drawdown_pct >= config.max_daily_drawdown_pct:
         return _reject(
             RejectionCode.CIRCUIT_BREAKER_DAILY_DRAWDOWN,
-            f"drawdown 24h {account.daily_drawdown_pct:.4%} >= {config.max_daily_drawdown_pct:.2%}",
+            f"drawdown journalier {account.daily_drawdown_pct:.4%} >= {config.max_daily_drawdown_pct:.2%}",
             passed,
         )
     if account.weekly_drawdown_pct >= config.max_weekly_drawdown_pct:
@@ -681,10 +702,13 @@ def _evaluate(
         if market.price <= trend_floor:
             return _reject(
                 RejectionCode.REJECTED_COUNTER_TREND_EMA200,
-                f"prix {market.price} <= EMA{config.macro_ema_period} H4 + marge ({trend_floor:.4f})",
+                f"prix {market.price} <= EMA{config.macro_ema_period} {config.macro_timeframe} + marge ({trend_floor:.4f})",
                 passed,
             )
     passed.append("long_term_trend")
+    if market.intel_systemic_risk is True and (market.intel_valid_until is None or market.now < market.intel_valid_until):
+        return _reject(RejectionCode.REJECTED_INTEL_SYSTEMIC_RISK,
+                       "alerte systémique MarketIntel valide sur cet actif ou globale", passed)
 
     if market.last_closed_h1_return_atr <= -config.falling_knife_atr_multiple:
         return _reject(

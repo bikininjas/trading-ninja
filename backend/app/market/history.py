@@ -25,7 +25,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Any, Iterable, Sequence
+from typing import Any, Sequence
 
 __all__ = [
     "CandleGap",
@@ -454,12 +454,6 @@ async def coverage(
         span_days=round((last_ms - first_ms) / 86_400_000, 3),
         gaps=tuple(gaps[:max_gaps]),
     )
-
-
-def iter_rows(candles: Iterable[Sequence[Any]]) -> Iterable[tuple]:
-    """Itère (open_ms, o, h, l, c, v) — utile aux scripts, sans ouvrir la base."""
-    for candle in candles:
-        yield (int(candle[0]), *candle[1:6])
 
 
 async def storage_state(conn: Any) -> tuple[int, int]:

@@ -54,7 +54,7 @@ from app.engine.risk_gate import (
     evaluate,
 )
 from app.execution.live import LiveExecutionError
-from app.execution.paper import PaperBroker, Fill
+from app.execution.paper import Fill
 from app.llm.client import LLMSignal, SignalClient, SYSTEM_PROMPT, D1_SYSTEM_PROMPT
 from app.market.feed import (
     FeedError, SymbolState, build_snapshot, closed_candles, last_price,
@@ -112,7 +112,10 @@ class Orchestrator:
         self._mode = settings.execution_mode
         self._settings_updated_at: datetime | None = None
         self._base_settings=self._settings
+        self._dynamic_loader = settings_loader is not None
         self._load_settings = settings_loader or (lambda overrides=None:load_settings(overrides={**settings._raw_env,**(overrides or {})},use_environment=False))
+        self._file_settings = None
+        self._file_settings_initialized = False
         self._lessons: list[str] = []
         self._capture = settings.insights_enabled if insights is None else insights
         self._id_factory = id_factory or uuid.uuid4
@@ -127,6 +130,59 @@ class Orchestrator:
         self._submission = False
         self._observation_error = None
         self._recorder = None
+
+    @property
+    def decision_timeframe(self):
+        return self._settings.exchange.daily_timeframe_decision
+
+    async def reload_configuration(self):
+        return await self._refresh_settings()
+
+    def _cache_loader(self):
+        method = getattr(self._repo, "cached_market_candles", None)
+        if method is None:
+            return None
+        loop = asyncio.get_running_loop()
+        def read(*args):
+            future = asyncio.run_coroutine_threadsafe(method(*args), loop)
+            try:
+                return future.result(timeout=6)
+            except Exception:
+                future.cancel()
+                raise
+        return read
+
+    async def _closed_candles(self, symbol, timeframe, limit):
+        cache = self._cache_loader()
+        return await asyncio.to_thread(closed_candles, self._exchange, symbol, timeframe, limit,
+                                       **({"cache_loader": cache} if cache else {}))
+
+    async def _market_snapshot(self, symbol, **kwargs):
+        state = await asyncio.to_thread(build_snapshot, self._exchange, symbol,
+            macro_timeframe=self._settings.risk.macro_timeframe,
+            macro_ema_period=self._settings.risk.macro_ema_period,
+            trend_buffer_pct=self._settings.risk.trend_buffer_pct,
+            cache_loader=self._cache_loader(), **kwargs)
+        return await self._attach_intel(state)
+
+    async def _attach_intel(self, state):
+        symbol = state.symbol
+        if self._settings.intel.enabled:
+            from app.intel.models import usable, systemic_for
+            try:
+                row = await self._repo.market_intel(self._now())
+                if usable(row, self._now()):
+                    state = replace(state, snapshot=replace(state.snapshot,
+                        intel_systemic_risk=systemic_for(row, symbol, self._now()),
+                        intel_valid_until=row["valid_until"]),
+                        context=replace(state.context, intel={
+                            "sentiment_score": str(row["sentiment_score"]),
+                            "catalyst_summary": row["catalyst_summary"],
+                            "observed_at": row["observed_at"].isoformat(),
+                            "valid_until": row["valid_until"].isoformat()}))
+            except Exception:
+                pass  # Veille optionnelle : l'absence de preuve n'est pas une information fraîche.
+        return state
 
     # -- helpers ---------------------------------------------------------
 
@@ -286,12 +342,19 @@ class Orchestrator:
                 await ack(self._mode, version["revision"], {}, error=reason)
             return False, reason
 
-        if updated_at == self._settings_updated_at:
+        if updated_at == self._settings_updated_at and not self._dynamic_loader:
             return False, None
         try:
+            file_settings = self._load_settings(overrides={}) if self._dynamic_loader else None
+            if self._dynamic_loader and not self._file_settings_initialized:
+                self._file_settings = file_settings
+                self._file_settings_initialized = True
+            if ((not payload or self._settings_updated_at is not None) and updated_at == self._settings_updated_at
+                    and file_settings == self._file_settings):
+                return False, None
             fresh = (
                 self._base_settings
-                if not payload
+                if not payload and (not self._dynamic_loader or file_settings == self._file_settings)
                 else self._load_settings(
                     overrides={
                         key: str(value)
@@ -310,7 +373,8 @@ class Orchestrator:
             fresh.exchange.daily_timeframe_decision
             != self._settings.exchange.daily_timeframe_decision
         ):
-            return await refused("changement de cadence : redémarrage requis")
+            if await self._repo.open_positions(self._mode):
+                return await refused("changement de cadence différé : positions ouvertes sous leur politique actuelle")
         fee = getattr(self._broker, "execution_fee_pct", fresh.risk.execution_fee_pct)
         capital = await self._repo.capital_state(self._mode)
         if capital is not None and not fresh.capital_policy.enabled:
@@ -320,10 +384,15 @@ class Orchestrator:
         self._settings = replace(
             self._settings,
             risk=replace(fresh.risk, execution_fee_pct=fee),
+            exchange=replace(self._settings.exchange,
+                             daily_timeframe_decision=fresh.exchange.daily_timeframe_decision,
+                             entry_timeframe=fresh.exchange.entry_timeframe),
             risk_profile=fresh.risk_profile,
+            intel=fresh.intel,
             capital_policy=fresh.capital_policy,
             halt_auto_resume_hours=fresh.halt_auto_resume_hours,
         )
+        self._file_settings = file_settings
         ack = getattr(self._repo, "acknowledge_settings", None)
         if ack:
             if version is None:
@@ -334,6 +403,7 @@ class Orchestrator:
                 {
                     "risk": public(self._settings.risk),
                     "profile": self._settings.risk_profile,
+                    "eval_timeframe": self.decision_timeframe,
                 },
             )
         self._settings_updated_at = updated_at
@@ -359,7 +429,7 @@ class Orchestrator:
                 **dict(signal.raw),
                 "model_digest": self._model_digest,
                 "lessons_digest": digest(self._lessons),
-                "prompt_template_digest": digest(
+                "prompt_template_digest": signal.prompt_payload.get("prompt_template_digest") or digest(
                     {
                         "system": D1_SYSTEM_PROMPT
                         if self._settings.exchange.daily_timeframe_decision == "1d"
@@ -496,6 +566,9 @@ class Orchestrator:
         recorder.manifest["runtime_state"] = {
             "base_settings": encode(self._base_settings),
             "settings_updated_at": encode(self._settings_updated_at),
+            "file_settings": encode(self._file_settings),
+            "file_settings_initialized": self._file_settings_initialized,
+            "dynamic_loader": self._dynamic_loader,
         }
         identity = getattr(self._llm, "model_identity", None)
         if identity:
@@ -795,8 +868,8 @@ class Orchestrator:
                 return
 
         try:
-            state = build_snapshot(
-                self._exchange, position.symbol, now=self._now(),
+            state = await self._market_snapshot(
+                position.symbol, now=self._now(),
                 decision_timeframe=self._settings.exchange.daily_timeframe_decision,
                 entry_timeframe=self._settings.exchange.entry_timeframe,
                 with_d1=self._settings.risk.entry_mode is EntryMode.SWING_MACRO_D1,
@@ -807,8 +880,8 @@ class Orchestrator:
             return
 
         try:
-            candles = closed_candles(
-                self._exchange, position.symbol,
+            candles = await self._closed_candles(
+                position.symbol,
                 self._settings.exchange.daily_timeframe_decision, 720,
             )
         except FeedError as exc:
@@ -1199,8 +1272,8 @@ class Orchestrator:
             if symbol in account_state.open_position_symbols:
                 continue
             try:
-                state = build_snapshot(
-                    self._exchange, symbol, now=self._now(),
+                state = await self._market_snapshot(
+                    symbol, now=self._now(),
                     decision_timeframe=self._settings.exchange.daily_timeframe_decision,
                     entry_timeframe=self._settings.exchange.entry_timeframe,
                     with_d1=self._settings.risk.entry_mode is EntryMode.SWING_MACRO_D1,
@@ -1401,6 +1474,7 @@ class Orchestrator:
         try:
             latest = await self._current_account()
             latest, entry_account = await self._entry_context(latest)
+            state = await self._attach_intel(state)
             # Les lectures du portefeuille peuvent durer : rafraîchir le candidat
             # en dernier, à l'heure réelle d'évaluation.
             price = last_price(self._exchange, state.symbol)
@@ -1564,8 +1638,3 @@ class Orchestrator:
             },
         )
         report.position_opened = f"{state.symbol} {fill.amount} @ {fill.price} · stop {decision.stop_loss_price} · TP {decision.take_profit_price}"
-
-
-def position_initial_notional(position: PositionRow) -> Decimal:
-    """Notionnel initial d'une position relue depuis la base."""
-    return position.entry_price * position.amount

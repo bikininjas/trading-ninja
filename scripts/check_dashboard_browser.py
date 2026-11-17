@@ -3,7 +3,7 @@
 python scripts/check_dashboard_browser.py [répertoire_des_captures]
 Toutes les réponses HTTP sont factices ; aucun compte ni serveur de trading.
 """
-import asyncio,json,sys,shutil
+import asyncio,json,sys,shutil,os
 from datetime import datetime,timezone,timedelta
 from pathlib import Path
 from playwright.async_api import async_playwright
@@ -21,7 +21,7 @@ STATUS={'mode':'PAPER','state':'IDLE','equity':'11.37','free_quote':'9.62','acti
         'recent':{'signals':[],'evaluations':[],'orders':[]}}
 async def main():
  async with async_playwright() as p:
-  browser=await p.chromium.launch(executable_path=shutil.which('chromium'),args=['--no-sandbox'])
+  browser=await p.chromium.launch(executable_path=os.environ.get('PLAYWRIGHT_CHROMIUM_EXECUTABLE') or shutil.which('chromium'),args=['--no-sandbox'])
   page=await browser.new_page(viewport={'width':1440,'height':1000})
   await page.emulate_media(reduced_motion='reduce')
   await page.clock.install()
@@ -52,13 +52,37 @@ async def main():
   cycle_id='00000000-0000-0000-0000-000000000001'
   protection={'latest':None,'incidents':[],'freshness':'UNKNOWN','status':'UNKNOWN','reason':'OBSERVER_MISSING'}
   overview_down=False
+  overview_invalid=False
+  history_invalid=False
+  history_rows={}
+  status_gate=None
+  status_started=asyncio.Event()
+  opportunities={'unique_opportunities':4,'terminal_attempts':5,
+     'terminal_reasons':{'NO_SETUP':3,'NOT_SELECTED':1,'FILLED':1},'truncated':False}
   stats_invalid=False
   settings_invalid=False
+  settings_macro=False
+  macro_settings={'macro_timeframe':'4h','macro_ema_period':200,'eval_timeframe':'4h'}
   learning_invalid=False
   learning_down=False
   learning_data={'state':'NOT_STARTED','run':None,'valid_until':None,
    'simulations':{'total':0,'eligible':0,'pending':0,'excluded':0,'no_plan':0},'history':[],
    'policy':{'min_samples':20,'min_new_samples':5,'cooldown_hours':24}}
+  intel_down=False
+  intel_invalid=False
+  intel_id='00000000-0000-4000-8000-000000000017'
+  archive_id='00000000-0000-4000-8000-000000000016'
+  intel_row={'id':intel_id,'observed_at':datetime.now(timezone.utc).isoformat(),
+   'valid_until':(datetime.now(timezone.utc)+timedelta(hours=2)).isoformat(),
+   'status':'OK','model':'qwen3.5:9b','overall_sentiment':'BEARISH','sentiment_score':'-0.42',
+   'systemic_risk_detected':True,'affected_assets':['BTC'],'catalyst_summary':'Le marché reste prudent. Aucun achat forcé.',
+   'source_hashes':['a'*64,'b'*64],'source_items':[
+    {'title':'Bitcoin : un marché en attente','description':'Une description publique.','source':'https://www.coindesk.com/arc/outboundfeeds/rss','published_at':datetime.now(timezone.utc).isoformat(),'url':'https://www.coindesk.com/markets/report'},
+    {'title':'<img src=x onerror=alert(1)> Réseau stable','description':'Un lien non autorisé ne doit pas devenir cliquable.','source':'https://cointelegraph.com/rss','published_at':datetime.now(timezone.utc).isoformat(),'url':'javascript:alert(1)'}],
+   'analysis_response':'{"overall_sentiment":"BEARISH","catalyst_summary":"Le marché reste prudent."}',
+   'fear_and_greed_value':0,'fear_and_greed_at':datetime.now(timezone.utc).isoformat()}
+  intel_archive={**intel_row,'id':archive_id,'observed_at':(datetime.now(timezone.utc)-timedelta(days=1)).isoformat(),
+   'valid_until':(datetime.now(timezone.utc)-timedelta(hours=22)).isoformat(),'source_items':[],'analysis_response':None}
   async def dialog(d):
    await d.accept('123456' if d.type=='prompt' else None)
   page.on('dialog',dialog)
@@ -66,6 +90,24 @@ async def main():
   page.on('console',lambda m:print('CONSOLE',m.type,m.text) if m.type=='error' else None)
   async def route(r):
    path=r.request.url.split('tn.test',1)[1].split('?',1)[0]
+   if path=='/api/insights/market-intel':
+    if intel_down: return await r.fulfill(status=503,content_type='application/json',body='{}')
+    if intel_invalid: return await r.fulfill(status=200,content_type='application/json',body='{}')
+    selected=intel_archive if ('digest_id='+archive_id) in r.request.url else intel_row
+    payload={'as_of':await deadline(0),'selected':selected,'active':intel_row,'latest_attempt':intel_row,'history':[intel_row,intel_archive]}
+    return await r.fulfill(status=200,content_type='application/json',body=json.dumps(payload))
+   if path=='/api/status' and status_gate is not None:
+    status_started.set()
+    await status_gate.wait()
+    return await r.fulfill(status=200,content_type='application/json',body=json.dumps(STATUS))
+   if path=='/api/insights/overview' and overview_invalid:
+    return await r.fulfill(status=200,content_type='application/json',body='{"entries":{"enabled":false}}')
+   if path.startswith('/api/history/') and not path.endswith('/prompt'):
+    if history_invalid:
+     return await r.fulfill(status=200,content_type='application/json',body='{"rows":[{}]}')
+    table=path.rsplit('/',1)[-1]
+    if table in history_rows:
+     return await r.fulfill(status=200,content_type='application/json',body=json.dumps({'rows':history_rows[table]}))
    if path=='/api/insights/overview' and overview_down:
     return await r.fulfill(status=503,content_type='application/json',body='{"detail":"service indisponible"}')
    if path=='/api/insights/learning' and learning_down:
@@ -81,7 +123,7 @@ async def main():
    elif path.endswith('/prompt'): payload={'prompt_payload':{'example':'fixture locale'}}
    elif path.startswith('/api/history/llm_signals'): payload={'rows':[{
     'id':cycle_id,'created_at':datetime.now(timezone.utc).isoformat(),'symbol':'BTC/EUR','action':'HOLD',
-    'confidence':'.72','market_regime':'RANGING','thesis':'=1+1; <img src=x onerror=alert(1)> Attendre un signal plus clair.'}]}
+    'confidence':'.72','market_regime':'RANGING','model_name':'qwen3.5:9b','raw_response':{'content':'{"action":"HOLD","thesis":"Attendre la confirmation."}'},'prompt_payload':{'symbol':'BTC/EUR'},'thesis':'=1+1; <img src=x onerror=alert(1)> Attendre un signal plus clair.'}]}
    elif path.startswith('/api/history'): payload={'rows':[]}
    elif path=='/api/system/health':payload={'kraken':{'status':'CONNECTED'},'ollama':{'status':'UP'},'supabase':{'status':'KNOWN','quota_alert_triggered':False}}
    elif path=='/api/stats':payload={
@@ -101,11 +143,14 @@ async def main():
      'max_weekly_loss_pct':'.05','max_drawdown_from_hwm_pct':'.1','max_consecutive_losses':3,
      'cost_aware':True,'profiles':PROFILE_OPTIONS}
     if r.request.method=='POST':payload['application']['apply_error']='Erreur de recette du moteur'
+    if settings_macro:
+     if r.request.method=='POST':
+      macro_settings.update({key:r.request.post_data_json[key] for key in macro_settings})
+     payload.update(macro_settings)
    elif path=='/api/settings/preview':payload={'changes':{'min_confidence':{'scope':'GLOBAL_SAFETY'}},'positions':[]}
    elif path=='/api/control/entries':
     body=r.request.post_data_json;sent.append((path,body));controls.update(enabled=body['enabled'],revision=controls['revision']+1);payload=controls
-   elif path=='/api/insights/overview':payload={'entries':controls,'opportunities':{'unique_opportunities':4,'terminal_attempts':5,
-     'terminal_reasons':{'NO_SETUP':3,'NOT_SELECTED':1,'FILLED':1},'truncated':False},
+   elif path=='/api/insights/overview':payload={'entries':controls,'opportunities':opportunities,
      'cycles':[{'id':cycle_id,'started_at':datetime.now(timezone.utc).isoformat(),'status':'COMPLETE'}],
      'experiments':[],'protection':protection,
      'settings':{'revision':0,'applied_revision':0,'apply_error':None}}
@@ -124,7 +169,7 @@ async def main():
    else:
     file=ROOT/('index.html' if path=='/' else path.lstrip('/'))
     if file.is_file():
-     return await r.fulfill(status=200,body=file.read_bytes(),content_type={'.html':'text/html','.js':'application/javascript','.css':'text/css','.svg':'image/svg+xml'}.get(file.suffix,'text/plain'))
+     return await r.fulfill(status=200,body=file.read_bytes(),content_type={'.html':'text/html','.js':'application/javascript','.css':'text/css','.svg':'image/svg+xml','.woff2':'font/woff2'}.get(file.suffix,'text/plain'))
     return await r.fulfill(status=404,body='')
    await r.fulfill(status=200,content_type='application/json',body=json.dumps(payload))
   await page.route('http://tn.test/**',route)
@@ -135,6 +180,27 @@ async def main():
   await page.wait_for_function("document.querySelector('#equity-chart svg') !== null")
   assert await page.locator('[data-view]:visible').count()==1
   assert await page.locator('#view-overview').is_visible()
+  await page.wait_for_function("document.querySelector('#diagnosis-lead').textContent.includes('setup')")
+  assert await page.locator('#readiness-engine').inner_text()=='Non confirmée', 'Une API disponible ne prouve pas la surveillance.'
+  assert await page.locator('#observed-filled').inner_text()=='1'
+  # Diagnostic historique : refus de financement, absence de preuve, collecte tronquée.
+  initial_opportunities=dict(opportunities)
+  opportunities.update(terminal_attempts=4,terminal_reasons={'RISK_REJECTED':4},rejection_codes={'SIZING_BELOW_EXCHANGE_MINIMUM':4})
+  await page.locator('#refresh-all').click()
+  await page.wait_for_function("document.querySelector('#diagnosis-detail').textContent.includes('minima')")
+  overview_invalid=True
+  await page.locator('#refresh-all').click()
+  await page.wait_for_function("document.querySelector('#diagnosis-coverage').textContent==='Lecture ancienne'")
+  assert 'minima' in await page.locator('#diagnosis-detail').inner_text()
+  assert 'conservée' in await page.locator('#observations-updated').inner_text()
+  overview_invalid=False
+  opportunities.update(unique_opportunities=0,terminal_attempts=0,terminal_reasons={},truncated=True)
+  await page.locator('#refresh-all').click()
+  await page.wait_for_function("document.querySelector('#diagnosis-coverage').textContent==='Période tronquée'")
+  assert 'ne prouve' in await page.locator('#diagnosis-detail').inner_text()
+  opportunities.clear();opportunities.update(initial_opportunities)
+  await page.locator('#refresh-all').click()
+  await page.wait_for_function("document.querySelector('#diagnosis-lead').textContent.includes('setup')")
   assert not sent, 'La lecture ne doit émettre aucune commande.'
   await page.screenshot(path=str(OUT/'overview-desktop.png'),full_page=True)
   await page.locator('[data-range="7d"]').click()
@@ -200,6 +266,15 @@ async def main():
   assert await page.locator('#data-warning').is_visible()
   await page.evaluate("testStream.onmessage({data:JSON.stringify("+json.dumps(STATUS)+")})")
   # Changer d’espace est une navigation, pas une mutation de trading.
+  status_gate=asyncio.Event()
+  await page.locator('#refresh-all').click()
+  await asyncio.wait_for(status_started.wait(),5)
+  await page.evaluate("testStream.onmessage({data:JSON.stringify("+json.dumps({**STATUS,'equity':'12.34'})+")})")
+  status_gate.set()
+  await page.wait_for_function("document.querySelector('#refresh-all').disabled === false")
+  assert await page.locator('#equity').inner_text()=='12,34', 'Une ancienne réponse HTTP écrase le flux plus récent.'
+  status_gate=None
+  await page.evaluate("testStream.onmessage({data:JSON.stringify("+json.dumps(STATUS)+")})")
   await page.locator('[data-nav=portfolio]').click()
   await page.locator('#view-portfolio').wait_for(state='visible')
   assert await page.locator('#growth-pot').is_visible()
@@ -244,8 +319,10 @@ async def main():
   protection.update(status='OK',reason='OBSERVER_CURRENT',valid_until=await deadline(10))
   await page.locator('#insights-refresh').click()
   await page.wait_for_function("document.querySelector('#protection-results').textContent.includes('Surveillance à jour')")
+  assert await page.locator('#readiness-engine').inner_text()=='Confirmée'
   await page.clock.fast_forward(11000)
   await page.wait_for_function("document.querySelector('#protection-results').textContent.includes('preuve de surveillance expirée')")
+  assert await page.locator('#readiness-engine').inner_text()=='Non confirmée'
   protection['valid_until']=await deadline(30)
   await page.locator('#insights-refresh').click()
   await page.wait_for_function("document.querySelector('#protection-results').textContent.includes('Surveillance à jour')")
@@ -296,6 +373,7 @@ async def main():
   assert 'moteur signale une erreur' in await page.locator('#settings-feedback').inner_text()
   saved=next(body for path,body in reversed(sent) if path=='/api/settings')
   assert saved['profile']=='nano_budget' and saved['max_per_trade_pct']==1
+  assert 'macro_timeframe' not in saved and await page.locator('#timeframe-settings').is_hidden(), 'L’ancienne API ne doit pas recevoir des options qu’elle ignore.'
   await page.locator('#set-profile').select_option('micro_budget')
   await page.locator('#profile-example-capital').fill('9,37')
   assert '4,69' in await page.locator('#profile-example').inner_text()
@@ -312,6 +390,17 @@ async def main():
   await page.get_by_text('Comparer tous les profils',exact=True).click()
   assert await page.locator('#set-notional').input_value()=='50'
   assert await page.locator('#set-notional').get_attribute('max')=='50'
+  settings_macro=True
+  await page.locator('#settings-reload').click()
+  await page.locator('#timeframe-settings').wait_for(state='visible')
+  await page.locator('#set-macro-timeframe').select_option('1h')
+  await page.locator('#set-macro-period').fill('75')
+  await page.locator('#set-eval-timeframe').select_option('1h')
+  await page.locator('#settings-save').click()
+  await page.wait_for_function("document.querySelector('#settings-save').disabled === false")
+  saved=next(body for path,body in reversed(sent) if path=='/api/settings')
+  assert saved['macro_timeframe']=='1h' and saved['macro_ema_period']==75 and saved['eval_timeframe']=='1h'
+  assert await page.locator('#set-macro-timeframe').input_value()=='1h'
   assert not errors,errors
   await page.evaluate('scrollTo(0,0)')
   await page.screenshot(path=str(OUT/'settings-desktop.png'),full_page=True)
@@ -320,6 +409,21 @@ async def main():
   await page.locator('[data-nav=activity]').click()
   await page.locator('#view-activity').wait_for(state='visible')
   assert await page.locator('#activity-body img').count()==0, 'Les thèses sont du texte.'
+  assert 'probabilité' in await page.locator('#activity-context-description').inner_text()
+  await page.locator('#activity-search').fill('introuvable')
+  assert await page.locator('#activity-export').is_disabled()
+  assert await page.locator('#activity-body tr:visible').count()==0
+  await page.locator('#activity-search').fill('btc')
+  assert await page.locator('#activity-body tr:visible').count()==1
+  assert not await page.locator('#activity-export').is_disabled()
+  history_invalid=True
+  await page.locator('#activity-refresh').click()
+  await page.wait_for_function("!document.querySelector('#activity-warning').hidden")
+  assert await page.locator('#activity-body tr:visible').count()==1, 'Une réponse invalide efface le journal.'
+  assert 'conservée' in await page.locator('#activity-warning').inner_text()
+  history_invalid=False
+  await page.locator('#activity-refresh').click()
+  await page.wait_for_function("document.querySelector('#activity-warning').hidden")
   await page.get_by_role('button',name='Voir',exact=True).click()
   await page.locator('#prompt-dialog').wait_for(state='visible')
   assert await page.locator('#prompt-dialog').is_visible()
@@ -330,8 +434,40 @@ async def main():
   download=await pending.value
   downloaded=Path(await download.path()).read_text(encoding='utf-8-sig')
   assert "'=1+1" in downloaded, 'Formules CSV neutralisées.'
+  assert 'id;' in downloaded.replace('"','')
   await page.locator('#tab-orders').click()
   await page.wait_for_function("document.querySelector('#activity-export').disabled")
+  now=datetime.now(timezone.utc).isoformat()
+  history_rows['orders']=[{'id':cycle_id,'created_at':now,'symbol':'BTC/EUR','side':'BUY','purpose':'ENTRY','status':'UNKNOWN',
+    'requested_amount':'0.0000000001','filled_amount':'0','average_fill_price':'0','fee_amount':'0','fee_currency':'EUR','position_id':cycle_id},
+    {'id':'00000000-0000-0000-0000-000000000002','created_at':now,'symbol':'ETH/EUR','side':'SELL','purpose':'STOP_LOSS','status':'FILLED',
+     'requested_amount':'0.1234567891','filled_amount':'0.1234567891','average_fill_price':'1234.5678901234','fee_amount':'0.0023456789','fee_currency':'EUR'}]
+  await page.locator('#activity-refresh').click()
+  await page.wait_for_function("document.querySelectorAll('#activity-body tr').length===2")
+  assert await page.locator('#activity-body [data-attention=true]').count()==1
+  assert '0,0000000001' in await page.locator('#activity-body').inner_text(), 'Une quantité du journal est arrondie.'
+  assert 'Inconnus / rejetés' in await page.locator('#activity-summary').inner_text()
+  await page.locator('#activity-search').fill('ETH')
+  async with page.expect_download() as pending:
+   await page.locator('#activity-export').click()
+  content=Path(await (await pending.value).path()).read_text(encoding='utf-8-sig')
+  assert '1234.5678901234' in content and '0.1234567891' in content
+  assert 'ETH/EUR' in content and 'BTC/EUR' not in content, 'L’export doit suivre le filtre.'
+  await page.locator('#activity-search').fill('BTC')
+  await page.locator('#activity-body button').filter(has_text='Inspecter').first.click()
+  assert await page.locator('#activity-detail-dialog').is_visible()
+  assert '0.0000000001' in await page.locator('#activity-detail-content').inner_text()
+  await page.locator('#activity-diagnose').click()
+  await page.wait_for_function("!document.querySelector('#view-decisions').hidden")
+  assert await page.locator('#diagnostic-id').input_value()==cycle_id
+  await page.wait_for_function("document.querySelector('#trade-diagnostics').textContent.includes('Meilleur PnL observé')")
+  await page.locator('[data-nav=activity]').click()
+  await page.locator('#activity-search').fill('')
+  history_rows['risk_evaluations']=[{'id':cycle_id,'created_at':now,'symbol':'BTC/EUR','approved':None,'rejection_code':None,'market_price':'0.0000000001','effective_risk_quote':None}]
+  await page.locator('#tab-risk_evaluations').click()
+  await page.wait_for_function("document.querySelector('#activity-body').textContent.includes('Inconnu')")
+  assert 'Refusé' not in await page.locator('#activity-body').inner_text(), 'Un verdict manquant est inconnu.'
+  assert '0,0000000001' in await page.locator('#activity-body').inner_text()
   await page.locator('#tab-llm_signals').click()
   await page.screenshot(path=str(OUT/'activity-desktop.png'),full_page=True)
   # Ouvrir ou annuler le pilotage ne doit envoyer aucun ordre.
@@ -345,9 +481,56 @@ async def main():
   await page.evaluate("location.hash='settings'")
   await page.wait_for_function("!document.querySelector('#view-settings').hidden")
   assert await page.locator('#set-notional').input_value()=='50'
+  # Veille causale, réponse finale, liens sûrs, archives et expiration locale.
+  previous_commands=len(sent)
+  intel_row['observed_at']=await deadline(-60)
+  intel_row['valid_until']=await deadline(3600)
+  await page.evaluate("location.hash='intel'")
+  await page.wait_for_function("document.querySelector('#intel-summary').textContent.includes('marché reste prudent')")
+  assert await page.locator('#intel-fng-value').inner_text()=='0 / 100'
+  assert await page.locator('#intel-veto-title').inner_text()=='Veto systémique actif'
+  assert await page.locator('#intel-news-list article').count()==2
+  assert await page.locator('#intel-news-list img').count()==0
+  assert await page.locator('#intel-news-list a').count()==1
+  assert await page.locator('#intel-news-list a').get_attribute('rel')=='noopener noreferrer'
+  await page.locator('#intel-search').fill('Bitcoin')
+  assert await page.locator('#intel-news-list article').count()==1
+  await page.locator('#intel-search').fill('')
+  await page.locator('#intel-source').select_option('Cointelegraph')
+  assert await page.locator('#intel-news-list article').count()==1
+  await page.locator('#intel-source').select_option('')
+  await page.locator('#intel-signals-list details').first.locator('summary').click()
+  assert 'Attendre la confirmation' in await page.locator('#intel-signals-list pre').first.inner_text()
+  await page.locator('#intel-history').select_option(archive_id)
+  await page.wait_for_function("document.querySelector('#intel-freshness').textContent.includes('expirée')")
+  assert 'digest='+archive_id in page.url
+  assert 'n’ont pas été conservés' in await page.locator('#intel-news-list').inner_text()
+  assert await page.locator('#intel-veto-title').inner_text()=='Veto systémique actif'
+  await page.locator('#intel-latest').click()
+  await page.wait_for_function("document.querySelectorAll('#intel-news-list article').length===2")
+  intel_down=True
+  await page.locator('#intel-refresh').click()
+  await page.wait_for_function("!document.querySelector('#intel-error').hidden")
+  assert await page.locator('#intel-news-list article').count()==2
+  assert 'non confirmé' in await page.locator('#intel-veto-title').inner_text()
+  intel_down=False; intel_invalid=True
+  await page.locator('#intel-refresh').click()
+  await page.wait_for_function("document.querySelector('#intel-error').textContent.includes('incomplète')")
+  assert await page.locator('#intel-news-list article').count()==2
+  intel_invalid=False
+  intel_row['valid_until']=await deadline(1)
+  await page.locator('#intel-refresh').click()
+  await page.wait_for_function("document.querySelector('#intel-error').hidden")
+  await page.clock.fast_forward(1100)
+  assert 'expirée' in await page.locator('#intel-freshness').inner_text()
+  assert 'Aucune analyse actuellement valide' in await page.locator('#intel-veto-title').inner_text()
+  intel_row['valid_until']=await deadline(3600)
+  await page.locator('#intel-refresh').click()
+  await page.wait_for_function("document.querySelector('#intel-freshness').textContent==='Encore valide'")
+  assert len(sent)==previous_commands, 'La veille doit rester en lecture seule.'
   for width in [320,390,768,1440]:
    await page.set_viewport_size({'width':width,'height':900})
-   for view in ['overview','portfolio','decisions','activity','settings']:
+   for view in ['overview','portfolio','decisions','activity','intel','settings']:
     await page.evaluate("testStream.onmessage({data:JSON.stringify("+json.dumps(STATUS)+")})")
     await page.evaluate('(view)=>location.hash=view',view)
     await page.wait_for_function('(view)=>!document.querySelector(`[data-view="${view}"]`).hidden',arg=view)
@@ -367,6 +550,19 @@ async def main():
   await page.evaluate("location.hash='inconnu'")
   await page.wait_for_function("location.hash==='#overview'")
   # Deep link et formulaires de connexion (sans authentification réelle).
+  await page.goto('http://tn.test/?table=orders&limit=10&q=BTC#activity')
+  await page.wait_for_function("document.querySelectorAll('#activity-body tr').length===2")
+  assert await page.locator('#tab-orders').get_attribute('aria-selected')=='true'
+  assert await page.locator('#activity-limit').input_value()=='10'
+  assert await page.locator('#activity-search').input_value()=='BTC'
+  assert await page.locator('#activity-body tr:visible').count()==1
+  await page.locator('#menu-toggle').click()
+  await page.locator('[data-nav=portfolio]').click()
+  await page.locator('#menu-toggle').click()
+  await page.locator('[data-nav=activity]').click()
+  assert await page.locator('#activity-search').input_value()=='BTC'
+  await page.evaluate('document.fonts.ready')
+  assert await page.evaluate("document.fonts.check('14px \"Plex Sans\"')"), 'La police locale doit être disponible.'
   await page.goto('http://tn.test/#settings')
   assert await page.locator('#view-settings').is_visible()
   for width in [1440,390]:
@@ -377,6 +573,6 @@ async def main():
    assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth')
    await page.screenshot(path=str(OUT/f'login-{width}.png'),full_page=True)
   assert not errors,errors
-  print('Dashboard v2 : 5 espaces, flux invalide/coupé, capital, protections, TOTP, rejeu, diagnostics, profils, prompt, export CSV, connexion et 4 largeurs vérifiés.')
+  print('Dashboard v3 : synthèse, motifs/minima/collecte tronquée, observations invalides, surveillance expirée, journal conservé, recherche, décimales et CSV source filtré, diagnostic depuis un ordre ; 6 espaces, news/analyses causales et expiration, TOTP, rejeu, profils, connexion et 4 largeurs vérifiés.')
   await browser.close()
 asyncio.run(main())

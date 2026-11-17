@@ -4,6 +4,396 @@ Une entrée par session de travail, **la plus récente en haut**. Chaque entrée
 qui a été fait, ce qui l'a vérifié (`commande → résultat réel`), et ce qui a été décidé.
 Ce qui est *prévu* va dans `ROADMAP.md`, pas ici.
 
+## 2026-11-17 — Requalification des frais et revue des fichiers historiques
+
+- Reprise à la demande de Seb : rechercher les données, réglages et réponses LLM
+  des mesures historiques ; rejouer ce qui est reproductible et distinguer les
+  fichiers historiques encore nécessaires de ceux dont le retrait est établi.
+- `git show` des sources `1d7eb26` : les balayages swing/mean reversion du
+  5 novembre transmettaient bien leurs frais au broker et aux deux fills ; le
+  dimensionnement `cost_aware` n'existait pas encore. Pour l'ancien test LLM,
+  le tarif du compte/repli et les 144 réponses ne sont pas conservés dans le
+  dépôt ou à l'ancien chemin temporaire : impossible d'établir a posteriori 80 pb.
+- Lecture SQL repeatable-read, READ ONLY : trois séries H4 figées et empreintes,
+  fenêtre 2021-11-05 à 2026-11-05, contraintes du manifeste du 10 novembre.
+  Rejeu exploratoire de 36 scénarios à 25/80 pb avec et sans risque net : frais
+  vérifiés sur 266 trades. Deux à trois trous H4 par série ; ce n'est pas une
+  reproduction certifiée des résultats historiques. Rapport et JSON dans
+  `audits/2026-11-17/` ; aucun échange, inférence ni écriture SQL.
+- Binance reste une sonde autonome documentée et testée ; les scripts de
+  livraison sont épinglés à des empreintes historiques désormais divergentes.
+  Aucun fichier historique n'a été retiré ni manifeste actualisé à l'aveugle.
+- Chromium via Playwright 1.62 : contrôle navigateur réussi sur six espaces et
+  quatre largeurs ; les réponses 503 du test sont injectées volontairement.
+  Contrôle initial `bash scripts/check.sh` vert ; rejeu golden et 1061 tests avec
+  PostgreSQL 17 jetable avaient été vérifiés lors de la passe précédente.
+
+## 2026-11-17 — Nouvelle passe de dette technique et d'obsolescence
+
+- Revue commencée à la demande de Seb : rechercher les fonctions et fichiers
+  inutilisés ainsi que les anomalies techniques, sans supposer qu'un composant
+  historique ou appelé dynamiquement est obsolète.
+- Suppression de trois fonctions absentes des références du dépôt et non exportées,
+  et de variables/imports inutilisés. L'aperçu du kill-switch énumère toutes les
+  positions ouvertes, comme la liquidation réelle, au lieu de n'en montrer qu'une.
+- L'évaluation LLM swing applique maintenant le taux `--fee-bps` annoncé. Les
+  laboratoires swing et mean reversion transmettent le taux effectif du broker au
+  calcul du risque sensible aux coûts. Les mesures historiques sont conservées ;
+  leurs hypothèses de frais doivent être requalifiées avant utilisation économique.
+- La démonstration indique désormais un risque théorique hors frais et un drawdown
+  journalier, sans prétendre à une fenêtre de 24 h. Aucun fichier n'a été supprimé :
+  les outils historiques repérés restent documentés ou servent les preuves.
+- `ruff check --select F` : aucun diagnostic. Python **3.13.17**, PostgreSQL 17
+  jetable et 17 migrations : **1061 tests réussis**, dont 77 contrats SQL, avec
+  un avertissement de dépréciation Starlette/httpx. Premier essai : 1055 succès
+  et six erreurs car ces contrats exigent le port 55432 ; second démarrage arrêté
+  pendant l'initialisation ; relance sur 55432 après disponibilité TCP réussie.
+- `bash scripts/check.sh` : vert, 984 tests Python hors base et 34 Node. Rejeu
+  golden identique, PnL net −34,8828 EUR. Le contrôle navigateur n'a pas pu être
+  lancé : Playwright absent des environnements Python disponibles. Aucun service
+  ni déploiement n'a été modifié.
+
+## 2026-11-17 — Redémarrage complet sans mot de passe sudo
+
+- Travail commencé à la demande de Seb : étudier une commande couvrant les
+  composants installés et des droits système limités à leur gestion.
+- Contrôle initial `bash scripts/check.sh` : vert, 979 tests Python hors base et
+  34 tests Node ; 17 migrations détectées et jeu SQL de drawdowns annulé.
+- `manage.sh` inclut désormais la veille installée dans `all`, son statut et ses
+  journaux. Avant une commande système, il contrôle les droits nécessaires ; un
+  essai réel de `restart all` sans autorisation a refusé avant arrêt, avec les
+  quatre PID inchangés. Redémarrage de la veille simulé : arrêt puis démarrage.
+- Règle sudo ciblée validée par `visudo -cf` et installée par Seb : propriétaire
+  root, mode 0440, quatre commandes ciblées en NOPASSWD vérifiées. Une autre
+  commande systemctl avec sudo sans mot de passe est refusée. `sudo -n systemctl
+  start` sur les deux services déjà actifs réussit sans changer leurs PID ; aucun
+  service n'a été redémarré ici. Le redémarrage complet reste à exercer.
+- Contrôle final `bash scripts/check.sh` : vert, 979 tests Python hors base et
+  34 Node ; index régénéré après ajout du script, 17 migrations détectées.
+
+## 2026-11-17 — Rotation des journaux
+
+- Travail commencé à la demande de Seb : rotation quotidienne en `.tgz` et
+  suppression après trois jours. Les fichiers API/dashboard et le journal systemd
+  du moteur/de la veille ont des modes d'exploitation distincts.
+- Rotation des fichiers `scripts/.run/{api,dashboard,engine}.log` avec logrotate,
+  répertoire d'archives privé et expiration après 72 h ; cron utilisateur installé
+  pour 00:05 et le démarrage WSL. État initialisé, aucun redémarrage. Trois tests
+  sur répertoires jetables : archive lisible, conservation de l'écriture ouverte,
+  expiration ciblée, reprise après panne de compression et installation cron
+  idempotente. `copytruncate` peut perdre des lignes pendant la copie/troncature.
+- Les services moteur et MarketIntel écrivent dans journald partagé : leur rétention
+  n'est pas modifiée et leurs journaux ne sont pas archivés par cette rotation.
+
+## 2026-11-17 — Revue approfondie de dette technique
+
+- Revue et corrections supplémentaires commencées à la demande de Seb ; préserver
+  les changements locaux et les garde-fous existants.
+- Le ledger des expériences ne gère qu'une position : refus explicite des réglages
+  multipositions et de l'écrasement d'une position ; rollback complet des attributs
+  créés pendant une transaction. Les carnets historiques sont choisis par date
+  plutôt que par ordre d'entrée, sans lecture future.
+- Divergence constatée : PostgreSQL calcule depuis minuit de la session, le
+  backtest sur 24 h glissantes, les expériences depuis minuit simulé. Le message
+  du pare-feu ne prétend plus que la donnée fournie couvre 24 h ; aucun seuil ni
+  calcul du moteur n'est modifié. Arbitrage et qualification inscrits en roadmap.
+- Python **3.13.17**, PostgreSQL 17 jetable avec 17 migrations : **1056 passed**,
+  dont 77 contrats SQL ; un avertissement Starlette/httpx. `bash scripts/check.sh`
+  sur la même base jetable : vert, **979 Python hors base**, 34 Node, 17
+  migrations et index conformes. Golden identique sans bless. Aucun déploiement
+  ni redémarrage des composants de trading.
+
+## 2026-11-17 — Ménage du code et dette technique
+
+- Revue ciblée à la demande de Seb : recherche syntaxique de fonctions dupliquées
+  et lecture des modules concernés, en conservant les modifications préexistantes.
+  Les simulateurs partagent désormais les calculs existants d'EMA, de PnL et de
+  drawdowns ; le backtest ne parcourt plus trois fois la même courbe par décision.
+  Six imports inutilisés ont aussi été retirés ; les exports du paquet sont conservés.
+- Contrôle initial interrompu après blocage de tests asynchrones dans le sandbox ;
+  relance hors sandbox de `bash scripts/check.sh` : **TOUT EST VERT**, 974 tests
+  Python réussis, 77 contrats PostgreSQL opt-in non exécutés, 34 tests Node,
+  17 migrations vérifiées et jeu SQL de drawdowns annulé. Index régénéré.
+- `cd backend && .venv/bin/python scripts/backtest.py replay` : golden identique,
+  PnL net −34,8828 EUR, sans bless. Aucun déploiement ou redémarrage ; la revue
+  est ciblée et ne démontre pas l'absence d'autre dette technique.
+
+## 2026-11-16 — Exploitation et accès Windows
+
+- Examen des besoins du dashboard et d'exploitation et de la compatibilité
+  Windows. Le runtime existant reste Linux/WSL2 : `fcntl`, permissions Unix,
+  systemd, Bash et le lock de dépendances ne qualifient pas un port natif Windows.
+- Ajout d'un lanceur PowerShell déléguant aux scripts WSL, avec distribution et
+  chemin Linux explicites. Le changement de répertoire est vérifié dans le même
+  processus avant exécution : `wsl.exe --cd` seul peut retomber sur le répertoire
+  courant si le chemin demandé est absent. Guide `docs/WINDOWS.md` ; README
+  corrigé sur migrations et sauvegarde initiale.
+- `bash scripts/check.sh` initial puis `check` via PowerShell Windows 5.1 :
+  verts, 974 Python exécutés, 77 contrats SQL opt-in non exécutés, 34 Node.
+  Depuis PowerShell Windows 5.1, `status` renvoie
+  l'état des trois composants ; chemin inexistant refusé avec code 1 et
+  composant invalide pour status refusé avec code 2. Les actions de démarrage,
+  d'arrêt et de redémarrage n'ont pas été exercées ; aucun service modifié.
+- `ss -ltnp` : dashboard actif sur `0.0.0.0:8081` dans WSL, API sur
+  `127.0.0.1:8080`. L'accessibilité depuis Windows/LAN et la protection TLS
+  doivent être qualifiées ; aucune exposition Internet n'est déduite de cette écoute.
+- La CI, l'exploitation et les tests ne prouvent pas un fonctionnement natif
+  Windows. La recette sur cible, la mesure économique et la surveillance externe
+  restent des travaux distincts ; passage réel toujours NO-GO.
+
+## 2026-11-16 — Revue ciblée Python, veille et tests
+
+- Revue des contrats de risque et de la collecte MarketIntel, et recherche de
+  tests Python identiques par comparaison syntaxique. Les changements locaux
+  préexistants ont été conservés ; cette revue ciblée n'est pas un audit exhaustif.
+- Deux anomalies corrigées dans la collecte : un timestamp Fear & Greed hors
+  plage pouvait interrompre toute la collecte, et les dates de publication avec
+  fuseaux différents étaient triées comme du texte avant la limite. Les dates
+  sont normalisées en UTC ; les 80 titres les plus récents sont retenus et le
+  doublon le plus récent est conservé. Le repli reste DEGRADED si une source échoue.
+- Un test de collecte est fusionné dans un scénario plus complet, qui conserve
+  la vérification Fear & Greed et la déduplication. Aucun autre doublon exact
+  de corps de test n'a été identifié par la recherche syntaxique ; les cas
+  différents et contrats SQL ont été conservés.
+- `bash scripts/check.sh` initial puis final : vert ; final **974 passed**, 77
+  contrats PostgreSQL opt-in non exécutés, 34 tests Node et 17 migrations
+  vérifiées. `cd backend && .venv/bin/python scripts/backtest.py replay` :
+  golden identique, PnL net −34,8828 EUR, sans bless. Index de code régénéré.
+- La veille reste un veto basé sur une classification du modèle, désactivé en
+  l'absence de digest valide : elle ne prouve ni couverture exhaustive des
+  événements ni rentabilité. Latence et contention du 9B restent à qualifier.
+  Aucun déploiement ou redémarrage effectué.
+
+## 2026-11-16 — News et réponses Qwen visibles dans le dashboard
+
+- Seb demande les news et ce que dit le LLM. Nouvelle vue **Veille & IA**,
+  `http://localhost:8081/#intel` : titres/extraits RSS avec source/date/lien,
+  recherche et filtre éditeur, réponse finale du 9B, sentiment/score, actifs,
+  Fear & Greed daté et douze analyses récentes. L’archive consultée ne remplace
+  pas le veto courant ; expiration locale et lecture interrompue explicites.
+- Les dix derniers signaux de trading affichent dates, thèse conservée, action
+  retenue, réponse initiale du modèle et contexte transmis. La lecture ne
+  lance aucune inférence ni commande financière ; les contrôles peuvent modifier
+  l’action retenue. Les replis du code sont distingués des réponses du modèle.
+- Migration **0017** pour sources JSON bornées, indice quotidien et réponse finale
+  validée (4096 octets). Droits/RLS hérités de 0016 ; aucun article complet
+  téléchargé. Titres/extraits limités à 500/1000 caractères ; liens HTTPS des
+  deux éditeurs vérifiés, textes RSS/modèle rendus sans HTML. Rétention 30 jours,
+  quota D-057 recalculé avec le poids réel des sources plus marge. Les anciens
+  digests sans titres conservés le signalent ; aucune reconstruction fictive.
+- PostgreSQL 17 jetable local, dix-sept migrations, Python **3.13.17** :
+  **1050 passed**, dont **77 contrats SQL**, aucun sauté ; une dépréciation
+  Starlette/httpx. Tests sur association source/analyse, droits privés, liens
+  malveillants, bornes SQL, quota variable et refus API sans détail privé.
+- **34 Node** verts ; Chromium sur **six espaces, 320/390/768/1440 px** :
+  filtres, réponse/contexte, sources HTML hostiles, liens sûrs, archive/veto,
+  Fear & Greed à zéro, expiration, erreur 503 et payload incomplet. Données
+  précédentes conservées sans état sain trompeur ; aucune commande ajoutée.
+  Captures `/tmp/tn-intel-news-browser/`, visuellement relues en 390/1440 px.
+- `DATABASE_URL=<base locale jetable> bash scripts/check.sh` → **TOUT EST VERT**,
+  index généré conforme, migrations et secrets contrôlés. Golden identique,
+  net **−34,8828 EUR**, aucun bless. La base jetable est distincte de Supabase.
+- 0017 appliquée sur trninja via le connecteur, sous verrou et garde des seize
+  empreintes précédentes. `db_migrate.py status` → dix-sept appliquées, aucune
+  divergence. RLS active ; `anon`/`authenticated` restent sans lecture.
+- Collecte/inférence réelle du candidat avec le LOGIN isolé : **27 titres, 27
+  liens, réponse finale valide**, Fear & Greed daté. Aucun modèle téléchargé,
+  même `qwen3.5:9b`, aucun réglage financier ou révision SQL modifié.
+- `enable-market-intel-news-wsl.sh --check` passé ; authentification sudo requise.
+  Après intervention opérateur, installation constatée : release courante
+  **paper-news9b-27dc68524124**, **122 fichiers identiques** au manifeste.
+  Worker **1751467**, API **1752138**, dashboard **1752929** actifs ; JS servi
+  sur 8081 identique à la source, endpoint API et proxy répondent **401 sans
+  session**. Le nouveau worker produit un digest **OK**, 27 titres et liens,
+  réponse conservée ; la reconnexion au dashboard est nécessaire après relance.
+- Moteur **1556355 non redémarré**, code D-098 conservé pendant sa veille,
+  heartbeat courant, révision **7** appliquée sans erreur. Le prochain démarrage
+  utilisera la nouvelle release compatible avec 0017. La latence de cycle reste
+  un chantier séparé ; aucun budget de surveillance relevé.
+- D-099 ; preuve `docs/audits/2026-11-16/market-intel-dashboard-verification.json`.
+
+
+## 2026-11-16 — Déploiement PAPER et MarketIntel sur le même Qwen 9B
+
+- Seb autorise migration 0016, installation du moteur et activation du worker,
+  puis précise « garde tout qwen 9b ». Trading et veille utilisent
+  `qwen3.5:9b` ; aucun modèle téléchargé ou remplacé.
+- `0016_market_intel.sql` appliquée sur trninja via le connecteur Supabase,
+  avec verrou et garde des quinze empreintes précédentes. Le coureur du dépôt
+  confirme seize migrations appliquées, aucune divergence. RLS active, droits
+  publics fermés ; advisor sécurité avant/après : mêmes 17 INFO sur partitions
+  privées volontairement sans politique directe, aucun nouveau constat.
+- LOGIN privé `tn_market_intel_wsl`, seul membre du groupe NOLOGIN
+  `tn_market_intel_writer`, NOSUPERUSER/NOCREATEROLE/NOBYPASSRLS, sans droit
+  financier. Secret conservé dans les fichiers privés 0600, jamais imprimé.
+- Premier diagnostic 9B : chargement à froid dépassant 5 s, puis JSON tronqué
+  car hashes et métadonnées saturaient le contexte 4096. Le worker préchauffe
+  désormais le modèle existant (budget 180 s, même mécanisme que le moteur),
+  impose `think=false` et transmet tous les titres/descriptions collectés en
+  JSON compact. Les métadonnées restent dans l’audit ; parseur strict conservé.
+  Les premiers replis DEGRADED restent dans l’historique, suivis de digests OK.
+- Après ces adaptations, Python **3.13.17** : **963 passed, 73 skipped**,
+  une dépréciation Starlette/httpx. Les 73 contrats SQL de la migration inchangée
+  avaient été exécutés dans la qualification précédente. `bash scripts/check.sh`
+  sur la cible Supabase 0016 → **TOUT EST VERT**, **33 Node**, index conforme.
+  Golden identique, net **−34,8828 EUR**, aucun bless.
+- `deploy/enable-market-intel-wsl.sh --check` : sources, dépendances, unité et
+  fichier privé conformes. Authentification sudo requise ; Seb exécute ensuite
+  la commande préparée et répond « C’est fait ». L’installateur préserve capital,
+  risque, univers, nombre de places et `Restart=no`, conserve des copies privées
+  des configurations et applique seulement l’activation de veille/modèle 9B.
+- Vérification effective : release **paper-market-intel9b-ac2171a16feb**, **119
+  fichiers identiques** au manifeste ; moteur **1556355** actif, démarré
+  **15:49:21 CET**, API relancée **1557129**, dashboard conservé **951418**.
+  Le worker **1556424** est actif et activé au boot ; moteur toujours non activé
+  au boot et sans reprise automatique. Premier digest du service **OK**, 25
+  articles, daté **14:49:24 UTC**, valide jusqu’à **16:49:24 UTC**.
+- Premier cycle moteur **80b685f5-ad93-4826-896e-faef7590fb55**, commencé
+  **14:50:04 UTC**, terminé **14:50:49 UTC**, **COMPLETE**, erreurs vides.
+  Les douze paires sont sous EMA200 4h + marge : **aucun signal ni achat**,
+  état IDLE. Le manifeste confirme PAPER, clés exchange vides, Intel activé et
+  même 9B ; révision SQL **7 appliquée 7**, cadence 4h, erreur absente.
+  Le heartbeat continue pendant la veille jusqu’à la clôture 16:00 UTC.
+  Comparaison des réglages effectifs : profil `micro_budget` et risque de la
+  révision 7 identiques au cycle précédent, décimales normalisées ; capital et
+  univers conservés. Le manifeste de démarrage précède la première relecture
+  SQL et ne doit pas être confondu avec l’accusé de configuration appliquée.
+- Export privé du premier paquet puis rejeu sous le Python installé :
+  **IDENTICAL**, **181 appels**, mode **OFFLINE_RECORDED_IO**, sans nouvelle
+  I/O de trading ni inférence. Preuve `market-intel-first-cycle-replay.json`.
+- Limite constatée : durée métier **43 509 ms**, au-delà du budget de surveillance
+  de 30 s. Aucun délai de sécurité relevé. La latence du cycle, la contention
+  horaire du 9B et la veille longue restent à qualifier ; ce déploiement PAPER
+  ne ferme pas R3/R5 et ne démontre aucune rentabilité.
+- D-098 ; schéma/droits : `market-intel-target-verification.json` ; état de
+  livraison : `market-intel-deployment.json` ; heartbeat et comparaison des
+  réglages : `market-intel-runtime-verification.json`, dans
+  `docs/audits/2026-11-16/`.
+
+
+## 2026-11-16 — Multi-bougies et MarketIntel qualifiés localement
+
+- Seb fournit le brief H1/H4/D1, retry/cache OHLCV et veille publique horaire.
+- Lecture du moteur : la période EMA est déjà paramétrable au laboratoire, mais
+  les séries, le scheduler et le prompt restent partiellement attachés au H4.
+  La cadence runtime était refusée à chaud ; les politiques des
+  positions existantes doivent rester immuables.
+- Le numéro SQL 0010 est déjà appliqué : la veille utilisera une nouvelle
+  migration 0016, sans réécrire les quinze migrations précédentes.
+- H1-200 et H4-50 couvrent la même durée nominale ; leurs clôtures et coefficients
+  d’EMA diffèrent. Aucun résultat économique n’est supposé équivalent.
+- Périmètre : code, tests, migration et comparaison locale ; conserver le PAPER,
+  ne modifier ni les secrets ni la base hébergée, ni le moteur installé.
+- Livré : `MACRO_TIMEFRAME`, `MACRO_EMA_PERIOD` (2–500), `EVAL_TIMEFRAME` et
+  alias historique conservé. Séries dédupliquées, pente sur dix jours de la série
+  macro, snapshot/logs/prompts explicites, configuration à chaud via fichier ou
+  révision administrative. Cadence différée si position ouverte, politiques
+  macro immuables, délai du scheduler recalculé pendant l’attente.
+  Le surveillant et la couverture théorique utilisent la cadence acquittée
+  par le moteur, même si une autre cadence souhaitée reste différée.
+- Retry OHLCV à trois appels, attentes 1 s puis 2 s ; CCXT et httpx. Après échec,
+  lecture SQL bornée de clôtures causales, continuité et fraîcheur contrôlées,
+  avertissement structuré. Réseau en thread, lectures/erreurs reproductibles.
+- `app/intel/` : collecte RSS/Fear & Greed concurrente, datée et bornée, hashes,
+  schéma Qwen 2.5 14B strict, repli NEUTRAL/DEGRADED, quota D-057 protégé,
+  rétention 30 jours, validité deux heures et groupe NOLOGIN sans droit d’ordre.
+  Une neutralité de repli ne masque pas une alerte valide. La veille enrichit
+  seulement le contexte et oppose un veto ; aucune taille n’en dépend.
+  Le digest est relu avant la revalidation finale : une alerte publiée pendant
+  l’inférence bloque l’achat. Cette séquence est rejouée sans nouvelle I/O.
+- `TN_TEST_DATABASE_URL=<PostgreSQL local 55432/trading_ninja_review>
+  uv run --no-project --python /opt/trading-ninja/current/backend/.venv/bin/python
+  --with-requirements requirements.lock python -m pytest -o addopts='' -q
+  --postgres-test-url <même base locale>` depuis `backend/` → **1036 passed**,
+  dont **73 contrats PostgreSQL**, aucun sauté, une dépréciation Starlette/httpx.
+  Runtime **Python 3.13.17**, PostgreSQL **17.12** Docker jetable ; seize
+  migrations appliquées localement. Cinquante-cinq cas ajoutés depuis la base 981.
+  Une première invocation sur 55433 a été refusée par six anciens contrats
+  verrouillés sur 55432 ; relance sur 55432, sans relâcher cette protection.
+- `DATABASE_URL=<même cible locale> bash scripts/check.sh` → **TOUT EST VERT** :
+  **963 Python hors base**, 73 opt-in collectés, **33 Node**, seize migrations,
+  index généré et secrets conformes. Le venv de travail de cette commande reste
+  en 3.15.2 ; la recette de livraison ci-dessus est bien en 3.13.17.
+- `scripts/backtest.py replay` → métriques et empreinte de défaut identiques,
+  net **−34,8828 EUR**, aucun `bless` ni réenregistrement. La matrice CLI de
+  216 scénarios croisés est également testée ; recettes de cadence H1 et D1
+  et absence de lookahead sur données synthétiques.
+- Sweep réel rapide : douze scénarios BTC/ETH, trois mois, H4/200/100/50 et
+  H1/200/100/50, évaluation H4, pente 1 ATR, frais 80 pb/côté, capital fictif
+  indépendant 1000 EUR, profil micro. **Aucun trade** ; pas de classement
+  économique ni de modification de défaut. Mesure rejouée après les dernières corrections
+  du moteur, JSON identique à la première exécution. Tableau et preuves : `docs/BACKTEST.md`.
+  Les bougies ont été lues dans une transaction source READ ONLY, importées
+  uniquement sur la base jetable ; aucune ingestion hébergée.
+- Chromium/Playwright sous 3.13 : cinq espaces, 320/390/768/1440 px, champs macro
+  1h/75 et cadence H1, confirmation/révision et ancienne API sans ces champs
+  vérifiés. Captures `/tmp/tn-mtf-dashboard/`. La nouvelle UI reste masquée sur
+  l’API installée tant que celle-ci n’expose pas ce contrat.
+- Collecte HTTP publique réelle : trois sources répondent, **25 articles**
+  récents dédupliqués, Fear & Greed disponible. Le flux CoinDesk canonique est
+  sans slash final (sinon HTTP 308). Preuve `market-intel-collection.json`.
+  `/api/tags` confirme le tag Qwen 2.5 14B **absent**, modèle de trading présent ;
+  aucune charge, installation ni substitution de modèle effectuée. La sortie
+  contrainte et les replis du 14B sont testés par transport simulé.
+- Manifeste de préparation : **117 fichiers**, `--check` réussi ; exemples
+  distincts de worker, configuration privée et unité systemd non activés.
+  Supabase reste en **0015**. L’installation exige 0016 et un LOGIN isolé ;
+  ne pas remplacer ce groupe par postgres. Les quinze empreintes appliquées
+  précédemment n’ont pas été modifiées.
+- État de service relu : API **841198**, dashboard **951418**, moteur PAPER
+  systemd **842392**, inchangés. Aucun fichier privé ou réglage financier modifié.
+  Guide `docs/MULTI_BOUGIES_ET_MARKET_INTEL.md`, D-097 ; preuve synthétique dans
+  `docs/audits/2026-11-16/multi-timeframe-verification.json`.
+
+## 2026-11-16 — Dashboard v3 évalué, vérifié et relancé
+
+- Seb demande une évaluation et des améliorations drastiques du dashboard.
+- État initial : `bash scripts/check.sh` → **TOUT EST VERT**, 916 tests Python
+  hors base, 65 contrats opt-in collectés, 32 tests Node, quinze migrations.
+- Revue des cinq espaces et de la recette navigateur existante : diagnostic des
+  achats absent de l’accueil, surveillance indépendante enfouie, textes secondaires
+  trop petits et signal de connexion confondu visuellement avec l’état du moteur.
+- Périmètre : interface et flux de lecture ; aucun changement des règles de risque,
+  du capital, des migrations ou des services installés.
+- Livré : accueil centré sur la situation, preuve de surveillance expirante,
+  révisions et achats autorisés/suspendus distincts, distribution des motifs sur
+  sept jours, effectifs séparés et collecte tronquée. Typographie locale IBM Plex
+  Sans sous SIL OFL, contraste et lisibilité mobile renforcés, positions avant le
+  graphique historique. Une API joignable ne vaut pas preuve de vie du moteur.
+- À la demande complémentaire de Seb sur `/#activity` : résumés par onglet,
+  recherche locale, inspection des sources, diagnostic depuis une position liée,
+  dates complètes, états d’ordre à vérifier et liens conservant les options.
+  Export CSV suivant le filtre, identifiants/devise et décimales sources conservés
+  sans conversion de l’argent en flottant. Verdict absent rendu inconnu, prix
+  moyen sans quantité exécutée masqué, dernier journal conservé sur erreur.
+- Lectures du statut sérialisées par flux SSE et dans le navigateur ; observations
+  validées puis relues toutes les 30 s, parcours ouverts conservés si la liste des
+  cycles n’a pas changé. Une réponse HTTP ancienne ne remplace pas un SSE plus récent.
+- `PLAYWRIGHT_CHROMIUM_EXECUTABLE=<Chromium local> uv run --no-project
+  --python /opt/trading-ninja/current/backend/.venv/bin/python --with playwright
+  --with-requirements backend/requirements.lock python scripts/check_dashboard_browser.py
+  /tmp/tn-dashboard-v3` → recette réussie sous Python **3.13.17** : cinq espaces,
+  320/390/768/1440 px, pannes, données incomplètes, expirations, minima, recherche,
+  décimales/CSV source filtré, diagnostic lié, liens directs et police locale.
+  Les deux réponses HTTP 503 de cette recette sont injectées volontairement.
+- `DATABASE_URL=<PostgreSQL 17 Docker jetable local, sslmode=disable>
+  bash scripts/check.sh` → **TOUT EST VERT**, **916 Python hors base**, **33 Node**,
+  quinze migrations et index conformes. Les **65 contrats PostgreSQL opt-in** sont
+  collectés mais non exécutés par cette commande. Amorçage local avec `anon` et
+  `authenticated` NOLOGIN ; aucune migration appliquée à Supabase par ce lot.
+- Syntaxe JS et `git diff --check` réussis. Manifeste de préparation actualisé :
+  `bash deploy/enable-multiple-positions-wsl.sh --check` → **110 fichiers** vérifiés,
+  nouvelles polices/licence et synthèse incluses. Aucune installation moteur.
+- Le dashboard 8081 actif servait les fichiers du dépôt, son processus devait
+  recharger la liste des assets. `manage.sh restart dashboard` a arrêté l’ancien
+  PID 841795 ; son processus nohup a disparu à la fin de la commande. Relance dans
+  une session PTY persistante, **PID 951418**, puis contrôle HTTP séparé : login,
+  CSS, JS et deux polices **200**, CSP préservée, statut sans session **401**.
+  API **841198** et moteur systemd PAPER **842392** inchangés ; sessions du
+  dashboard renouvelées. Écoute préexistante conservée, aucun réglage privé modifié.
+  Ce lancement ne constitue pas une qualification de supervision systemd.
+- Évaluation détaillée et limites : `docs/audits/2026-11-16/dashboard-review.md`.
+
 ## 2026-11-16 — Revue finale validée ; commit et push demandés
 
 - Seb demande une nouvelle passe sur le code et la logique, puis commit et push
@@ -2234,7 +2624,7 @@ contrôlés avant lancement.
 start all          → api PID 1065855, dashboard PID 1065898
 curl               → api 401, dashboard 200 (page de login)
 start all (bis)    → « déjà » pour les deux, aucun doublon
-restart dashboard  → arrêt puis nouveau PID 1066406
+restart dashboard  → arrêt puis nouveau PID 1069406
 stop api           → api injoignable, dashboard toujours en cours
 start api          → OK
 stop all           → ports 8080 et 8081 libres, PID supprimés

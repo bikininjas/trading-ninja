@@ -84,7 +84,8 @@ def _pullback_h4(snapshot: MarketSnapshot, context: MarketContext,
 
     macro_ema, _ = snapshot.macro_ema(config.macro_ema_period)
     # À période 50, les deux EMA sont identiques : ce contrôle est redondant.
-    if (config.entry_require_ema50_above_ema200 and config.macro_ema_period != 50
+    if (config.entry_require_ema50_above_ema200
+            and not (config.macro_ema_period == 50 and snapshot.macro_timeframe == snapshot.eval_timeframe)
             and ema_50 <= macro_ema):
         return _verdict(
             False,
@@ -343,6 +344,8 @@ def evaluate_entry(
     macro_ema, macro_slope = snapshot.macro_ema(config.macro_ema_period)
     atr = snapshot.atr_14_h4
     rsi = context.rsi_14_h4
+    if snapshot.macro_ema_value is not None and snapshot.macro_timeframe != config.macro_timeframe:
+        return _verdict(False, "boussole du snapshot incompatible", rsi, Decimal(0), Decimal(0))
 
     if not all(v.is_finite() for v in (price, macro_ema, atr, rsi, macro_slope)):
         return _verdict(False, "valeurs non finies (NaN ou infini)", rsi, Decimal(0), Decimal(0))
@@ -355,14 +358,14 @@ def evaluate_entry(
     if price <= trend_floor:
         return _verdict(
             False,
-            f"prix {price:.4f} sous EMA{config.macro_ema_period} + marge ({trend_floor:.4f})",
+            f"prix {price:.4f} sous EMA{config.macro_ema_period} {config.macro_timeframe} + marge ({trend_floor:.4f})",
             rsi, (price - context.ema_50_h4) / atr, atr_pct,
         )
 
     if macro_slope < config.entry_ema200_slope_min:
         return _verdict(
             False,
-            f"EMA{config.macro_ema_period} monte de {macro_slope:+.2f} ATR sur 10 jours "
+            f"EMA{config.macro_ema_period} {config.macro_timeframe} monte de {macro_slope:+.2f} ATR sur 10 jours "
             f"(minimum {config.entry_ema200_slope_min:.2f}) : tendance pas assez haussière",
             rsi, (price - context.ema_50_h4) / atr, atr_pct,
         )

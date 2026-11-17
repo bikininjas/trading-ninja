@@ -7,6 +7,12 @@
   'use strict';
 
   const $ = (id) => document.getElementById(id);
+  function saveViewOption(key, value, defaultValue = '') {
+    const url = new URL(window.location.href);
+    if (String(value) === defaultValue || value === '') url.searchParams.delete(key);
+    else url.searchParams.set(key, value);
+    history.replaceState(null, '', url);
+  }
 
   // ---------------------------------------------------------------- login --
 
@@ -18,9 +24,10 @@
 
   // Chaque espace garde ses données et ses formulaires lors de la navigation.
   const VIEWS = {
-    overview: ['Vue d’ensemble', 'Votre capital, votre bot et vos protections. L’essentiel, au même endroit.'],
+    overview: ['Vue d’ensemble', 'Surveillez le moteur, comprenez les décisions et gardez le contrôle.'],
     portfolio: ['Portefeuille', 'Comprenez où se trouve votre capital et ce que rapportent vos transactions.'],
     decisions: ['Décisions & IA', 'Du signal à la décision : comprenez les choix du bot et de ses protections.'],
+    intel: ['Veille & IA', 'Les actualités collectées, l’analyse du marché et les réponses enregistrées de Qwen.'],
     activity: ['Activité', 'Retrouvez les signaux, les contrôles de risque, les ordres et les positions.'],
     settings: ['Réglages', 'Choisissez un profil et comprenez ses limites avant de l’enregistrer.'],
   };
@@ -224,6 +231,7 @@
   };
 
   const dateTime = (value) => {
+    if (!value) return '—';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '—';
     return date.toLocaleString('fr-FR', {
@@ -313,7 +321,8 @@
     return element;
   }
 
-  let currentRange = 'all';
+  const requestedRange = new URLSearchParams(location.search).get('range');
+  let currentRange = Object.hasOwn(RANGE_MS, requestedRange) ? requestedRange : 'all';
 
   function updateRangeButtons() {
     for (const button of document.querySelectorAll('[data-range]')) {
@@ -430,8 +439,8 @@
       id: 'equity-fill', x1: '0', y1: '0', x2: '0', y2: '1',
     });
     gradient.append(
-      svgEl('stop', { offset: '0%', 'stop-color': '#b7ef82', 'stop-opacity': '0.18' }),
-      svgEl('stop', { offset: '100%', 'stop-color': '#b7ef82', 'stop-opacity': '0' }),
+      svgEl('stop', { offset: '0%', 'stop-color': 'var(--accent)', 'stop-opacity': '0.18' }),
+      svgEl('stop', { offset: '100%', 'stop-color': 'var(--accent)', 'stop-opacity': '0' }),
     );
     defs.append(gradient);
     svg.append(defs);
@@ -797,6 +806,7 @@
     setText('stat-trades', `${pnl.wins ?? 0} / ${pnl.trades ?? 0}`);
     setText('stat-losses', `${pnl.losses ?? 0} perte(s)`);
     setText('stat-winrate', percent(pnl.win_rate));
+    setText('sample-note', pnl.trades < 20 ? 'échantillon limité' : 'historique du compte');
     setText('stat-r', rMultiple(pnl.r_multiple));
     setText('stat-fees', money(pnl.fees));
     setText('stat-payoff', pnl.payoff_ratio ?? '—');
@@ -1039,7 +1049,7 @@
 
   function markStatus() {
     lastStatusAt = Date.now();
-    setText('last-update', `maj ${timeOnly(new Date(lastStatusAt))}`);
+    setText('last-update', `reçu à ${timeOnly(new Date(lastStatusAt))}`);
     setText('updated-footer', timeOnly(new Date(lastStatusAt)));
     const element = $('last-update');
     if (element) element.classList.remove('stale');
@@ -1116,6 +1126,7 @@
     setText('runtime-position', positions.map((p) => p.symbol).join(', ') || 'Aucune position');
     setText('runtime-source', 'Statut API reçu');
     markStatus();
+    document.dispatchEvent(new CustomEvent('tn:status', { detail: status }));
   }
 
   let healthLoading = false;
@@ -1154,7 +1165,10 @@
     }
   }
 
+  let statusLoading = false;
   async function loadStatus() {
+    if (statusLoading) return false;
+    statusLoading = true;
     const sequence = statusSequence;
     try {
       const response = await fetch('/api/status', { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
@@ -1162,13 +1176,18 @@
         window.location.href = '/login';
         return false;
       }
-      if (!response.ok) return false;
+      if (!response.ok) throw new Error('Statut indisponible');
       const data = await response.json();
-      if (sequence === statusSequence) render(data);
+      if (sequence === statusSequence) {
+        render(data);
+        setConnection('statut reçu', true);
+      }
       return true;
     } catch {
-      /* le flux SSE reste la source principale */
+      if (sequence === statusSequence) setConnection('statut indisponible', false);
       return false;
+    } finally {
+      statusLoading = false;
     }
   }
 
@@ -1384,6 +1403,11 @@
 
   function applyProfileValues(profile) {
     if (!profile) return;
+    if (!$('timeframe-settings')?.disabled && profile.macro_timeframe && profile.eval_timeframe) {
+      $('set-macro-timeframe').value = profile.macro_timeframe;
+      $('set-macro-period').value = String(profile.macro_ema_period ?? 200);
+      $('set-eval-timeframe').value = profile.eval_timeframe;
+    }
     $('set-notional').max = String(Math.max(50, Number(profile.max_per_trade_pct) * 100));
     setRange('set-notional', Math.round(Number(profile.max_per_trade_pct) * 100));
     setRange('set-daily', Math.round(Number(profile.max_daily_loss_pct) * 100));
@@ -1393,6 +1417,14 @@
   }
 
   function renderSettings(settings) {
+    const macroKeys = ['macro_timeframe', 'macro_ema_period', 'eval_timeframe'];
+    const supportsMacro = record(settings) && macroKeys.every((key) => Object.hasOwn(settings, key));
+    if (record(settings) && macroKeys.some((key) => Object.hasOwn(settings, key))
+      && (!supportsMacro || !['1h', '4h', '1d'].includes(settings.macro_timeframe)
+        || !['1h', '4h', '1d'].includes(settings.eval_timeframe)
+        || !Number.isInteger(settings.macro_ema_period) || settings.macro_ema_period < 2 || settings.macro_ema_period > 500)) {
+      throw new Error('Boussole incomplète ; dernières valeurs conservées');
+    }
     const fields = ['max_per_trade_pct', 'max_daily_loss_pct', 'confidence_floor', 'halt_auto_resume_hours'];
     if (!record(settings) || typeof settings.profile !== 'string'
       || !fields.every((key) => numeric(settings[key])) || !count(settings.max_orders_per_hour)
@@ -1406,6 +1438,13 @@
       throw new Error('Réglages incomplets ; dernières valeurs conservées');
     }
     latestSettings = settings;
+    if ($('timeframe-settings')) {
+      $('timeframe-settings').hidden = !supportsMacro;
+      $('timeframe-settings').disabled = !supportsMacro;
+    }
+    if ($('set-macro-timeframe')) $('set-macro-timeframe').value = settings.macro_timeframe || '4h';
+    if ($('set-macro-period')) $('set-macro-period').value = String(settings.macro_ema_period ?? 200);
+    if ($('set-eval-timeframe')) $('set-eval-timeframe').value = settings.eval_timeframe || '4h';
     settingsProfiles = settings.profiles || [];
     fillProfileOptions(settingsProfiles, settings.profile);
     const selectedProfile = settingsProfiles.find((profile) => profile.key === settings.profile);
@@ -1533,6 +1572,11 @@
       max_open_positions: Number(optionValue('set-positions') || 1),
       confidence_floor: Number(optionValue('set-confidence')) / 100,
       entry_rule_enabled: Boolean($('set-entry-rule')?.checked),
+      ...(!$('timeframe-settings')?.disabled ? {
+        macro_timeframe: optionValue('set-macro-timeframe'),
+        macro_ema_period: Number(optionValue('set-macro-period')),
+        eval_timeframe: optionValue('set-eval-timeframe'),
+      } : {}),
       halt_auto_resume_hours: Number(optionValue('set-halt')),
     };
     if (save) save.disabled = true;
@@ -1582,10 +1626,72 @@
 
   // -------------------------------------------------------------- activité --
 
+  // Les valeurs du journal sont des Decimal sérialisés : grouper les chiffres
+  // sans conversion en flottant, ni perte des décimales enregistrées.
+  function decimalDisplay(value) {
+    if (value === null || value === undefined || value === '') return '—';
+    const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(String(value));
+    if (!match) return String(value);
+    const fraction = (match[3] || '').replace(/0+$/, '');
+    return `${match[1]}${BigInt(match[2]).toLocaleString('fr-FR')}${fraction ? `,${fraction}` : ''}`;
+  }
+  const eventDateFormat = new Intl.DateTimeFormat('fr-FR', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short',
+  });
+  function eventDateTime(value) {
+    return timestamp(value) ? eventDateFormat.format(new Date(value)) : '—';
+  }
+  function positiveDecimal(value) {
+    return /^\d+(?:\.\d+)?$/.test(String(value)) && /[1-9]/.test(String(value));
+  }
+
+  function renderActivitySummary(rows) {
+    const guides = {
+      llm_signals: ['Les intentions du modèle', 'Un signal n’est pas un ordre exécuté. Le score du modèle n’est pas une probabilité de gain.'],
+      risk_evaluations: ['Les décisions du pare-feu', 'Une validation autorise une intention ; elle ne prouve pas son exécution. Les refus sont des protections, pas des pannes.'],
+      orders: ['Les opérations enregistrées', 'Les statuts inconnus et les exécutions partielles demandent une vérification. Un ordre rejeté n’est pas une transaction close.'],
+      positions: ['Le cycle de vie des positions', 'Le résultat net est celui enregistré par le ledger. Inspectez une ligne pour ouvrir son diagnostic et rapprocher les identifiants.'],
+    };
+    const [title, description] = guides[activityTable];
+    setText('activity-context-title', title); setText('activity-context-description', description);
+    const counts = activityTable === 'llm_signals'
+      ? [['Achats proposés', rows.filter((r) => r.action === 'BUY').length], ['Attentes', rows.filter((r) => r.action === 'HOLD').length], ['Ventes / arrêts', rows.filter((r) => ['SELL', 'HALT'].includes(r.action)).length]]
+      : activityTable === 'risk_evaluations'
+        ? [['Validations', rows.filter((r) => r.approved === true).length], ['Refus', rows.filter((r) => r.approved === false).length], ['Verdicts inconnus', rows.filter((r) => typeof r.approved !== 'boolean').length]]
+        : activityTable === 'orders'
+          ? [['Exécutés', rows.filter((r) => r.status === 'FILLED').length], ['Partiels / en attente', rows.filter((r) => ['PARTIALLY_FILLED', 'PENDING', 'SUBMITTED'].includes(r.status)).length], ['Inconnus / rejetés', rows.filter((r) => !Object.hasOwn(ORDER_STATUS_LABELS, r.status) || ['UNKNOWN', 'REJECTED'].includes(r.status)).length]]
+          : [['Ouvertes', rows.filter((r) => r.status === 'OPEN').length], ['Closes', rows.filter((r) => r.status === 'CLOSED').length], ['Liquidées', rows.filter((r) => r.status === 'EMERGENCY_LIQUIDATED').length]];
+    const box = $('activity-summary'); box?.replaceChildren();
+    for (const [label, count] of counts) {
+      const item = document.createElement('div'), value = document.createElement('strong'), caption = document.createElement('span');
+      value.textContent = String(count); caption.textContent = label; item.append(value, caption); box?.append(item);
+    }
+  }
+
+  let inspectedPositionId = null;
+  function inspectActivity(row) {
+    setText('activity-detail-title', `${row.symbol || 'Événement'} · ${eventDateTime(row.created_at || row.opened_at)}`);
+    setText('activity-detail-content', JSON.stringify(row, null, 2));
+    inspectedPositionId = activityTable === 'positions' ? row.id : row.position_id;
+    $('activity-diagnose').hidden = !/^[0-9a-f-]{36}$/i.test(inspectedPositionId || '');
+    $('activity-detail-dialog').showModal();
+  }
+  $('activity-detail-close')?.addEventListener('click', () => $('activity-detail-dialog').close());
+  $('activity-diagnose')?.addEventListener('click', () => {
+    if (!inspectedPositionId) return;
+    $('activity-detail-dialog').close();
+    window.location.hash = 'decisions';
+    const input = $('diagnostic-id'); input.value = inspectedPositionId;
+    input.closest('details').open = true;
+    $('diagnostic-form').requestSubmit();
+    requestAnimationFrame(() => { input.scrollIntoView({ block: 'center' }); input.focus({ preventScroll: true }); });
+  });
+
   const ACTIVITY = {
     llm_signals: {
       columns: [
-        { key: 'created_at', label: 'Heure', format: dateTime, className: 'cell-time' },
+        { key: 'created_at', label: 'Date de l’événement', format: eventDateTime, className: 'cell-time' },
         { key: 'symbol', label: 'Paire', className: 'cell-mono' },
         {
           key: 'action',
@@ -1594,7 +1700,7 @@
           className: 'cell-action',
           decorate: (cell, row) => { cell.dataset.action = String(row.action || '').toLowerCase(); },
         },
-        { key: 'confidence', label: 'Conf.', format: percent, className: 'cell-num' },
+        { key: 'confidence', label: 'Score du modèle', format: percent, className: 'cell-num' },
         { key: 'market_regime', label: 'Régime', format: regimeLabel, className: 'cell-muted' },
         { key: 'thesis', label: 'Thèse', className: 'cell-thesis', title: true },
         { key: 'prompt', label: 'Prompt', className: 'cell-muted' },
@@ -1602,14 +1708,14 @@
     },
     risk_evaluations: {
       columns: [
-        { key: 'created_at', label: 'Heure', format: dateTime, className: 'cell-time' },
+        { key: 'created_at', label: 'Date de l’événement', format: eventDateTime, className: 'cell-time' },
         { key: 'symbol', label: 'Paire', className: 'cell-mono' },
         {
           key: 'approved',
           label: 'Verdict',
-          format: (value) => (value ? 'Accepté' : 'Refusé'),
+          format: (value) => (value === true ? 'Accepté' : value === false ? 'Refusé' : 'Inconnu'),
           className: 'cell-verdict',
-          decorate: (cell, row) => { cell.dataset.verdict = row.approved ? 'ok' : 'danger'; },
+          decorate: (cell, row) => { cell.dataset.verdict = row.approved === true ? 'ok' : row.approved === false ? 'danger' : 'unknown'; },
         },
         {
           key: 'rejection_code',
@@ -1618,18 +1724,18 @@
           className: 'cell-muted',
           titleFrom: 'rejection_code',
         },
-        { key: 'market_price', label: 'Prix', format: money, className: 'cell-num' },
+        { key: 'market_price', label: 'Prix / unité', format: decimalDisplay, className: 'cell-num' },
         {
           key: 'effective_risk_quote',
           label: 'Risque',
-          format: (value) => (value === null || value === undefined ? '—' : `${money(value)} EUR`),
+          format: (value) => (value === null || value === undefined ? '—' : `${decimalDisplay(value)} EUR`),
           className: 'cell-num',
         },
       ],
     },
     orders: {
       columns: [
-        { key: 'created_at', label: 'Heure', format: dateTime, className: 'cell-time' },
+        { key: 'created_at', label: 'Date de l’événement', format: eventDateTime, className: 'cell-time' },
         { key: 'symbol', label: 'Paire', className: 'cell-mono' },
         {
           key: 'side',
@@ -1640,26 +1746,33 @@
         },
         { key: 'purpose', label: 'Rôle', format: purposeLabel, className: 'cell-muted' },
         { key: 'status', label: 'Statut', format: orderStatusLabel, className: 'cell-muted' },
-        { key: 'requested_amount', label: 'Quantité', format: amount, className: 'cell-num' },
-        { key: 'average_fill_price', label: 'Prix moyen', format: money, className: 'cell-num' },
-        { key: 'fee_amount', label: 'Frais', format: money, className: 'cell-num' },
+        { key: 'requested_amount', label: 'Quantité', format: decimalDisplay, className: 'cell-num' },
+        { key: 'average_fill_price', label: 'Prix moyen / unité', format: (value, row) => positiveDecimal(row.filled_amount) ? decimalDisplay(value) : '—', className: 'cell-num' },
+        { key: 'fee_amount', label: 'Frais', format: (value, row) => `${decimalDisplay(value)} ${row.fee_currency || '(devise inconnue)'}`, className: 'cell-num' },
       ],
     },
     positions: {
       columns: [
-        { key: 'opened_at', label: 'Ouverte', format: dateTime, className: 'cell-time' },
+        { key: 'opened_at', label: 'Ouverte le', format: eventDateTime, className: 'cell-time' },
         { key: 'symbol', label: 'Paire', className: 'cell-mono' },
         { key: 'status', label: 'Statut', format: positionStatusLabel, className: 'cell-muted' },
-        { key: 'entry_price', label: 'Entrée', format: money, className: 'cell-num' },
-        { key: 'initial_amount', label: 'Quantité', format: amount, className: 'cell-num' },
-        { key: 'net_pnl_quote', label: 'Net', format: money, className: 'cell-num' },
+        { key: 'entry_price', label: 'Entrée / unité', format: decimalDisplay, className: 'cell-num' },
+        { key: 'initial_amount', label: 'Quantité', format: decimalDisplay, className: 'cell-num' },
+        { key: 'net_pnl_quote', label: 'Net réalisé', format: decimalDisplay, className: 'cell-num' },
         { key: 'exit_reason', label: 'Sortie', className: 'cell-muted', title: true },
       ],
     },
   };
 
-  let activityTable = 'llm_signals';
+  const initialOptions = new URLSearchParams(location.search);
+  const requestedTable = initialOptions.get('table');
+  let activityTable = Object.hasOwn(ACTIVITY, requestedTable) ? requestedTable : 'llm_signals';
+  if (['10', '25', '50'].includes(initialOptions.get('limit'))) $('activity-limit').value = initialOptions.get('limit');
+  if ($('activity-search')) $('activity-search').value = (initialOptions.get('q') || '').slice(0, 200);
   let activityRequest = 0;
+  let activityLoadedRows = [];
+  let activityLoadedAt = null;
+  let activityLoadedTable = null;
 
   function renderActivityHead() {
     const head = $('activity-head');
@@ -1672,6 +1785,7 @@
       th.textContent = column.label;
       row.append(th);
     }
+    const detail = document.createElement('th'); detail.scope = 'col'; detail.textContent = 'Détail'; row.append(detail);
     head.replaceChildren(row);
   }
 
@@ -1682,11 +1796,12 @@
     if (!body || !config) return;
     const row = document.createElement('tr');
     const cell = document.createElement('td');
-    cell.colSpan = config.columns.length;
+    cell.colSpan = config.columns.length + 1;
     cell.className = 'muted';
     cell.textContent = message;
     row.append(cell);
     body.replaceChildren(row);
+    setText('activity-search-count', '0 ligne affichée');
   }
 
   function renderActivity(rows) {
@@ -1694,9 +1809,10 @@
     const config = ACTIVITY[activityTable];
     if (!body || !config) return;
 
+    renderActivitySummary(rows);
     if (!rows || rows.length === 0) {
       renderActivityError('Aucune ligne enregistrée pour cette vue.');
-      setText('activity-meta', '0 ligne · à jour');
+      setText('activity-meta', `0 ligne · lecture ${timeOnly(activityLoadedAt || new Date())}`);
       return;
     }
 
@@ -1704,6 +1820,7 @@
     if ($('activity-export')) $('activity-export').disabled = false;
     for (const data of rows) {
       const row = document.createElement('tr');
+      if (activityTable === 'orders' && (!Object.hasOwn(ORDER_STATUS_LABELS, data.status) || ['UNKNOWN', 'PARTIALLY_FILLED', 'REJECTED'].includes(data.status))) row.dataset.attention = 'true';
       for (const column of config.columns) {
         const cell = document.createElement('td');
         if (column.key === 'prompt') {
@@ -1724,10 +1841,32 @@
         column.decorate?.(cell, data);
         row.append(cell);
       }
+      const detailCell = document.createElement('td');
+      const detailButton = document.createElement('button'); detailButton.type = 'button'; detailButton.className = 'ghost'; detailButton.textContent = 'Inspecter';
+      detailButton.setAttribute('aria-label', `Inspecter ${data.symbol || 'l’événement'} du ${dateTime(data.created_at || data.opened_at)}`);
+      detailButton.addEventListener('click', () => inspectActivity(data)); detailCell.append(detailButton); row.append(detailCell);
       body.append(row);
     }
-    setText('activity-meta', `${rows.length} ligne(s) · maj ${timeOnly(new Date())}`);
+    setText('activity-meta', `${rows.length} ligne(s) · lecture ${timeOnly(activityLoadedAt || new Date())}`);
+    filterActivity();
   }
+
+  function filterActivity() {
+    const query = ($('activity-search')?.value || '').trim().toLocaleLowerCase('fr');
+    const rows = [...document.querySelectorAll('#activity-body tr')];
+    let visible = 0;
+    for (const row of rows) {
+      row.hidden = query !== '' && !row.textContent.toLocaleLowerCase('fr').includes(query);
+      if (!row.hidden) visible += 1;
+    }
+    const hasData = rows.some((row) => row.children.length > 1);
+    setText('activity-search-count', query ? `${hasData ? visible : 0} ligne(s) correspondante(s) sur ${hasData ? rows.length : 0}` : 'Filtre local · jusqu’à 50 lignes');
+    if ($('activity-export')) $('activity-export').disabled = !visible || !rows.some((row) => row.children.length > 1);
+  }
+  $('activity-search')?.addEventListener('input', () => {
+    saveViewOption('q', $('activity-search').value.trim());
+    filterActivity();
+  });
 
   async function inspectPrompt(signalId) {
     if (!signalId) return;
@@ -1768,37 +1907,49 @@
         return;
       }
       if (!response.ok) {
-        renderActivityError('Historique indisponible.');
-        setText('activity-meta', 'indisponible');
-        return;
+        throw new Error('Historique indisponible');
       }
       data = await response.json();
+      if (!record(data) || !Array.isArray(data.rows) || !data.rows.every((row) => record(row)
+        && typeof row.id === 'string' && typeof row.symbol === 'string'
+        && timestamp(row[activityTable === 'positions' ? 'opened_at' : 'created_at']))) throw new Error('Réponse incomplète');
     } catch (error) {
       if (request !== activityRequest) return;
-      renderActivityError(`Réseau : ${error.message}`);
-      setText('activity-meta', 'hors ligne');
+      $('activity-warning').hidden = false;
+      setText('activity-warning', activityLoadedTable === activityTable ? `Historique indisponible ou incomplet. Dernière lecture conservée à ${timeOnly(activityLoadedAt)}. Réessayez avec Rafraîchir.` : 'Historique indisponible. Réessayez avec Rafraîchir.');
+      if (activityLoadedTable !== activityTable) renderActivityError('Aucune donnée valide reçue.');
+      setText('activity-meta', 'lecture non actualisée');
       return;
     }
 
     if (request !== activityRequest) return;
     try {
-      renderActivity(Array.isArray(data.rows) ? data.rows : []);
+      activityLoadedRows = data.rows; activityLoadedAt = new Date(); activityLoadedTable = activityTable;
+      $('activity-warning').hidden = true;
+      renderActivity(data.rows);
     } catch (error) {
       renderActivityError(`Affichage : ${error.message}`);
       setText('activity-meta', 'erreur d’affichage');
     }
   }
 
-  function selectActivityTable(table) {
+  function selectActivityTable(table, preserveSearch = false) {
     if (!ACTIVITY[table]) return;
     activityTable = table;
+    saveViewOption('table', table, 'llm_signals');
+    if (!preserveSearch && $('activity-search')) {
+      $('activity-search').value = '';
+      saveViewOption('q', '');
+    }
     for (const tab of document.querySelectorAll('[role="tab"][data-table]')) {
       const active = tab.dataset.table === table;
       tab.setAttribute('aria-selected', active ? 'true' : 'false');
       tab.tabIndex = active ? 0 : -1;
     }
     $('activity-panel')?.setAttribute('aria-labelledby', `tab-${table}`);
+    $('activity-warning').hidden = true;
     renderActivityHead();
+    renderActivitySummary([]);
     renderActivityError('Chargement…');
     loadActivity();
   }
@@ -1820,7 +1971,10 @@
     });
   });
 
-  $('activity-limit')?.addEventListener('change', loadActivity);
+  $('activity-limit')?.addEventListener('change', () => {
+    saveViewOption('limit', $('activity-limit').value, '25');
+    loadActivity();
+  });
   $('activity-refresh')?.addEventListener('click', loadActivity);
   $('activity-export')?.addEventListener('click', () => {
     // Neutraliser les formules de tableur, y compris dans les thèses du modèle.
@@ -1829,8 +1983,13 @@
       if (/^[\s]*[=+\-@]/.test(text)) text = `'${text}`;
       return `"${text.replace(/"/g, '""')}"`;
     };
-    const rows = [$('activity-head').querySelector('tr'), ...$('activity-body').querySelectorAll('tr')];
-    const csv = '\uFEFF' + rows.filter(Boolean).map((row) => [...row.children].map((cell) => escape(cell.textContent)).join(';')).join('\r\n');
+    const visibleIndices = [...$('activity-body').querySelectorAll('tr')].flatMap((row, index) => row.hidden ? [] : [index]);
+    const rows = visibleIndices.map((index) => activityLoadedRows[index]).filter(Boolean);
+    if (!rows.length) return;
+    const columns = [...new Set(['id', ...ACTIVITY[activityTable].columns.map((column) => column.key).filter((key) => key !== 'prompt'),
+      ...rows.flatMap((row) => Object.keys(row).filter((key) => /_id$/.test(key))), ...(activityTable === 'orders' ? ['filled_amount', 'fee_currency'] : [])])];
+    const csv = '\uFEFF' + [columns, ...rows.map((row) => columns.map((key) => row[key] ?? ''))]
+      .map((row) => row.map(escape).join(';')).join('\r\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
     link.href = url; link.download = `trading-ninja-${activityTable}-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -1845,6 +2004,7 @@
     element.textContent = label;
     element.dataset.online = online ? 'true' : 'false';
     document.body.dataset.connected = String(online);
+    document.dispatchEvent(new CustomEvent('tn:connection', { detail: online }));
     const warning = $('data-warning');
     if (warning) {
       warning.hidden = online;
@@ -1860,7 +2020,7 @@
   stream.onmessage = (event) => {
     try {
       render(JSON.parse(event.data));
-      setConnection('en ligne', true);
+      setConnection('flux connecté', true);
     } catch {
       setConnection('statut invalide', false);
     }
@@ -1875,6 +2035,7 @@
   for (const button of document.querySelectorAll('[data-range]')) {
     button.addEventListener('click', () => {
       currentRange = button.dataset.range || 'all';
+      saveViewOption('range', currentRange, 'all');
       updateRangeButtons();
       // Le dernier jeu de points reste en mémoire : pas besoin de rappeler l'API.
       renderEquityChart(latestEquityPoints);
@@ -1886,7 +2047,6 @@
     button.disabled = true;
     try {
       await Promise.allSettled([loadStatus(), loadStats(), loadHealth(), loadActivity()]);
-      if (!$('view-decisions').hidden) $('insights-refresh')?.click();
       setText('refresh-feedback', 'Actualisation terminée. Les données indisponibles conservent leur dernier état.');
     } finally { button.disabled = false; }
   });
@@ -1903,12 +2063,11 @@
     }
   });
   for (const id of ['equity-chart', 'daily-chart']) if ($(id)) chartResize.observe($(id));
-  renderActivityHead();
   loadStatus();
   loadStats();
   loadHealth();
   loadSettings();
-  loadActivity();
+  selectActivityTable(activityTable, true);
   setInterval(loadStats, 15_000);
   setInterval(loadHealth, 30_000);
   setInterval(loadActivity, 20_000);
@@ -1919,8 +2078,8 @@
     const element = $('last-update');
     if (!element) return;
     element.textContent = age <= 2
-      ? `maj ${timeOnly(new Date(lastStatusAt))}`
-      : `maj il y a ${age} s`;
+      ? `reçu à ${timeOnly(new Date(lastStatusAt))}`
+      : `reçu il y a ${age} s`;
     element.classList.toggle('stale', age > 10);
     if (age > 10) setConnection('données anciennes', false);
   }, 1_000);

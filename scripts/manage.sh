@@ -3,9 +3,9 @@
 # Gestion des composants Trading Ninja
 # =============================================================================
 #
-#   scripts/manage.sh start   [api|dashboard|engine|all]
-#   scripts/manage.sh stop    [api|dashboard|engine|all]
-#   scripts/manage.sh restart [api|dashboard|engine|all]
+#   scripts/manage.sh start   [api|dashboard|engine|intel|all]
+#   scripts/manage.sh stop    [api|dashboard|engine|intel|all]
+#   scripts/manage.sh restart [api|dashboard|engine|intel|all]
 #   scripts/manage.sh status
 #   scripts/manage.sh logs    [api|dashboard|all]
 #
@@ -63,7 +63,39 @@ engine_systemd_installed() {
 }
 
 engine_systemctl() {
-  if [[ $EUID == 0 ]]; then systemctl "$@"; else sudo systemctl "$@"; fi
+  if [[ $EUID == 0 ]]; then /usr/bin/systemctl "$@"; else sudo -n /usr/bin/systemctl "$@"; fi
+}
+
+intel_systemd_installed() {
+  [[ "$(systemctl show trading-ninja-market-intel.service -p LoadState --value 2>/dev/null || true)" == loaded ]]
+}
+
+# Vérifier toutes les autorisations avant de toucher aux processus, notamment
+# avant un restart all depuis un terminal WSL non interactif.
+preflight_systemd_permissions() {
+  local action="$1" target="$2" unit verb
+  local -a units=() verbs=()
+  [[ $EUID != 0 ]] || return 0
+  if [[ "$target" == engine || "$target" == all ]] && engine_systemd_installed; then
+    units+=(trading-ninja@engine)
+  fi
+  if [[ "$target" == intel || "$target" == all ]] && intel_systemd_installed; then
+    units+=(trading-ninja-market-intel.service)
+  fi
+  case "$action" in
+    start) verbs=(start) ;;
+    stop) verbs=(stop) ;;
+    restart) verbs=(stop start) ;;
+  esac
+  for unit in "${units[@]}"; do
+    for verb in "${verbs[@]}"; do
+      # « sudo -l » seul confirme aussi les règles exigeant un mot de passe.
+      if ! sudo -n -l /usr/bin/systemctl "$verb" "$unit" >/dev/null 2>&1 ||
+         { ! sudo -n -v >/dev/null 2>&1 && ! sudo -n -l -l /usr/bin/systemctl "$verb" "$unit" 2>/dev/null | grep -Eq '^[[:space:]]*Options:.*!authenticate'; }; then
+        die "autorisation sudo sans mot de passe absente pour $verb $unit. Installer avec : sudo bash deploy/install-manage-sudoers.sh"
+      fi
+    done
+  done
 }
 
 # Motif présent dans la ligne de commande du processus attendu.
@@ -205,6 +237,14 @@ wait_ready() {
 
 start_one() {
   local name="$1" pid log dir
+  if [[ "$name" == intel ]]; then
+    if ! intel_systemd_installed; then info 'veille MarketIntel non installée'; return 0; fi
+    if systemctl is-active --quiet trading-ninja-market-intel.service; then ok 'veille MarketIntel déjà active'; return 0; fi
+    engine_systemctl start trading-ninja-market-intel.service
+    systemctl is-active --quiet trading-ninja-market-intel.service || { warn 'veille MarketIntel non active ; consulter les journaux'; return 1; }
+    ok 'veille MarketIntel lancée'
+    return 0
+  fi
   if [[ "$name" == engine ]] && engine_systemd_installed; then
     if systemctl is-active --quiet trading-ninja@engine; then
       ok 'engine systemd déjà actif'
@@ -271,6 +311,16 @@ start_one() {
 
 stop_one() {
   local name="$1" pid i
+  if [[ "$name" == intel ]]; then
+    if ! intel_systemd_installed; then info 'veille MarketIntel non installée'; return 0; fi
+    if systemctl is-active --quiet trading-ninja-market-intel.service; then
+      engine_systemctl stop trading-ninja-market-intel.service || return 1
+      ok 'veille MarketIntel arrêtée'
+    else
+      printf '[arrêté] veille MarketIntel\n'
+    fi
+    return 0
+  fi
   if [[ "$name" == engine ]] && engine_systemd_installed; then
     if systemctl is-active --quiet trading-ninja@engine; then
       engine_systemctl stop trading-ninja@engine || return 1
@@ -319,6 +369,16 @@ stop_one() {
 
 status_one() {
   local name="$1" pid port
+  if [[ "$name" == intel ]]; then
+    if ! intel_systemd_installed; then printf '%-10s %s\n' intel 'non installée'; return 0; fi
+    if systemctl is-active --quiet trading-ninja-market-intel.service; then
+      pid="$(systemctl show trading-ninja-market-intel.service -p MainPID --value)"
+      printf '%-10s %-9s PID %-7s %s\n' intel 'en cours' "$pid" 'veille PAPER (systemd)'
+    else
+      printf '%-10s %-9s %s\n' intel "$(systemctl is-failed --quiet trading-ninja-market-intel.service && printf échec || printf arrêté)" 'veille PAPER (systemd)'
+    fi
+    return 0
+  fi
   if [[ "$name" == engine ]] && engine_systemd_installed; then
     if systemctl is-active --quiet trading-ninja@engine; then
       pid="$(systemctl show trading-ninja@engine -p MainPID --value)"
@@ -341,6 +401,11 @@ status_one() {
 
 logs_one() {
   local name="$1" file
+  if [[ "$name" == intel ]]; then
+    intel_systemd_installed || { printf '%s\n' 'veille MarketIntel non installée'; return 0; }
+    journalctl --no-pager -u trading-ninja-market-intel.service -n "${MANAGE_LOG_LINES:-60}"
+    return
+  fi
   if [[ "$name" == engine ]] && engine_systemd_installed; then
     printf '%s\n' '--- engine (systemd) ---'
     journalctl --no-pager -u trading-ninja@engine -n "${MANAGE_LOG_LINES:-60}"
@@ -360,7 +425,8 @@ do_start() {
     api)       start_one api ;;
     dashboard) start_one dashboard ;;
     engine)    start_one engine ;;
-    all)       start_one api; start_one dashboard; start_one engine ;;
+    intel)     start_one intel ;;
+    all)       start_one api; start_one dashboard; start_one intel; start_one engine ;;
     *)         usage; exit 2 ;;
   esac
 }
@@ -370,7 +436,8 @@ do_stop() {
     api)       stop_one api ;;
     dashboard) stop_one dashboard ;;
     engine)    stop_one engine ;;
-    all)       local failed=0; stop_one engine || failed=1; stop_one dashboard || failed=1; stop_one api || failed=1; return "$failed" ;;
+    intel)     stop_one intel ;;
+    all)       local failed=0; stop_one engine || failed=1; stop_one intel || failed=1; stop_one dashboard || failed=1; stop_one api || failed=1; return "$failed" ;;
     *)         usage; exit 2 ;;
   esac
 }
@@ -379,14 +446,15 @@ usage() {
   cat <<'EOF'
 Usage : scripts/manage.sh <action> [composant]
 
-  start   api|dashboard|engine|all   démarre en arrière-plan (engine toujours PAPER)
-  stop    api|dashboard|engine|all   arrête (TERM, puis KILL après 5 s)
-  restart api|dashboard|engine|all   arrête puis redémarre
-  status                              état des trois composants
-  logs    api|dashboard|engine|all   dernières lignes des journaux
+  start   api|dashboard|engine|intel|all   démarre (engine toujours PAPER)
+  stop    api|dashboard|engine|intel|all   arrête
+  restart api|dashboard|engine|intel|all   arrête puis redémarre
+  status                                    état des composants
+  logs    api|dashboard|engine|intel|all   dernières lignes des journaux
 
 Journaux et fichiers PID : scripts/.run/ ; moteur systemd : journalctl.
-Si le service systemd est installé, start/stop du moteur peuvent demander sudo.
+Pour les services systemd, installer les autorisations ciblées une seule fois :
+sudo bash deploy/install-manage-sudoers.sh
 EOF
 }
 
@@ -394,12 +462,12 @@ ACTION="${1:-}"
 TARGET="${2:-all}"
 
 case "$ACTION" in
-  start)   do_start "$TARGET" ;;
-  stop)    do_stop "$TARGET" ;;
-  restart) do_stop "$TARGET"; do_start "$TARGET" ;;
+  start)   preflight_systemd_permissions start "$TARGET"; do_start "$TARGET" ;;
+  stop)    preflight_systemd_permissions stop "$TARGET"; do_stop "$TARGET" ;;
+  restart) preflight_systemd_permissions restart "$TARGET"; do_stop "$TARGET"; do_start "$TARGET" ;;
   status)  printf 'Trading Ninja — %s\n\n' "$(date '+%Y-%m-%d %H:%M:%S')"
-           status_one api; status_one dashboard; status_one engine ;;
-  logs)    if [[ "$TARGET" == all ]]; then logs_one api; printf '\n'; logs_one dashboard; printf '\n'; logs_one engine
+           status_one api; status_one dashboard; status_one engine; status_one intel ;;
+  logs)    if [[ "$TARGET" == all ]]; then logs_one api; printf '\n'; logs_one dashboard; printf '\n'; logs_one engine; printf '\n'; logs_one intel
            else logs_one "$TARGET"; fi ;;
   -h|--help|help) usage ;;
   *)       usage; exit 2 ;;

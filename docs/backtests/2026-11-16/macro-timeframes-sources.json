@@ -1,0 +1,26 @@
+{
+  "BTC/EUR": {
+    "1h": {
+      "count": 4320,
+      "inserted_local": 4320,
+      "sha256": "9e131e675b03ba1e3c56c75c5d20f14bf74d5045a77b40400b513eedb19c14e5"
+    },
+    "4h": {
+      "count": 1080,
+      "inserted_local": 1080,
+      "sha256": "06b696a095637ddb1472b79fa7be811ef225de69fd85128ebfab032df2a500ea"
+    }
+  },
+  "ETH/EUR": {
+    "1h": {
+      "count": 4320,
+      "inserted_local": 4320,
+      "sha256": "cbe8ce72201cff9f5461db335e938d42994575b62bb8cbb67646aa3dcfeb3a00"
+    },
+    "4h": {
+      "count": 1080,
+      "inserted_local": 1080,
+      "sha256": "02ccf0406b0520d551e758a8a5f91ebb6d68091925ceaa01858e99c36a94bcf2"
+    }
+  }
+}

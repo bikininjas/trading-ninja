@@ -37,7 +37,6 @@ from app.backtest.engine import (
 from app.backtest.swing import (
     _atr_series,
     _bollinger,
-    _ema_series,
     _rolling_min_inclusive,
     _rsi_series,
 )
@@ -52,7 +51,7 @@ from app.engine.risk_gate import (
     evaluate,
 )
 from app.execution.paper import PaperBroker
-from app.market.feed import MarketContext
+from app.market.feed import MarketContext, _ema_series
 
 __all__ = [
     "MeanReversionSeries",
@@ -207,15 +206,16 @@ def run_mean_reversion_backtest(
         raise ValueError(f"exit_mode inconnu : {exit_mode!r}")
     # Le stop de ce laboratoire est structurel par construction : le pare-feu
     # reçoit le creux des 10 bougies, jamais un multiple ATR du timeframe.
+    paper = broker or PaperBroker(info.taker_fee, settings.paper_slippage_bps)
     config: RiskConfig = replace(
         settings.risk,
+        execution_fee_pct=paper.execution_fee_pct,
         stop_mode=StopMode.STRUCTURAL_D1,
         take_profit_r_multiple=Decimal(0),
         allow_counter_trend=allow_counter_trend,
     )
     settings = replace(settings, risk=config)
     series = MeanReversionSeries(candles)
-    paper = broker or PaperBroker(info.taker_fee, settings.paper_slippage_bps)
 
     first = max(start_index or 0, WARMUP)
     last = min(end_index if end_index is not None else len(candles) - 1,

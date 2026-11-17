@@ -21,14 +21,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any
+from typing import Any, Sequence
+import logging
+import time
 
 import ccxt
+import httpx
 
 from app.engine.risk_gate import MarketSnapshot
 from app.exchange.kraken import KrakenMarketInfo, market_info
 
 TREND_SLOPE_LOOKBACK = 60  # 60 bougies H4 = 10 jours
+LOG = logging.getLogger(__name__)
 
 __all__ = [
     "D1Context",
@@ -113,6 +117,7 @@ class MarketContext:
     last_closed_h1_low: Decimal = Decimal("0")
     # Contexte D1, lu par SWING_MACRO_D1. None = indisponible, le mode refuse.
     d1: D1Context | None = None
+    intel: dict | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,17 +136,56 @@ def _decimal(value: Any) -> Decimal:
 
 
 def closed_candles(exchange: Any, symbol: str, timeframe: str, limit: int,
-                   now_ms: int | None = None) -> list[list]:
+                   now_ms: int | None = None, *, cache_loader=None,
+                   sleep=None, attempts: int = 3) -> list[list]:
     """Bougies dont la fenêtre est terminée, la plus ancienne d'abord."""
     if timeframe not in TIMEFRAME_MS:
         raise FeedError(f"timeframe non géré : {timeframe}")
-    try:
-        candles = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-    except ccxt.NetworkError as exc:
-        raise FeedError(f"{symbol} : données {timeframe} indisponibles ({type(exc).__name__})") from exc
+    pause = sleep or time.sleep
+    failure = None
+    for attempt in range(attempts):
+        try:
+            candles = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+            break
+        except (ccxt.NetworkError, httpx.TransportError) as exc:
+            failure = exc
+            if attempt + 1 < attempts:
+                pause(min(4.0, 2.0 ** attempt))
+    else:
+        if cache_loader is None:
+            raise FeedError(f"{symbol} : données {timeframe} indisponibles ({type(failure).__name__})") from failure
+        now = now_ms if now_ms is not None else exchange.milliseconds()
+        try:
+            candles = cache_loader(symbol, timeframe, limit, now)
+            validate_cached_candles(candles, timeframe, now)
+        except Exception as exc:
+            raise FeedError(f"{symbol} : données {timeframe} indisponibles ; cache SQL refusé ({type(exc).__name__})") from failure
+        LOG.warning("market_candles_sql_fallback", extra={"symbol": symbol, "timeframe": timeframe,
+                    "source": "market_candles_history", "attempts": attempts,
+                    "age_ms": now - candles[-1][0] - TIMEFRAME_MS[timeframe]})
     now = now_ms if now_ms is not None else exchange.milliseconds()
     duration = TIMEFRAME_MS[timeframe]
     return [c for c in candles if c[0] + duration <= now]
+
+
+def validate_cached_candles(candles, timeframe, now_ms):
+    """Un cache n'est utilisable que complet, causal, continu et récent."""
+    duration = TIMEFRAME_MS[timeframe]
+    if not candles or not 0 <= now_ms - candles[-1][0] - duration < duration:
+        raise FeedError("cache vide, ancien ou futur")
+    previous = None
+    for row in candles:
+        if len(row) < 6 or type(row[0]) is not int or row[0] % duration:
+            raise FeedError("bougie SQL mal formée")
+        values = [_decimal(value) for value in row[1:6]]
+        if not all(value.is_finite() for value in values) or min(values[:4]) <= 0 or values[4] < 0:
+            raise FeedError("OHLCV SQL invalide")
+        o, h, l, c, _ = values
+        if not l <= min(o, c) <= max(o, c) <= h or row[0] + duration > now_ms:
+            raise FeedError("OHLCV SQL incohérent ou futur")
+        if previous is not None and row[0] - previous != duration:
+            raise FeedError("cache SQL discontinu")
+        previous = row[0]
 
 
 def ema(values: list, period: int = EMA_PERIOD) -> Decimal:
@@ -189,7 +233,7 @@ def rsi(candles: list[list], period: int = RSI_PERIOD) -> Decimal:
     return Decimal("100") - (Decimal("100") / (Decimal(1) + rs))
 
 
-def _ema_series(values: list[Decimal], period: int) -> list[Decimal]:
+def _ema_series(values: Sequence[Decimal], period: int) -> list[Decimal]:
     alpha = Decimal(2) / Decimal(period + 1)
     out = [values[0]]
     for value in values[1:]:
@@ -282,7 +326,7 @@ def build_d1_context(
     rsi_at_peak = rsi(candles[: peak_offset + 1], RSI_PERIOD)
     divergence = closes[-1] > upper and rsi_14 < rsi_at_peak - Decimal(2)
 
-    last, previous = candles[-1], candles[-2]
+    last = candles[-1]
     return D1Context(
         ema_20=ema_20,
         ema_50=ema_50,
@@ -318,6 +362,10 @@ def build_snapshot(
     with_d1: bool = False,
     chandelier_period: int = D1_DONCHIAN,
     validate_windows: bool = False,
+    macro_timeframe: str = "4h",
+    macro_ema_period: int = 200,
+    trend_buffer_pct: Decimal = Decimal("0.005"),
+    cache_loader=None,
 ) -> SymbolState:
     """Construit l'instantané que consomment le pare-feu et le modèle.
 
@@ -329,12 +377,19 @@ def build_snapshot(
     moment = now or datetime.now(timezone.utc)
     market = info or market_info(exchange, symbol)
 
-    decision_candles = closed_candles(exchange, symbol, decision_timeframe, 320)
-    entry_candles = closed_candles(exchange, symbol, entry_timeframe, 120)
-    d1_candles = (
-        closed_candles(exchange, symbol, "1d", D1_WARMUP + 60)
-        if with_d1 else []
-    )
+    if macro_timeframe not in TIMEFRAME_MS or (type(macro_ema_period) is not int or not 2 <= macro_ema_period <= 500):
+        raise FeedError("boussole macro invalide")
+    lookback = 10 * TIMEFRAME_MS["1d"] // TIMEFRAME_MS[macro_timeframe]
+    limits = {decision_timeframe: 320}
+    limits[entry_timeframe] = max(limits.get(entry_timeframe, 0), 120)
+    limits[macro_timeframe] = max(limits.get(macro_timeframe, 0), macro_ema_period + lookback + 1)
+    if with_d1:
+        limits["1d"] = max(limits.get("1d", 0), D1_WARMUP + 60)
+    series = {tf: closed_candles(exchange, symbol, tf, limit, cache_loader=cache_loader)
+              for tf, limit in limits.items()}
+    decision_candles, entry_candles = series[decision_timeframe], series[entry_timeframe]
+    macro_candles = series[macro_timeframe]
+    d1_candles = series["1d"] if with_d1 else []
     if len(decision_candles) < EMA_PERIOD + 1:
         raise FeedError(
             f"{symbol} : {len(decision_candles)} bougies {decision_timeframe} clôturées, "
@@ -347,7 +402,7 @@ def build_snapshot(
         )
 
     if validate_windows:
-        for rows,timeframe in ((decision_candles,decision_timeframe),(entry_candles,entry_timeframe)):
+        for timeframe, rows in series.items():
             step=TIMEFRAME_MS[timeframe]
             expected=int(moment.timestamp()*1000)//step*step
             if rows[-1][0]+step!=expected:
@@ -358,6 +413,13 @@ def build_snapshot(
     price = _decimal(closes[-1])
     ema_200 = ema(closes, EMA_PERIOD)
     atr_h4 = atr(decision_candles, ATR_PERIOD)
+    macro_closes = [c[4] for c in macro_candles]
+    if (macro_timeframe != "4h" or macro_ema_period != 200) and len(macro_closes) <= macro_ema_period + lookback:
+        raise FeedError(f"{symbol} : historique macro {macro_timeframe} insuffisant pour EMA{macro_ema_period} et sa pente")
+    macro_value = ema(macro_closes, macro_ema_period)
+    macro_atr = atr(macro_candles, ATR_PERIOD)
+    macro_slope = ((macro_value - ema(macro_closes[:-lookback], macro_ema_period)) / macro_atr
+                   if len(macro_closes) > macro_ema_period + lookback and macro_atr > 0 else Decimal(0))
     if len(closes) > EMA_PERIOD + TREND_SLOPE_LOOKBACK:
         ema_200_prev = ema(closes[:-TREND_SLOPE_LOOKBACK], EMA_PERIOD)
         ema_200_slope_atr = (ema_200 - ema_200_prev) / atr_h4 if atr_h4 > 0 else Decimal(0)
@@ -390,6 +452,10 @@ def build_snapshot(
     )
 
     snapshot = MarketSnapshot(
+        macro_timeframe=macro_timeframe, macro_ema_period=macro_ema_period,
+        macro_ema_value=macro_value, macro_ema_slope_atr=macro_slope,
+        macro_ema_threshold_with_margin=macro_value * (1 + trend_buffer_pct),
+        eval_timeframe=decision_timeframe,
         symbol=symbol,
         price=price,
         ema_200_h4=ema_200,

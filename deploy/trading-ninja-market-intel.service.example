@@ -1,0 +1,29 @@
+# Worker PAPER, même qwen3.5:9b que le moteur, aucun téléchargement.
+[Unit]
+Description=Trading Ninja - veille publique MarketIntel PAPER
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trading-ninja
+Group=trading-ninja
+WorkingDirectory=/opt/trading-ninja/current/backend
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/trading-ninja/current/backend/.venv/bin/python scripts/market_intel.py --config /etc/trading-ninja/market-intel.env --serve
+Restart=on-failure
+RestartSec=60
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

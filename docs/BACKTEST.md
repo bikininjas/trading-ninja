@@ -887,3 +887,63 @@ Validation du changement : golden et empreinte strictement identiques sans bless
 `bash scripts/check.sh` : **TOUT EST VERT**, dont 32 tests Node et 15 migrations
 conformes. Vérifications effectuées sur le venv Python 3.15.2 disponible ; runtime
 de livraison 3.13.17 non installé ici, qualification de release distincte.
+
+## Comparaison multi-bougies rapide — 16 novembre 2026
+
+Douze scénarios réellement exécutés sur BTC/EUR et ETH/EUR, fenêtre commune
+**11 août 2026 12:00 → 10 novembre 2026 12:00 UTC**. Bougie d’évaluation **4h**,
+mode `EMA50_H4`, pente macro minimale **1 ATR sur dix jours**, profil `micro`
+(risque 1,75 %, exposition 50 %), capital indépendant **1 000 EUR** par scénario,
+frais taker **80 pb par côté**, glissement **5 pb**. Coupe-circuits du profil
+conservés. Cette configuration de laboratoire ne modifie pas le compte PAPER.
+
+Les huit lignes demandées :
+
+| Paire | Boussole | Trades | PnL net EUR | PF | Drawdown |
+|---|---|---:|---:|---:|---:|
+| BTC/EUR | EMA200 4h | 0 | 0,00 | — | 0,00 % |
+| BTC/EUR | EMA100 4h | 0 | 0,00 | — | 0,00 % |
+| BTC/EUR | EMA50 4h | 0 | 0,00 | — | 0,00 % |
+| BTC/EUR | EMA200 1h | 0 | 0,00 | — | 0,00 % |
+| ETH/EUR | EMA200 4h | 0 | 0,00 | — | 0,00 % |
+| ETH/EUR | EMA100 4h | 0 | 0,00 | — | 0,00 % |
+| ETH/EUR | EMA50 4h | 0 | 0,00 | — | 0,00 % |
+| ETH/EUR | EMA200 1h | 0 | 0,00 | — | 0,00 % |
+
+Les quatre variantes supplémentaires EMA50/100 H1 n’ont pas davantage de trades.
+Aucune supériorité économique n’est démontrée : pas d’exposition, pas de trade,
+pas de PF ni de taux de réussite interprétable. Ce résultat ne prouve pas que les
+boussoles sont équivalentes. **EMA200 H4 reste le défaut**, sans assouplissement
+pour fabriquer un achat. Les mesures H4 sur 24 mois précédentes restent datées
+de leur version ; cette courte recette ne les remplace pas.
+
+Les données ont été copiées depuis `market_candles_history` dans une transaction
+source **READ ONLY**, puis importées uniquement dans PostgreSQL local jetable.
+Par paire : 4 320 H1 et 1 080 H4 dans la copie de 180 jours. La commande utilise
+60 jours d’échauffement hors mesure : **3 624 H1 / 906 H4**, zéro trou H4 sur cette
+fenêtre. La copie ne constitue pas une nouvelle ingestion sur Supabase.
+
+```bash
+# DATABASE_URL désigne exclusivement la base locale de mesure.
+TRADING_MODE=paper EXCHANGE_ID=kraken RISK_PROFILE=micro \
+EVAL_TIMEFRAME=4h MARKET_INTEL_ENABLED=false \
+python backend/scripts/backtest.py sweep \
+  --symbols BTC/EUR,ETH/EUR --months 3 \
+  --as-of 2026-11-10T12:00:00+00:00 --equity 1000 \
+  --macro-timeframes 4h,1h --macro-ema-periods 200,100,50 \
+  --eval-timeframe 4h --entry-modes EMA50_H4 --slopes 1.0 --fee-bps 80 \
+  --output-json docs/backtests/2026-11-16/macro-timeframes-3m.json
+```
+
+Résultats et empreintes :
+[12 scénarios](backtests/2026-11-16/macro-timeframes-3m.json),
+[sources de la copie](backtests/2026-11-16/macro-timeframes-sources.json).
+Le sweep accepte aussi `--macro-timeframes 1h,4h,1d`. La D1 est agrégée depuis
+les H4 complètes, sans interpolation ; sa profondeur nécessite un échauffement
+plus long. Le rejeu golden par défaut reste strictement identique,
+**−34,8828 EUR**, sans `--bless` ni réenregistrement.
+
+H1-200 et H4-50 ont un horizon nominal identique (200 heures), pas une EMA
+identique : la formule exponentielle et les clôtures diffèrent. Les paramètres,
+la portée des noms historiques et les limites de cache sont décrits dans
+[MULTI_BOUGIES_ET_MARKET_INTEL.md](MULTI_BOUGIES_ET_MARKET_INTEL.md).

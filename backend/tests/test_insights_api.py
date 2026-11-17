@@ -44,6 +44,30 @@ def test_observation_routes_are_private(api):
     ]:
         assert client.get(path).status_code == 401
         assert client.get(path, headers=headers).status_code == 200
+    assert client.get('/api/insights/market-intel').status_code==401
+
+
+def test_intel_api_returns_the_selected_source_snapshot_and_final_response(api):
+    from unittest.mock import AsyncMock
+    client,ledger,_,headers=api
+    digest_id=uuid.uuid4()
+    payload={'as_of':NOW,'selected':{'id':digest_id,'source_items':[{'title':'Public headline'}],
+             'analysis_response':'{"catalyst_summary":"Attendre."}'},'active':None,'history':[]}
+    ledger.market_intel_dashboard=AsyncMock(return_value=payload)
+    response=client.get('/api/insights/market-intel',params={'digest_id':str(digest_id)},headers=headers)
+    assert response.status_code==200 and response.json()['selected']['source_items'][0]['title']=='Public headline'
+    assert response.json()['selected']['analysis_response']==payload['selected']['analysis_response']
+    assert ledger.market_intel_dashboard.call_args.args[1]==digest_id
+    assert client.get('/api/insights/market-intel?digest_id=invalid',headers=headers).status_code==422
+
+
+@pytest.mark.parametrize('error,code',[(LookupError('missing'),404),(RuntimeError('private SQL details'),503)])
+def test_intel_api_does_not_expose_private_storage_errors(api,error,code):
+    from unittest.mock import AsyncMock
+    client,ledger,_,headers=api
+    ledger.market_intel_dashboard=AsyncMock(side_effect=error)
+    response=client.get('/api/insights/market-intel',headers=headers)
+    assert response.status_code==code and 'private SQL' not in response.text
 
 
 def test_entry_permission_changes_do_not_resume_emergency_halts(api):
@@ -173,6 +197,17 @@ def test_old_protection_observation_never_looks_fresh(api):
     }
     result = client.get("/api/insights/protection", headers=headers)
     assert result.status_code == 200 and result.json()["freshness"] == "STALE"
+
+
+def test_overview_uses_applied_cadence_after_hot_reload(api):
+    from unittest.mock import AsyncMock
+    client, ledger, settings, headers = api
+    ledger.settings_state=AsyncMock(return_value={'applied_payload':{'eval_timeframe':'1h'}})
+    result=client.get('/api/insights/overview?days=1',headers=headers)
+    assert result.status_code==200
+    opportunities=result.json()['opportunities']
+    assert opportunities['eval_timeframe']=='1h'
+    assert opportunities['expected_windows_current_config']==24*len(settings.exchange.allowed_symbols)
 
 
 @pytest.mark.parametrize("problem", ["dead_runtime", "missing_runtime", "incomplete", "incident", "not_monitored", "invalid", "notification_pending", "notification_unknown"])

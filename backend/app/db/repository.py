@@ -1171,6 +1171,28 @@ class PostgresRepository(InsightsStore, LearningStore):
         )
         return [dict(row) for row in rows]
 
+    async def market_intel_dashboard(self, now, selected_id=None):
+        from app.intel.store import dashboard_digests
+        async with asyncio.timeout(5):
+            return await dashboard_digests(self._conn, now, selected_id)
+
+    async def cached_market_candles(self, symbol, timeframe, limit, now_ms):
+        from app.market.feed import TIMEFRAME_MS
+        from datetime import timezone
+        end = datetime.fromtimestamp((now_ms - TIMEFRAME_MS[timeframe]) / 1000, timezone.utc)
+        async with asyncio.timeout(5):
+            rows = await self._conn.fetch(
+                "SELECT open_time,open_price,high_price,low_price,close_price,volume "
+                "FROM market_candles_history WHERE symbol=$1 AND timeframe=$2 AND open_time <= $3 "
+                "ORDER BY open_time DESC LIMIT $4", symbol, timeframe, end, limit)
+        return [[int(row['open_time'].timestamp()*1000), row['open_price'], row['high_price'],
+                 row['low_price'], row['close_price'], row['volume']] for row in reversed(rows)]
+
+    async def market_intel(self, now):
+        from app.intel.store import latest_digest
+        async with asyncio.timeout(5):
+            return await latest_digest(self._conn, now)
+
 
     @asynccontextmanager
     async def financial_lock(self,mode,*,wait=False):

@@ -8,6 +8,13 @@ from app.runtime.heartbeat import MAX_AGE_SECONDS
 CYCLE_BUDGET_SECONDS = 30
 
 
+def applied_timeframe(state, fallback):
+    """La cadence souhaitée n'est pas appliquée tant qu'une position la diffère."""
+    payload = (state or {}).get("applied_payload") or {}
+    value = payload.get("eval_timeframe")
+    return value if value in {"1h", "4h", "1d"} else fallback
+
+
 def cycle_deadline(started_at, status, timeframe):
     from app.runtime.scheduler import next_candle_close, decision_delay_seconds
 

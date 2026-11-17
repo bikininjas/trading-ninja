@@ -1,0 +1,5 @@
+{
+  "market_intel_model": "qwen2.5:14b-instruct-q4_K_M",
+  "installed": false,
+  "trading_model_installed": true
+}

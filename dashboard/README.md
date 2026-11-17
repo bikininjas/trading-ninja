@@ -1,6 +1,6 @@
-# Dashboard v2 — supervision et pilotage
+# Dashboard v3 — supervision et pilotage
 
-État au 11 novembre 2026. Le plan de déploiement et de passage au réel est
+État au 16 novembre 2026. Le plan de déploiement et de passage au réel est
 [ROADMAP.md](../docs/ROADMAP.md).
 
 Le dashboard est une **interface d'administration**, pas un produit grand public. Il
@@ -49,17 +49,19 @@ le JWT côté serveur, d'appliquer une CSP stricte et de limiter les routes expo
 
 1. `GET /events` ouvre un flux SSE.
 2. Le serveur Node interroge `GET /api/status` toutes les `DASHBOARD_POLL_MS`
-   (2 000 ms par défaut) et pousse chaque résultat.
+   (2 000 ms par défaut) et pousse chaque résultat. Un appel en cours empêche
+   le lancement d’un autre appel du même flux.
 3. Le navigateur met à jour l'état, l'équité, la position, les jauges de risque et le
    compte à rebours d'un éventuel `HALT`.
 4. Les statistiques lourdes (`/api/stats`) sont chargées au démarrage puis toutes les
-   15 s. L'historique détaillé (`/api/history/...`) est chargé à la demande.
+   15 s. L’historique détaillé (`/api/history/...`) est relu toutes les 20 s.
+   Les observations sont relues toutes les 30 s, avec un seul appel en vol.
 
 Une session expirée produit un événement SSE `expired` ; la page renvoie vers
 `/login`. Si le flux tombe, le bandeau de connexion passe à « hors ligne » mais les
 dernières données restent lisibles.
 
-## 3. Les cinq espaces du dashboard v2
+## 3. Les cinq espaces du dashboard v3
 
 La navigation latérale remplace la page unique. Chaque espace possède un lien
 permanent (`/#overview`, `/#portfolio`, `/#decisions`, `/#activity`, `/#settings`).
@@ -69,10 +71,10 @@ au clavier.
 
 | Espace | Contenu |
 |---|---|
-| Vue d’ensemble | Capital total, résultat net, taux de réussite, recul du capital, courbe interactive, état du bot, jauges de risque et position ouverte |
+| Vue d’ensemble | Situation actuelle, flux API distinct du moteur surveillé, achats autorisés/suspendus, révisions appliquées, causes observées sur 7 jours, compteurs, positions, capital et limites |
 | Portefeuille | Disponible, capital actif, réserve, cagnotte, solde engagé, statistiques de transactions et résultats quotidiens |
 | Décisions & IA | Dernière analyse du modèle, refus du pare-feu, parcours des cycles, rejeu, diagnostics, politiques, expériences, scores, protections, achats non pris et leçons |
-| Activité | Signaux, pare-feu, ordres et positions ; limite 10/25/50 et export CSV des lignes affichées |
+| Activité | Résumés par onglet, recherche locale, anomalies d’ordres, inspection des sources, liens vers les diagnostics, limite 10/25/50 et export CSV des sources filtrées |
 | Réglages | Profil, limites modifiables, révisions demandée/appliquée, exemples fictifs en euros, comparaison et glossaire |
 
 Le bouton **Piloter le bot**, accessible dans chaque espace, ouvre les commandes :
@@ -81,8 +83,7 @@ du coupe-circuit. La liquidation conserve la confirmation `PANIC` et le TOTP fra
 La pause complète est refusée si une position est ouverte ; la suspension des achats
 conserve la gestion des positions. Le bandeau d’arrêt reste visible dans chaque espace.
 
-**Actualiser** relit le statut, les statistiques, la santé et l’activité. Dans
-Décisions & IA, il relance également les observations. Les réglages en cours de saisie
+**Actualiser** relit le statut, les statistiques, la santé et l’activité. Il relance également les observations dans tous les espaces. Les réglages en cours de saisie
 ne sont pas écrasés : leur bouton **Recharger** est explicite. L’enregistrement
 indique une demande en attente tant que le moteur n’a pas confirmé sa révision.
 
@@ -94,11 +95,30 @@ Un statut de plus de dix secondes est signalé comme ancien. Une réponse HTTP d
 statut commencée avant un événement SSE ne peut pas écraser ce dernier. Les appels
 de statistiques et de santé ne se chevauchent pas.
 
+L’onglet, la limite, la recherche et la période de courbe sont conservés dans l’URL
+(`?table=orders&limit=10&q=BTC#activity` par exemple). La recherche porte sur les
+lignes chargées et l’export suit ce filtre. Les compteurs décrivent le lot entier
+avant recherche. Les dates des événements incluent année, secondes et fuseau.
+Une réponse invalide ou indisponible conserve la dernière lecture du même onglet,
+avec sa date et un avertissement. Inspecter une ligne ouvre les valeurs sources
+et permet de lancer le diagnostic de la position liée. Un verdict absent reste
+inconnu ; un prix moyen sans quantité exécutée n’est pas présenté comme un fill.
+
 L’export CSV est local, limité aux lignes affichées et neutralise les cellules
 susceptibles d’être interprétées comme des formules par un tableur. Il n’ajoute
-aucune route d’extraction ni aucun accès à la base.
+aucune route d’extraction ni aucun accès à la base. Il utilise les valeurs sources
+avec leurs décimales et leurs identifiants, sans convertir l’argent en flottant.
+Les polices IBM Plex Sans sont servies localement, sous SIL OFL ; aucun CDN
+n’est appelé par le navigateur.
 
-La connexion reprend le langage visuel de la v2. Les sessions, la CSP et les
+La synthèse des motifs porte sur les événements observés des **7 derniers jours**.
+Elle distingue opportunités, tentatives et achats exécutés ; elle signale une
+collecte tronquée et n’attribue aucun motif certain à la prochaine décision.
+Une API joignable ne constitue pas une preuve de vie du moteur : seule une preuve
+de surveillance valide et non expirée est affichée comme confirmée.
+Voir [l’évaluation et les limites](../docs/audits/2026-11-16/dashboard-review.md).
+
+La connexion reprend le langage visuel du poste de contrôle. Les sessions, la CSP et les
 contrats API sont conservés. Le panneau d’observation conserve les contrôles de
 révision et les confirmations TOTP décrits dans
 [OBSERVATION_ET_RECHERCHE.md](../docs/OBSERVATION_ET_RECHERCHE.md).
@@ -228,9 +248,9 @@ cd dashboard && node server.js     # http://127.0.0.1:8081
 Tests :
 
 ```bash
-cd dashboard && npm test               # 32 tests Node
-cd backend && .venv/bin/python -m pytest  # 921 collectés, dont 63 PostgreSQL opt-in
-python scripts/check_dashboard_browser.py /tmp/tn-dashboard-v2
+cd dashboard && npm test               # 33 tests Node
+cd backend && .venv/bin/python -m pytest  # 981 collectés, dont 65 PostgreSQL opt-in
+python scripts/check_dashboard_browser.py /tmp/tn-dashboard-v3
 bash scripts/check.sh                   # vérification globale
 ```
 
@@ -333,3 +353,30 @@ les frais sont déjà inclus dans ces résultats.
 Les plans de simulation incohérents sont écartés sans PnL. Une panne de cours
 laisse les lignes concernées en attente et n’empêche pas les autres marchés
 d’être évalués ; ce passage échoue sans publier de nouvelles leçons.
+
+### Boussole multi-bougies (candidate D-097)
+
+Sur une API compatible, les réglages ajoutent `macro_timeframe`,
+`macro_ema_period` et `eval_timeframe`. Le formulaire conserve les révisions et
+la prévisualisation ; une cadence modifiée est différée si une position reste
+ouverte. La boussole d’une position versionnée reste immuable. Les refus
+techniques indiquent désormais EMA, unité et seuil calculé.
+
+Avec une ancienne API, ce bloc reste masqué et aucun champ supplémentaire ne lui
+est envoyé. Le moteur/API installé n’est pas remplacé par une modification des
+fichiers du dashboard. Détails : [guide](../docs/MULTI_BOUGIES_ET_MARKET_INTEL.md).
+
+### Veille & IA
+
+`/#intel` affiche les titres collectés pour une analyse précise, leurs sources,
+dates et liens, la synthèse Qwen 9B et sa réponse finale. Recherche locale,
+filtre CoinDesk/Cointelegraph, douze analyses récentes et lien direct par UUID.
+Le veto courant reste distinct de l’archive consultée et expire sans attendre
+un nouveau chargement. Erreur HTTP : derniers titres conservés, veto non confirmé.
+Les anciennes analyses sans sources stockées le signalent explicitement.
+
+Les dix derniers signaux de trading ont leur propre date : thèse conservée,
+action retenue, réponse initiale et contexte transmis. La lecture ne déclenche
+ni collecte, ni inférence, ni commande financière. Sources/réponse détaillées
+exigent 0017 et une API/worker à jour. Le proxy reste authentifié ; les secrets
+SQL/Ollama ne sont jamais transmis au navigateur.

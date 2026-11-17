@@ -6,6 +6,8 @@ from app.insights.codec import encode, decode, digest
 STRATEGIC = frozenset(
     {
         "entry_mode",
+        "macro_timeframe",
+        "macro_ema_period",
         "stop_mode",
         "stop_atr_multiple",
         "take_profit_r_multiple",
@@ -44,7 +46,10 @@ def apply_policy(settings, policy):
         raise ValueError("politique de position invalide")
     if body["timeframe"] != settings.exchange.daily_timeframe_decision:
         raise ValueError("cadence de position incompatible")
-    params = body["parameters"]
+    params = dict(body["parameters"])
+    # Les politiques v1 historiques utilisaient la série de décision comme macro.
+    params.setdefault("macro_timeframe", body["timeframe"])
+    params.setdefault("macro_ema_period", 200)
     if set(params) - STRATEGIC:
         raise ValueError("une politique ne peut remplacer une limite de sécurité")
     return replace(
@@ -63,6 +68,9 @@ def settings_impact(before, after, positions):
         for f in fields(before.risk)
         if getattr(before.risk, f.name) != getattr(after.risk, f.name)
     }
+    if before.exchange.daily_timeframe_decision != after.exchange.daily_timeframe_decision:
+        changes["eval_timeframe"] = {"before": before.exchange.daily_timeframe_decision,
+            "after": after.exchange.daily_timeframe_decision, "scope": "SCHEDULER_WHEN_FLAT"}
     return {
         "changes": changes,
         "positions": [

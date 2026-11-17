@@ -27,7 +27,7 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
@@ -64,6 +64,9 @@ class OptionalTotpRequest(BaseModel):
 
 
 class SettingsUpdate(BaseModel):
+    macro_timeframe: Literal["1h", "4h", "1d"] | None = None
+    macro_ema_period: int | None = Field(default=None, ge=2, le=500)
+    eval_timeframe: Literal["1h", "4h", "1d"] | None = None
     expected_revision: int | None = Field(default=None, ge=0)
     """Réglages du dashboard. Les pourcentages sont des fractions (0,50 = 50 %)."""
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -14,6 +15,7 @@ from app.backtest.mean_reversion import (
 )
 from app.core.settings import load_settings
 from app.engine.risk_gate import ExchangeConstraints
+from app.execution.paper import PaperBroker
 
 SYMBOL = "BTC/EUR"
 STEP_MS = 4 * 3_600_000
@@ -123,6 +125,20 @@ def test_the_exit_can_wait_for_a_close_above_the_middle_band(tmp_path):
 
     assert touch.trades[0].reason == "MID_BAND_TOUCH"
     assert close.trades[0].reason == "MID_BAND_CLOSE"
+
+
+def test_cost_aware_sizing_uses_the_broker_fee(tmp_path):
+    settings = settings_for(tmp_path)
+    settings = replace(settings, risk=replace(
+        settings.risk, cost_aware=True, min_net_reward_to_risk=Decimal("0.01"),
+        risk_per_trade_pct=Decimal("0.001"),
+    ))
+    results = [run_mean_reversion_backtest(
+        symbol=SYMBOL, info=info(), candles=dip_candles(), settings=settings,
+        allow_counter_trend=True, broker=PaperBroker(fee, 5),
+    ) for fee in (Decimal("0"), Decimal("0.008"))]
+    assert all(len(result.trades) == 1 for result in results)
+    assert results[1].trades[0].amount < results[0].trades[0].amount
 
 
 def test_an_invalid_exit_mode_is_refused(tmp_path):

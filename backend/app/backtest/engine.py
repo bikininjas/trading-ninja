@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import statistics
 from collections import Counter
-from dataclasses import dataclass, replace, field
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Awaitable, Callable
@@ -30,7 +30,6 @@ from typing import Any, Awaitable, Callable
 from app.engine.risk_gate import (
     AccountState,
     Action,
-    ExchangeConstraints,
     MarketRegime,
     MarketSnapshot,
     RiskConfig,
@@ -344,7 +343,15 @@ class BacktestResult:
 class ReplayExchange:
     """Exchange factice : ne sert que des bougies clôturées à l'instant courant."""
 
-    def __init__(self, h4: list[list], h1: list[list]) -> None:
+    def __init__(self, h4: list[list], h1: list[list], *, series=None,
+                 decision_timeframe="4h", macro_timeframe="4h", macro_ema_period=200,
+                 trend_buffer_pct=Decimal("0.005")) -> None:
+        self.decision_timeframe = decision_timeframe
+        self.macro_timeframe = macro_timeframe
+        self.macro_ema_period = macro_ema_period
+        self.trend_buffer_pct = trend_buffer_pct
+        self.step = TIMEFRAME_MS[decision_timeframe]
+        self.series = {"4h": h4, "1h": h1, decision_timeframe: h4, **(series or {})}
         self._h4 = sorted(h4, key=lambda c: c[0])
         self._h1 = sorted(h1, key=lambda c: c[0])
         self._now_ms = 0
@@ -357,12 +364,9 @@ class ReplayExchange:
 
     def fetch_ohlcv(self, symbol: str, timeframe: str, since: int | None = None,
                     limit: int | None = None) -> list[list]:
-        if timeframe == DECISION_TIMEFRAME:
-            series, duration = self._h4, DECISION_MS
-        elif timeframe == "1h":
-            series, duration = self._h1, TIMEFRAME_MS["1h"]
-        else:
+        if timeframe not in self.series:
             raise FeedError(f"timeframe non géré en rejeu : {timeframe}")
+        series, duration = self.series[timeframe], TIMEFRAME_MS[timeframe]
         closed = [c for c in series if c[0] + duration <= self._now_ms]
         if since is not None:
             closed = [c for c in closed if c[0] >= since]
@@ -371,8 +375,8 @@ class ReplayExchange:
         return closed
 
 
-def _close_time(candle: list) -> datetime:
-    return datetime.fromtimestamp((candle[0] + DECISION_MS) / 1000, tz=timezone.utc)
+def _close_time(candle: list, step=DECISION_MS) -> datetime:
+    return datetime.fromtimestamp((candle[0] + step) / 1000, tz=timezone.utc)
 
 
 def _decimal(value: Any) -> Decimal:
@@ -394,11 +398,13 @@ def _drawdowns(curve: list[tuple[datetime, Decimal]], at: datetime) -> tuple[Dec
 def _state_at(replay, symbol, info, at, cache):
     # Cache local à une paire et un jeu de bougies, partagé par les scénarios.
     # Les états sont immuables et ne dépendent ni des frais ni de la politique.
+    options = dict(decision_timeframe=replay.decision_timeframe, macro_timeframe=replay.macro_timeframe,
+                   macro_ema_period=replay.macro_ema_period, trend_buffer_pct=replay.trend_buffer_pct)
     if cache is None:
-        return build_snapshot(replay, symbol, info=info, now=at, with_order_book=False)
+        return build_snapshot(replay, symbol, info=info, now=at, with_order_book=False, **options)
     if at not in cache:
         try:
-            cache[at] = build_snapshot(replay, symbol, info=info, now=at, with_order_book=False)
+            cache[at] = build_snapshot(replay, symbol, info=info, now=at, with_order_book=False, **options)
         except FeedError:
             cache[at] = None
     if cache[at] is None:
@@ -408,7 +414,7 @@ def _state_at(replay, symbol, info, at, cache):
 
 def zone_is_open(snapshot: MarketSnapshot, context: MarketContext, config: RiskConfig) -> bool:
     """Les conditions où un BUY a seulement le droit d'exister (miroir du client LLM)."""
-    macro_ema = getattr(snapshot, f"ema_{config.macro_ema_period}_h4")
+    macro_ema = snapshot.macro_ema(config.macro_ema_period)[0] if hasattr(snapshot, "macro_ema") else getattr(snapshot, f"ema_{config.macro_ema_period}_h4")
     if snapshot.price <= macro_ema * (1 + config.trend_buffer_pct):
         return False
     if context.rsi_14_h4 >= RSI_MAX_BUY:
@@ -472,6 +478,7 @@ async def _simulate_trade(
     max_hold_candles: int = 0,
     stop_index: int | None = None,
     snapshot_cache: dict[datetime, SymbolState | None] | None = None,
+    replay_options: dict | None = None,
 ) -> tuple[int, Fill, str, list[Any], bool]:
     """Simule une position bougie par bougie, avec sorties stop/TP et LLM.
 
@@ -486,7 +493,7 @@ async def _simulate_trade(
         raise ValueError("sortie simulée sans quantité ou sans stop")
 
     config = replace(config, execution_fee_pct=broker.execution_fee_pct)
-    replay = ReplayExchange(h4, h1)
+    replay = ReplayExchange(h4, h1, **(replay_options or {}))
     ceiling = len(h4) - 1 if stop_index is None else min(stop_index, len(h4) - 1)
     last_index = ceiling if max_hold_candles <= 0 else min(
         ceiling, entry_index + max_hold_candles
@@ -494,7 +501,7 @@ async def _simulate_trade(
     exit_signals: list[Any] = []
 
     for j in range(entry_index + 1, last_index + 1):
-        replay.set_now(h4[j][0] + DECISION_MS)
+        replay.set_now(h4[j][0] + replay.step)
         trigger = PaperBroker.exit_trigger(stop, take, h4[j])
         if trigger is not None:
             price, reason = trigger
@@ -507,7 +514,7 @@ async def _simulate_trade(
             price_tick=info.constraints.price_tick, config=config,
         )
 
-        at = _close_time(h4[j])
+        at = _close_time(h4[j], replay.step)
         try:
             state = _state_at(replay, symbol, info, at, snapshot_cache)
         except FeedError:
@@ -546,12 +553,12 @@ def _max_drawdown(curve: list[tuple[datetime, Decimal]]) -> Decimal:
 
 
 def _record_trade_curve(curve, h4, entry_index, exit_index, equity_before,
-                        entry, exit_fill, broker):
+                        entry, exit_fill, broker, step=DECISION_MS):
     """Valorisation à chaque clôture, frais de liquidation inclus, sans futur."""
     for j in range(entry_index, exit_index):
         value = broker.exit(entry.amount, _decimal(h4[j][4]))
-        curve.append((_close_time(h4[j]), equity_before + _pnl(entry, value)))
-    curve.append((_close_time(h4[exit_index]), equity_before + _pnl(entry, exit_fill)))
+        curve.append((_close_time(h4[j], step), equity_before + _pnl(entry, value)))
+    curve.append((_close_time(h4[exit_index], step), equity_before + _pnl(entry, exit_fill)))
 
 
 async def run_backtest(
@@ -571,6 +578,7 @@ async def run_backtest(
     progress: Callable[[int, int], None] | None = None,
     use_entry_rule: bool = True,
     snapshot_cache: dict[datetime, SymbolState | None] | None = None,
+    series: dict | None = None,
 ) -> BacktestResult:
     """Rejoue une fenêtre et rend les métriques. Ne touche ni au réseau ni à la base."""
     if len(h4) < EMA_PERIOD + 2:
@@ -579,7 +587,12 @@ async def run_backtest(
     config: RiskConfig = settings.risk
     paper_broker = broker or PaperBroker(info.taker_fee, settings.paper_slippage_bps)
     config = replace(config, execution_fee_pct=paper_broker.execution_fee_pct)
-    replay = ReplayExchange(h4, h1)
+    replay_options = dict(series=series, decision_timeframe=getattr(getattr(settings, "exchange", None), "daily_timeframe_decision", "4h"),
+                          macro_timeframe=config.macro_timeframe, macro_ema_period=config.macro_ema_period,
+                          trend_buffer_pct=config.trend_buffer_pct)
+    replay = ReplayExchange(h4, h1, **replay_options)
+    step = replay.step
+    close_time = lambda candle: _close_time(candle, step)
 
     first = start_index if start_index is not None else EMA_PERIOD + 1
     last = end_index if end_index is not None else len(h4) - 1
@@ -587,29 +600,28 @@ async def run_backtest(
     if last < first:
         raise ValueError("fenêtre de backtest vide")
 
-    curve: list[tuple[datetime, Decimal]] = [(_close_time(h4[first - 1]), _decimal(settings.paper_start_equity))]
+    curve: list[tuple[datetime, Decimal]] = [(close_time(h4[first - 1]), _decimal(settings.paper_start_equity))]
     equity = _decimal(settings.paper_start_equity)
     consecutive_losses = 0
     trades: list[TradeRecord] = []
     decisions = 0
     buy = hold = downgraded = degraded = approvals = 0
     sell = halt = llm_exits = 0
-    halted = False
     rejections: Counter = Counter()
     counterfactual_rows: list[Counterfactual] = []
     inference: list[int] = []
     baseline_trades: list[TradeRecord] = []
     baseline_equity = equity
-    baseline_curve: list[tuple[datetime, Decimal]] = [(_close_time(h4[first - 1]), equity)]
+    baseline_curve: list[tuple[datetime, Decimal]] = [(close_time(h4[first - 1]), equity)]
     baseline_consecutive = 0
     policy = getattr(settings, "capital_policy", CapitalPolicy())
-    capital = start_capital(equity, _close_time(h4[first-1])) if policy.enabled else None
+    capital = start_capital(equity, close_time(h4[first-1])) if policy.enabled else None
     baseline_capital = capital
 
     i = first
     while i <= last:
-        replay.set_now(h4[i][0] + DECISION_MS)
-        at = _close_time(h4[i])
+        replay.set_now(h4[i][0] + step)
+        at = close_time(h4[i])
         try:
             state = _state_at(replay, symbol, info, at, snapshot_cache)
         except FeedError:
@@ -638,13 +650,14 @@ async def run_backtest(
                 confidence=1.0,
                 market_regime=MarketRegime.TRENDING_UP,
             )
+            daily, weekly, hwm = _drawdowns(baseline_curve, at)
             account = AccountState(
                 equity_quote=baseline_capital.active_quote if baseline_capital else baseline_equity,
                 free_quote=baseline_capital.active_quote if baseline_capital else baseline_equity,
                 consecutive_losses=baseline_consecutive,
-                daily_drawdown_pct=_drawdowns(baseline_curve, at)[0],
-                weekly_drawdown_pct=_drawdowns(baseline_curve, at)[1],
-                drawdown_from_hwm_pct=max(_drawdowns(baseline_curve, at)[2], baseline_capital.active_drawdown if baseline_capital else Decimal(0)),
+                daily_drawdown_pct=daily,
+                weekly_drawdown_pct=weekly,
+                drawdown_from_hwm_pct=max(hwm, baseline_capital.active_drawdown if baseline_capital else Decimal(0)),
             )
             decision = evaluate(intent, state.snapshot, account, info.constraints, config)
             if decision.approved:
@@ -657,16 +670,16 @@ async def run_backtest(
                 if baseline_capital is not None:
                     pnl = pnl.quantize(Decimal("0.0000000001"))
                 _record_trade_curve(baseline_curve, h4, i, exit_index,
-                                    baseline_equity, entry, exit_fill, paper_broker)
+                                    baseline_equity, entry, exit_fill, paper_broker, step)
                 if baseline_capital is not None:
                     baseline_capital = allocate_close(baseline_capital, pnl.quantize(Decimal('0.0000000001')),
-                                                      _close_time(h4[exit_index]), policy)
+                                                      close_time(h4[exit_index]), policy)
                 baseline_equity = baseline_capital.total if baseline_capital else baseline_equity + pnl
                 baseline_consecutive = 0 if pnl > 0 else baseline_consecutive + 1
                 baseline_trades.append(
                     TradeRecord(
                         entry_at=at,
-                        exit_at=_close_time(h4[exit_index]),
+                        exit_at=close_time(h4[exit_index]),
                         entry_price=entry.price,
                         exit_price=exit_fill.price,
                         amount=decision.amount or Decimal(0),
@@ -712,7 +725,6 @@ async def run_backtest(
         # Sans position, un SELL ne peut pas créer un short, et un HALT n'a rien à
         # liquider : il arrête simplement le rejeu.
         if action == "HALT" and confidence >= config.min_halt_confidence:
-            halted = True
             break
         if action == "SELL":
             i += 1
@@ -724,13 +736,14 @@ async def run_backtest(
             market_regime=MarketRegime(str(getattr(signal, "market_regime", "RANGING"))),
             thesis=str(getattr(signal, "thesis", "")),
         )
+        daily, weekly, hwm = _drawdowns(curve, at)
         account = AccountState(
             equity_quote=capital.active_quote if capital else equity,
             free_quote=capital.active_quote if capital else equity,
             consecutive_losses=consecutive_losses,
-            daily_drawdown_pct=_drawdowns(curve, at)[0],
-            weekly_drawdown_pct=_drawdowns(curve, at)[1],
-            drawdown_from_hwm_pct=max(_drawdowns(curve, at)[2], capital.active_drawdown if capital else Decimal(0)),
+            daily_drawdown_pct=daily,
+            weekly_drawdown_pct=weekly,
+            drawdown_from_hwm_pct=max(hwm, capital.active_drawdown if capital else Decimal(0)),
         )
         decision = evaluate(intent, state.snapshot, account, info.constraints, config)
 
@@ -740,7 +753,7 @@ async def run_backtest(
             exit_index, exit_fill, reason, exit_signals, halted_trade = await _simulate_trade(
                 h4, h1, symbol, info, i, decision, paper_broker, propose, config,
                 max_hold_candles=max_hold_candles, stop_index=last,
-                snapshot_cache=snapshot_cache,
+                snapshot_cache=snapshot_cache, replay_options=replay_options,
             )
             for exit_signal in exit_signals:
                 exit_action = str(getattr(exit_signal, "action", "HOLD"))
@@ -761,16 +774,16 @@ async def run_backtest(
             pnl = _pnl(entry, exit_fill)
             if capital is not None:
                 pnl = pnl.quantize(Decimal("0.0000000001"))
-            _record_trade_curve(curve, h4, i, exit_index, equity, entry, exit_fill, paper_broker)
+            _record_trade_curve(curve, h4, i, exit_index, equity, entry, exit_fill, paper_broker, step)
             if capital is not None:
                 capital = allocate_close(capital, pnl.quantize(Decimal('0.0000000001')),
-                                         _close_time(h4[exit_index]), policy, allow_promotion=not halted_trade)
+                                         close_time(h4[exit_index]), policy, allow_promotion=not halted_trade)
             equity = capital.total if capital else equity + pnl
             consecutive_losses = 0 if pnl > 0 else consecutive_losses + 1
             trades.append(
                 TradeRecord(
                     entry_at=at,
-                    exit_at=_close_time(h4[exit_index]),
+                    exit_at=close_time(h4[exit_index]),
                     entry_price=entry.price,
                     exit_price=exit_fill.price,
                     amount=decision.amount or Decimal(0),
@@ -786,7 +799,6 @@ async def run_backtest(
             )
             i = exit_index + 1
             if halted_trade:
-                halted = True
                 break
             continue
 
@@ -799,9 +811,9 @@ async def run_backtest(
                     equity_quote=equity,
                     free_quote=equity,
                     consecutive_losses=consecutive_losses,
-                    daily_drawdown_pct=_drawdowns(curve, at)[0],
-                    weekly_drawdown_pct=_drawdowns(curve, at)[1],
-                    drawdown_from_hwm_pct=max(_drawdowns(curve, at)[2], capital.active_drawdown if capital else Decimal(0)),
+                    daily_drawdown_pct=daily,
+                    weekly_drawdown_pct=weekly,
+                    drawdown_from_hwm_pct=max(hwm, capital.active_drawdown if capital else Decimal(0)),
                 ),
                 info.constraints,
                 config,
@@ -835,21 +847,21 @@ async def run_backtest(
                 )
         i += 1
 
-    curve.append((_close_time(h4[last]), equity))
-    baseline_curve.append((_close_time(h4[last]), baseline_equity))
+    curve.append((close_time(h4[last]), equity))
+    baseline_curve.append((close_time(h4[last]), baseline_equity))
 
     first_close = _decimal(h4[first][4])
     last_close = _decimal(h4[last][4])
     buy_and_hold = (last_close - first_close) / first_close if first_close else Decimal(0)
 
     from app.insights.diagnostics import backtest_trade_diagnostics
-    trades=[replace(t,diagnostics=backtest_trade_diagnostics(t,h4,DECISION_MS)) for t in trades]
-    baseline_trades=[replace(t,diagnostics=backtest_trade_diagnostics(t,h4,DECISION_MS)) for t in baseline_trades]
+    trades=[replace(t,diagnostics=backtest_trade_diagnostics(t,h4,step)) for t in trades]
+    baseline_trades=[replace(t,diagnostics=backtest_trade_diagnostics(t,h4,step)) for t in baseline_trades]
     return BacktestResult(
         symbol=symbol,
         model=str(getattr(settings.llm, "model", "?")),
-        period_start=_close_time(h4[first]),
-        period_end=_close_time(h4[last]),
+        period_start=close_time(h4[first]),
+        period_end=close_time(h4[last]),
         candles=last - first + 1,
         decisions=decisions,
         buy=buy,

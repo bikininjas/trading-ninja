@@ -1337,6 +1337,11 @@ PF/payoff/MDD/N sur l'historique complet, SOL non.
 a rejoué les **144 trades** du mode Chandelier sur tout l'historique. Les 144 appels sont
 **non dégradés** :
 
+**Réserve ajoutée le 17 novembre 2026** : `eval_llm_swing.py` affichait le taux
+`--fee-bps` mais appliquait le tarif du compte ou son repli. Le tarif effectivement
+utilisé pour cette mesure reste à reconstituer ; les catégories gagnant/perdant et
+les ratios ci-dessous ne constituent pas une preuve qualifiée à 80 pb/côté.
+
 | paire | trades | gagnants | approuvés | rétention | filtration |
 |---|---|---|---|---|---|
 | BTC/EUR | 71 | 14 | 16 | 42,9 % | 82,5 % |
@@ -2218,3 +2223,79 @@ L'installateur vérifie les empreintes, les dépendances et le prévol SQL limit
 prépare une nouvelle release et une copie de l'ancienne configuration avant
 bascule. SOL, LINK, AAVE, SUI et NEAR sont les cinq candidates préparées ; leur
 étude ne démontre pas de rentabilité et aucune n'a actuellement de setup.
+
+## D-097 — Boussole indépendante, reprise OHLCV datée et veto de veille (2026-11-16)
+
+**Demande de Seb** : rendre macro et cadence paramétrables H1/H4/D1, résister aux
+pannes OHLCV isolées et brancher une veille publique horaire Qwen 2.5 14B.
+
+**Décision** : conserver H4/200 et la cadence H4 par défaut ; `MACRO_TIMEFRAME`,
+`MACRO_EMA_PERIOD` et `EVAL_TIMEFRAME` sont distincts. La période accepte les
+entiers 2–500 avec historique complet requis. Même durée nominale ne signifie
+pas même EMA. Les noms historiques `*_h4` restent des alias de compatibilité.
+Les politiques des positions gardent leur boussole ; une nouvelle cadence est
+différée lorsque des positions restent ouvertes. Le scheduler relit sa cadence.
+Les nouvelles clés passent par les révisions/CAS de configuration existantes.
+
+**Reprise réseau** : trois tentatives au total, attentes 1 s puis 2 s, sans pause
+inutile après l’échec final. Le cache SQL est causal, continu et récent ; il ne
+reçoit pas une nouvelle date source. L’ingestion doit l’avoir alimenté. Les I/O
+réseau sont hors boucle asyncio. Le prix courant reste obligatoire avant achat.
+
+**Veille** : worker horaire indépendant, sources publiques bornées, schéma strict,
+repli NEUTRAL/DEGRADED et expiration à deux heures. Le digest ne dimensionne rien.
+Son score n’est qu’un contexte ; le booléen systémique est un veto supplémentaire,
+après le filtre technique. La nouvelle sortie SQL/Python est
+`REJECTED_INTEL_SYSTEMIC_RISK`, ajoutée en **0016** ; aucune migration appliquée
+n’est réécrite. Rôle NOLOGIN de veille sans droit financier, RLS et accès publics
+fermés, rétention 30 jours et quota D-057 protégé. Un fallback neutre n’efface pas
+une alerte encore valide.
+
+**Portée de livraison** : code et qualification locale. La migration, le LOGIN,
+le modèle dédié, sa latence et le service ne sont pas activés sur la cible par
+ce lot. La collecte réelle des sources fonctionne ; cela ne qualifie pas le 14B
+sous cinq secondes. Le défaut désactivé conserve le golden. Le comparatif rapide
+à douze scénarios ne produit aucun trade et ne justifie aucun changement de défaut.
+Guide : `MULTI_BOUGIES_ET_MARKET_INTEL.md` ; preuves finales dans le journal.
+
+## D-098 — Déployer PAPER avec le même Qwen 9B pour trading et veille (2026-11-16)
+
+**Demande de Seb** : effectuer le déploiement restant sans le 14B, puis « garde
+tout qwen 9b ». Cette précision remplace le choix 14B de D-097 pour MarketIntel.
+
+**Décision** : `qwen3.5:9b` par défaut pour trading et veille ; paramètres de
+modèle distincts mais même tag installé. Aucun téléchargement. La veille utilise
+`think=false`, préchauffe le modèle existant avant sa collecte horaire et retire
+les métadonnées d’audit du prompt pour conserver tous les titres/descriptions
+sans saturer le contexte. JSON strict, refus des actifs hors périmètre et repli
+NEUTRAL/DEGRADED restent inchangés. Les hashes restent stockés, pas les articles.
+
+**Déploiement autorisé** : 0016 appliquée avec contrôle des quinze empreintes ;
+LOGIN privé sans droit financier. Seb exécute le script sudo préparé : nouvelle
+release et worker systemd vérifiés, sans modification du capital, risque, univers,
+places ou reprise automatique moteur. Premier digest OK, premier cycle COMPLETE
+sans achat et rejeu IDENTICAL sur 181 appels. PAPER maintenu.
+
+**Limites** : le premier cycle métier prend 43,5 s, supérieur au budget de
+surveillance 30 s. Ne pas relever ce budget pour masquer la latence. Le partage
+horaire du 9B demande une mesure de contention ; la veille longue reste à qualifier.
+Aucun de ces constats ne vaut qualification économique ou autorisation LIVE.
+
+## D-099 — Montrer les sources de veille et les réponses finales du LLM (2026-11-16)
+
+**Demande de Seb** : afficher les news dans le dashboard et voir ce que dit le LLM.
+
+**Décision** : conserver dans chaque digest les titres/extraits RSS bornés,
+liens HTTPS vérifiés, dates, indice Fear & Greed et réponse finale validée.
+Nouvelle migration **0017**, sans réécrire 0016 ; droits/RLS privés et rétention
+30 jours hérités. La réservation D-057 tient compte du poids réel des sources.
+Aucune récupération rétroactive de titres supposés pour les anciens hashes.
+
+La vue « Veille & IA » associe sources et analyse sélectionnée. L’archive ne
+remplace pas le veto courant ; validité/dégradation et erreurs de lecture sont
+explicites. Les réponses de trading sont séparées de la veille et montrent
+action retenue, thèse, réponse initiale et contexte, sans nouvelle inférence.
+
+**Portée** : affichage privé et traçabilité, Qwen 9B conservé. Aucun réglage
+financier modifié. L’installation du worker/API/dashboard préserve le moteur
+en cours ; la migration additive reste compatible avec sa lecture des digests.

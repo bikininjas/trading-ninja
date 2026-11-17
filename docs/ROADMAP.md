@@ -8,13 +8,13 @@ les améliorations restantes. Les preuves datées sont conservées dans
 confirme les quatorze migrations, les groupes et les contrôles d’intégrité.
 
 État vérifié : lots de sécurité, surveillance et préparation d'exploitation,
-981 tests Python dont 65 PostgreSQL sur base jetable, 32 Node ; CI à vérifier
-pour chaque candidat.
+1061 tests Python collectés, dont 77 PostgreSQL opt-in ; 34 Node. La revue du
+17 novembre a exécuté les 1061 tests sur PostgreSQL jetable ; CI à vérifier pour
+chaque candidat.
 Supabase trninja est en
-0015, droits publics fermés et 324 250 bougies. Seb a retiré le 10 novembre la
+0017, droits publics fermés et 324 250 bougies. Seb a retiré le 10 novembre la
 sauvegarde complète des prérequis bloquants du démarrage initial, sans ordre ni
-position. Le WSL domestique est accessible dans cette session ; la nouvelle release
-exige une authentification sudo interactive.
+position. Le WSL domestique est accessible dans cette session ; la release multi-bougies est installée après authentification sudo opérateur.
 
 Une étape commence avec un statut daté et une entrée dans JOURNAL.md. Elle n’est
 validée qu’après une vérification réelle. Les décisions techniques sont dans
@@ -27,16 +27,107 @@ ni absence totale de panne.
 
 ## Ordre et responsabilités
 
+✅ **Nouvelle passe ciblée de dette technique et d'obsolescence** *(17 novembre 2026)* :
+trois fonctions non référencées et du code inutilisé retirés, aperçu multi-positions
+et cohérence des frais corrigés. Python 3.13.17 et PostgreSQL 17 jetable :
+1061 tests réussis ; contrôle global et golden identique. La requalification des
+mesures historiques est suivie séparément ci-dessous.
+
+✅ **Audit des frais historiques et rejeux exploratoires** *(17 novembre 2026)* :
+chemin des frais mécaniques historiques établi depuis le code de l'époque ; 36
+scénarios rejoués et frais contrôlés sur 266 trades. Le taux effectif et les
+réponses de l'ancien test LLM restent introuvables : sa qualification à 80 pb
+est impossible avec les éléments disponibles. Détails et limites dans
+`audits/2026-11-17/FRAIS_ET_OBSOLESCENCE.md`.
+
+🟨 **Redémarrage complet sans mot de passe sudo** *(commencé le 17 novembre 2026)* :
+autorisation limitée aux services PAPER installée sur WSL, veille incluse dans la
+commande de gestion et démarrage sans mot de passe vérifié sans interruption ;
+un redémarrage complet reste à exercer lorsque Seb le souhaitera.
+
+🟨 **Rotation quotidienne des journaux** *(commencé le 17 novembre 2026)* :
+fichiers `manage.sh` archivés quotidiennement en `.tgz`, conservation 72 h et
+cron utilisateur installé. Les journaux systemd partagés restent à traiter sans
+effacer ceux des autres services ; qualification après installation nécessaire.
+
+✅ **Revue approfondie ciblée de dette technique** *(17 novembre 2026)* :
+expériences multipositions refusées, rollback en mémoire complet et sélection
+causale du carnet historique corrigés ; 1056 tests et golden vérifiés. Fenêtre
+de drawdown divergente conservée comme chantier séparé ci-dessous.
+
+🟨 **Harmoniser la fenêtre du drawdown journalier** *(constaté le 17 novembre 2026)* :
+PostgreSQL utilise le jour civil de sa session (`date_trunc('day', now())`), le
+backtest les 24 heures glissantes et les expériences le jour civil simulé. Une
+perte proche de minuit peut donc produire des décisions différentes. Qualifier
+la règle retenue, son fuseau, ses effets sur les résultats historiques et les tests
+PostgreSQL sur base jetable avant toute installation ou changement financier.
+
+✅ **Ménage ciblé du code** *(17 novembre 2026)* : calculs EMA, PnL et drawdowns
+partagés entre les simulateurs, calculs de drawdown répétés supprimés. Contrôle
+global vert et golden identique ; les contrats PostgreSQL opt-in restent à rejouer
+sur base jetable. Cette revue ne prétend pas épuiser toute la dette technique.
+
+✅ **Accès PowerShell au WSL et état de compatibilité** *(16 novembre 2026)* :
+lanceur Windows vers les commandes WSL, statut et cas d'erreur exercés depuis
+PowerShell Windows. Exploitation native Windows non portée ni qualifiée ; détails
+dans [WINDOWS.md](WINDOWS.md). Les commandes de démarrage et d'arrêt du lanceur
+restent à exercer lors d'une recette contrôlée.
+
+✅ **Revue ciblée Python et tests** *(16 novembre 2026)* : collecte MarketIntel,
+tri des dates UTC et repli sur horodatage invalide corrigés ; un test de collecte
+fusionné avec un scénario plus complet. Contrôle global vert et golden identique ;
+77 contrats SQL non exécutés dans cette configuration. Portée et limites au journal.
+
+✅ **Dashboard : news et réponses Qwen visibles** *(16 novembre 2026)* :
+vue `/#intel`, titres/extraits/liens liés au digest, réponse finale du 9B,
+archives, veto courant expirant et réponses/contexte des signaux de trading.
+0017 appliquée, 1050 Python dont 77 SQL, 34 Node, six espaces sur quatre
+largeurs Chromium, golden identique et contrôle global verts. Worker/API/
+dashboard installés, 27 titres et liens réels ; moteur conservé sans redémarrage.
+Preuve : `audits/2026-11-16/market-intel-dashboard-verification.json`.
+
+✅ **Déploiement multi-bougies et MarketIntel PAPER sur Qwen 9B**
+*(16 novembre 2026)* : autorisation explicite de Seb pour appliquer
+0016, installer le moteur candidat et activer le worker. Précision de Seb :
+`qwen3.5:9b` pour trading et veille, aucun téléchargement. 0016 appliquée et
+LOGIN privé isolé vérifié ; release installée, worker systemd activé et digest
+9B OK sur 25 articles. Premier cycle COMPLETE, sans erreur/achat, rejeu
+IDENTICAL sur 181 appels. Preuves : journal et audit de déploiement.
+
+🟨 **Latence des cycles et contention du 9B** *(commencé le 16 novembre 2026)* :
+premier cycle installé à 43,5 s pour douze paires, supérieur au budget de
+surveillance de 30 s. Budget conservé ; optimiser/mesurer les cycles et la veille
+horaire sur WSL avant qualification R3/R5.
+
+✅ **Macro multi-bougies, résilience OHLCV et MarketIntel — code qualifié**
+*(16 novembre 2026)* : macro et cadence H1/H4/D1 indépendantes, défaut H4/200,
+retry/cache SQL daté et worker public horaire avec veto systémique. **1036 tests
+Python**, dont **73 SQL** sur PostgreSQL 17 local, **33 Node**, navigateur et
+golden identique ; contrôle global vert. Sweep BTC/ETH à douze scénarios, aucun
+trade, aucune conclusion de rentabilité. La qualification initiale D-097
+précède le déploiement D-098 sur le 9B, vérifié ci-dessus.
+Guide : `MULTI_BOUGIES_ET_MARKET_INTEL.md`, D-097.
+
+✅ **Évaluation et refonte du dashboard v3** *(16 novembre 2026)* :
+synthèse opérationnelle, surveillance distincte de l’API, motifs sur sept jours,
+journal filtrable, inspection/diagnostics et export des sources exactes.
+33 Node, Chromium sur cinq espaces et quatre largeurs, contrôle global vert sur
+PostgreSQL jetable. Dashboard du dépôt relancé et assets HTTP vérifiés sur 8081 ;
+API et moteur inchangés. Rapport : `audits/2026-11-16/dashboard-review.md`.
+Le dashboard reste un processus de session, sa supervision systemd n’est pas qualifiée.
+
 ✅ **Revue finale positions multiples** *(16 novembre 2026)* : équité et drawdowns
 revalorisés avant achat, prix final rafraîchi après le portefeuille, étranglement
 du risque cumulé, pannes/historiques isolés et risque affiché au stop corrigés.
 981 tests Python, dont 65 PostgreSQL locaux, 32 Node, navigateur et golden validés.
 Commit et push sur master demandés explicitement par Seb ; installation distincte.
 
-🟨 **Positions multiples PAPER** *(commencé le 16 novembre 2026)* : demande
+✅ **Positions multiples PAPER — installation** *(16 novembre 2026)* : demande
 explicite de Seb ; adapter surveillance, sorties, valorisation du portefeuille,
 admission des achats et dashboard. Code vérifié, risque cumulé conservé ;
-installation de la release préparée, en attente d'exécution sudo sur le WSL.
+release multi-bougies incluant ce code installée après sudo, cinq places et
+douze paires conservées. Premier cycle complet, aucune entrée admissible.
+L’exercice de plusieurs positions simultanées sur cible reste à qualifier.
 
 ✅ **Diversification PAPER — recherche et diagnostic des entrées** *(16 novembre
 2026)* : treize paires Kraken EUR contrôlées, cinq candidates documentées ;

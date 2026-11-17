@@ -17,7 +17,6 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -88,6 +87,12 @@ def prompt_fingerprint(settings: Any) -> str:
         "prompt_version": PROMPT_VERSION,
         "system_prompt": hashlib.sha256(SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
     }
+    if (settings.risk.macro_timeframe, settings.risk.macro_ema_period,
+            settings.exchange.daily_timeframe_decision) != ("4h", 200, "4h"):
+        payload["macro"] = [settings.risk.macro_timeframe, settings.risk.macro_ema_period,
+                            settings.exchange.daily_timeframe_decision]
+    if getattr(getattr(settings, "intel", None), "enabled", False):
+        payload["market_intel"] = settings.intel.model
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True).encode("utf-8")
     ).hexdigest()
@@ -96,6 +101,8 @@ def prompt_fingerprint(settings: Any) -> str:
 def risk_fingerprint(settings: Any, info: Any) -> str:
     """Identité du risque, des frais et du capital de départ. Change les résultats."""
     risk = asdict(settings.risk)
+    if settings.risk.macro_timeframe == "4h":
+        risk.pop("macro_timeframe")
     # 200 est le contrat historique ; les variantes modifient l'empreinte.
     if settings.risk.macro_ema_period == 200:
         risk.pop("macro_ema_period")
@@ -113,6 +120,10 @@ def risk_fingerprint(settings: Any, info: Any) -> str:
         "slippage_bps": str(settings.paper_slippage_bps),
         "start_equity": str(settings.paper_start_equity),
     }
+    if getattr(getattr(settings, "exchange", None), "daily_timeframe_decision", "4h") != "4h":
+        payload["eval_timeframe"] = settings.exchange.daily_timeframe_decision
+    if getattr(getattr(settings, "intel", None), "enabled", False):
+        payload["market_intel"] = True
     if getattr(settings, 'capital_policy', None) and settings.capital_policy.enabled:
         payload['capital_policy'] = {key: str(value) for key, value in asdict(settings.capital_policy).items()}
     return hashlib.sha256(

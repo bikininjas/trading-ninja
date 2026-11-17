@@ -107,6 +107,8 @@ RISK_PRESETS: dict[str, dict[str, str]] = {
     # pas de take-profit fixe (la sortie est la tendance qui casse). Le seuil de
     # confiance reste bas : le LLM peut bloquer, il ne dimensionne rien.
     "swing": {
+        "MACRO_TIMEFRAME": "1d",
+        "EVAL_TIMEFRAME": "1d",
         "ENTRY_MODE": "SWING_MACRO_D1",
         "STOP_MODE": "STRUCTURAL_D1",
         "RISK_PER_TRADE_PCT": "0.005",
@@ -194,6 +196,7 @@ EXCHANGE_MAKER_FEE_DEFAULTS: dict[str, str] = {
 # modifier. Tout le reste est ignoré : un fichier de réglages ne doit pas pouvoir
 # changer le mode d'exécution, l'exchange ou les secrets.
 RUNTIME_ALLOWED_KEYS = frozenset({
+    "MACRO_TIMEFRAME", "MACRO_EMA_PERIOD", "EVAL_TIMEFRAME",
     "RISK_PROFILE",
     "RISK_PER_TRADE_PCT",
     "MAX_NOTIONAL_PCT",
@@ -226,10 +229,6 @@ def _env(env: Mapping[str, str], key: str, default: str | None = None) -> str:
     if default is None:
         raise RuntimeError(f"Variable d'environnement obligatoire manquante : {key}")
     return default
-
-
-def _env_dec(env: Mapping[str, str], key: str, default: str) -> Decimal:
-    return Decimal(_env(env, key, default))
 
 
 def _env_int(env: Mapping[str, str], key: str, default: str) -> int:
@@ -277,12 +276,20 @@ class ExchangeSettings:
 @dataclass(frozen=True, slots=True)
 class LLMSettings:
     base_url: str = "http://127.0.0.1:11434/v1"
-    model: str = "qwen2.5:14b-instruct-q4_K_M"
+    model: str = "qwen3.5:9b"
     # 4 s est la cible du cahier des charges, mais le modèle 9B met 6,3 s sur cette
     # machine (mesuré, 82 tokens). Un défaut à 4 s produirait 100 % de replis.
     timeout_seconds: float = 8.0
     max_retries: int = 1
     temperature: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class IntelSettings:
+    enabled: bool = False
+    model: str = "qwen3.5:9b"
+    interval_seconds: int = 3600
+    timeout_seconds: float = 5.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -306,6 +313,7 @@ class Settings:
     observer_api_key: str = field(default="", repr=False)
     observer_secret: str = field(default="", repr=False)
     observer_interval_seconds: int = 15
+    intel: IntelSettings = field(default_factory=IntelSettings)
     sweep_ratio: Decimal = Decimal("0.30")
     sweep_min_transfer_quote: Decimal = Decimal("1.00")
     halt_auto_resume_hours: int = 24
@@ -408,7 +416,10 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
         ) from exc
 
     default_decision = "1d" if entry_mode is EntryMode.SWING_MACRO_D1 else "4h"
-    decision_timeframe = _env(merged, "DECISION_TIMEFRAME", default_decision)
+    decision_timeframe = _env(merged, "EVAL_TIMEFRAME", _env(merged, "DECISION_TIMEFRAME", preset.get("EVAL_TIMEFRAME", default_decision)))
+    macro_timeframe = _env(merged, "MACRO_TIMEFRAME", preset.get("MACRO_TIMEFRAME", "4h"))
+    if decision_timeframe not in {"1h", "4h", "1d"} or macro_timeframe not in {"1h", "4h", "1d"}:
+        raise RuntimeError("MACRO_TIMEFRAME et EVAL_TIMEFRAME : choisir 1h, 4h ou 1d")
     if entry_mode is EntryMode.SWING_MACRO_D1 and decision_timeframe != "1d":
         raise RuntimeError(
             "ENTRY_MODE=SWING_MACRO_D1 exige DECISION_TIMEFRAME=1d : la règle "
@@ -433,6 +444,8 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
     if mode == "live" or profile in BUDGET_PROFILES:
         small_account_max_risk_pct = min(small_account_max_risk_pct, risk_per_trade_pct)
     risk = RiskConfig(
+        macro_timeframe=macro_timeframe,
+        macro_ema_period=_env_int(merged, "MACRO_EMA_PERIOD", preset.get("MACRO_EMA_PERIOD", "200")),
         cost_aware=mode == "live" or configured_cost_aware or _env_int(merged, "MAX_OPEN_POSITIONS", "1") > 1,
         execution_fee_pct=fee,
         execution_slippage_pct=slip_bps / Decimal(10000),
@@ -612,7 +625,7 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
 
     llm = LLMSettings(
         base_url=_env(merged, "LLM_BASE_URL", "http://127.0.0.1:11434/v1"),
-        model=_env(merged, "LLM_MODEL_NAME", "qwen2.5:14b-instruct-q4_K_M"),
+        model=_env(merged, "LLM_MODEL_NAME", "qwen3.5:9b"),
         timeout_seconds=float(merged.get("LLM_TIMEOUT_SECONDS", "5.0")),
         max_retries=int(merged.get("LLM_MAX_RETRIES", "1")),
         temperature=float(merged.get("LLM_TEMPERATURE", "0.0")),
@@ -638,6 +651,8 @@ def load_settings(env_file: str | Path | None = None, overrides: Mapping[str, st
         observer_api_key=_env(merged, "OBSERVER_API_KEY", ""),
         observer_secret=_env(merged, "OBSERVER_SECRET", ""),
         observer_interval_seconds=int(_env(merged, "OBSERVER_INTERVAL_SECONDS", "15")),
+        intel=IntelSettings(enabled=_env_bool(merged, "MARKET_INTEL_ENABLED", "false"),
+                            model=_env(merged, "MARKET_INTEL_MODEL", "qwen3.5:9b")),
         sweep_ratio=sweep_ratio,
         sweep_min_transfer_quote=sweep_min,
         halt_auto_resume_hours=halt_auto_resume_hours,

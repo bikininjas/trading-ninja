@@ -36,8 +36,8 @@ choisit ni quantité, ni prix, ni stop : toute la géométrie vient du code.
 
 ## 2. Ce qui existe, ce qui n'existe pas
 
-**981 tests** Python (916 hors base et 65 contrats PostgreSQL locaux opt-in)
-et **32 tests** Node (980 au total), répartis ci-dessous.
+**1061 tests** Python (984 hors base et 77 contrats PostgreSQL locaux opt-in)
+et **34 tests** Node (1 084 au total), répartis ci-dessous.
 
 | Composant | Fichier | État |
 |---|---|---|
@@ -60,7 +60,7 @@ et **32 tests** Node (980 au total), répartis ci-dessous.
 | API — authentification | `app/api/security.py` | ✅ écrit |
 | API — routes | `app/api/main.py` | ✅ écrit |
 | API — lecture et contrôle | `app/api/service.py` | ✅ écrit |
-| Dashboard Node.js | `dashboard/server.js` | ✅ écrit (32 tests Node, zéro dépendance) |
+| Dashboard Node.js | `dashboard/server.js` | ✅ écrit (34 tests Node, zéro dépendance) |
 | Mémoire d’expérience PAPER | `app/learning/` | Simulations prospectives, relectures versionnées, service sans droit d’ordre |
 | Gestion des processus | `scripts/manage.sh` | ✅ écrit (start/stop/restart/status/logs) |
 | Backtest historique | `app/backtest/engine.py` | ✅ écrit |
@@ -70,7 +70,8 @@ et **32 tests** Node (980 au total), répartis ci-dessous.
 | Garde-fou de sortie LLM | `app/engine/exit_guard.py` | ✅ écrit |
 | Sonde de clé Kraken | `scripts/check_kraken.py` | ✅ lecture seule |
 | Lecture `.env` / `.env.local` | `app/core/env.py` | ✅ écrit |
-| Schéma SQL + migrations | `db/migrations/` | ✅ 15 migrations versionnées ; vérification cible dans JOURNAL.md |
+| Veille publique indépendante | `app/intel/` | ✅ Qwen 9B, worker actif, sources/réponse par digest et vue privée |
+| Schéma SQL + migrations | `db/migrations/` | ✅ 17 migrations versionnées et appliquées sur trninja |
 | Coureur de migrations | `scripts/db_migrate.py` | ✅ status / apply / verify |
 | Démonstration du pare-feu | `scripts/demo_guardrails.py` | ✅ exécutable |
 | Sonde de clé exchange (lecture seule) | `scripts/check_exchange.py` | Sonde historique Binance ; utiliser check_kraken.py pour la cible actuelle |
@@ -148,7 +149,7 @@ enveloppé et toute anomalie imprévue devient `INTERNAL_ERROR`.
 | 2 | Fraîcheur des données : plus de 5 s dans le passé **ou** plus de 5 s dans le futur | `STALE_MARKET_DATA` |
 | 3 | Seul `BUY` est actionnable | `ACTION_IS_NOT_BUY` |
 | 4 | Bot verrouillé | `BOT_LOCKED` / motif du verrou |
-| 5 | Drawdown 24 h | `CIRCUIT_BREAKER_DAILY_DRAWDOWN` |
+| 5 | Drawdown journalier fourni au pare-feu | `CIRCUIT_BREAKER_DAILY_DRAWDOWN` |
 | 6 | Drawdown 7 j | `CIRCUIT_BREAKER_WEEKLY_DRAWDOWN` |
 | 7 | Écart au plus haut d'équité | `CIRCUIT_BREAKER_MAX_DRAWDOWN` |
 | 8 | Pertes consécutives | `CIRCUIT_BREAKER_CONSECUTIVE_LOSSES` |
@@ -162,6 +163,12 @@ enveloppé et toute anomalie imprévue devient `INTERNAL_ERROR`.
 
 Deux codes ne peuvent être émis qu'en amont du pipeline, quand aucun calcul n'a lieu :
 `MALFORMED_INTENT` (entrée illisible) et `INTERNAL_ERROR` (exception imprévue absorbée).
+
+La fenêtre journalière diffère actuellement selon la source : le ledger PostgreSQL
+utilise le jour civil de la session SQL, le backtest utilise les 24 heures glissantes
+et le ledger des expériences le jour civil de son horloge simulée. Cette divergence
+peut modifier les refus autour de minuit ; voir la roadmap avant toute interprétation
+comparative ou modification de la règle financière.
 Le total fait 23 codes, dont `NONE`.
 
 Le détail des calculs est en tête de `risk_gate.py` et dans `docs/DECISIONS.md` (D-004).

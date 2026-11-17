@@ -187,6 +187,9 @@ async def test_incident_is_durable_before_remote_persistence_fails(tmp_path):
     from app.insights.watch import observe_protection
 
     class FailedStore:
+        async def settings_state(self, mode):
+            return {"applied_payload": {"eval_timeframe": "4h"}}
+
         async def runtime_heartbeat(self, mode):
             return NOW
 

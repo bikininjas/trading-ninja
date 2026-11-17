@@ -90,6 +90,11 @@ async function startFakeApi() {
         halt_auto_resume_hours: 24, updated_at: null, profiles: [],
       });
     }
+    if (req.url.startsWith('/api/insights/market-intel') && req.method === 'GET') {
+      if (req.headers.authorization !== 'Bearer tok') return send(401, { detail: 'session' });
+      calls.push(['market-intel', req.url]);
+      return send(200, { selected: { model: 'qwen3.5:9b', source_items: [{ title: '<script>public title</script>' }] } });
+    }
     if (req.url === '/api/control/pause' && req.method === 'POST') {
       calls.push(['pause']);
       return send(200, { mode: 'PAPER', state: 'LOCKED_CIRCUIT_BREAKER' });
@@ -196,6 +201,15 @@ test('les fichiers statiques sont servis avec le bon type', async () => {
   const icon = await fetch(`${dashUrl}/favicon.svg`);
   assert.equal(icon.status, 200);
   assert.match(icon.headers.get('content-type'), /image\/svg\+xml/);
+  for (const path of ['/fonts/plex-sans-regular.woff2', '/fonts/plex-sans-medium.woff2']) {
+    const font = await fetch(`${dashUrl}${path}`);
+    assert.equal(font.status, 200);
+    assert.equal(font.headers.get('content-type'), 'font/woff2');
+    assert.equal(Buffer.from(await font.arrayBuffer()).toString('ascii', 0, 4), 'wOF2');
+  }
+  const supervisor = await fetch(`${dashUrl}/supervision.js`);
+  assert.equal(supervisor.status, 200);
+  assert.match(supervisor.headers.get('content-security-policy'), /script-src 'self'/);
 });
 
 test('une URL inconnue renvoie 404', async () => {
@@ -389,6 +403,43 @@ test('le flux SSE pousse le statut', async () => {
   assert.match(text, /data: \{"mode":"PAPER"/);
 });
 
+test('un appel lent du flux SSE ne lance pas de lectures concurrentes', { timeout: 3000 }, async () => {
+  let calls = 0, release;
+  let started;
+  const pending = new Promise((resolve) => { started = resolve; });
+  const gate = new Promise((resolve) => { release = resolve; });
+  const app = createDashboardServer({
+    pollMs: 10,
+    fetchImpl: async (target) => {
+      if (String(target).endsWith('/api/auth/login')) return Response.json({ token: 'tok', expires_in: 3600 });
+      calls += 1;
+      if (calls === 2) { started(); await gate; }
+      return Response.json({ mode: 'PAPER', state: 'IDLE', sequence: calls });
+    },
+  });
+  await listen(app.server);
+  const url = urlOf(app.server), controller = new AbortController();
+  try {
+    const login = await fetch(`${url}/login`, { method: 'POST', body: new URLSearchParams({ password: 'fake', totp: '123456' }), redirect: 'manual' });
+    const response = await fetch(`${url}/events`, { headers: { cookie: firstCookie(login) }, signal: controller.signal });
+    assert.equal(response.status, 200);
+    await pending;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(calls, 2, 'La requête bloquée doit rester le seul appel en vol.');
+    release();
+    const reader = response.body.getReader();
+    let received = '';
+    while (!received.includes('"sequence":2')) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      received += new TextDecoder().decode(value);
+    }
+    assert.match(received, /"sequence":2/);
+  } finally {
+    release(); controller.abort(); app.server.closeAllConnections(); app.server.close();
+  }
+});
+
 test('une session expirée renvoie vers la connexion', async () => {
   const shortLived = createDashboardServer({
     apiBaseUrl: api.url,
@@ -432,4 +483,18 @@ test('0.0.0.0 est accepté avec DASHBOARD_ALLOW_REMOTE=true', () => {
     resolveHost({ DASHBOARD_HOST: '0.0.0.0', DASHBOARD_ALLOW_REMOTE: 'true' }),
     '0.0.0.0',
   );
+});
+
+test('la veille reste privée et transmet la sélection sans ouvrir de commande', async () => {
+  const selected = '00000000-0000-4000-8000-000000000017';
+  const path = `/api/insights/market-intel?digest_id=${selected}`;
+  const denied = await fetch(dashUrl + path);
+  assert.equal(denied.status, 401);
+  const cookie = await login();
+  const response = await fetch(dashUrl + path, { headers: { cookie } });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).selected.model, 'qwen3.5:9b');
+  assert.deepEqual(api.calls.at(-1), ['market-intel', path]);
+  const mutation = await fetch(dashUrl + path, { method: 'POST', headers: { cookie, origin: dashUrl } });
+  assert.notEqual(mutation.status, 200);
 });

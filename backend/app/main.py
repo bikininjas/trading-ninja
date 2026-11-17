@@ -75,6 +75,7 @@ async def _serve(orchestrator: Orchestrator, timeframe: str, *, max_cycles: int 
     cycle = 0
     while max_cycles <= 0 or cycle < max_cycles:
         await keep_database_ready()
+        timeframe = getattr(orchestrator, "decision_timeframe", timeframe)
         next_close = next_candle_close(datetime.now(timezone.utc), timeframe)
         cycle += 1
         report: CycleReport = await orchestrator.run_once()
@@ -84,6 +85,10 @@ async def _serve(orchestrator: Orchestrator, timeframe: str, *, max_cycles: int 
             print(line)
         if max_cycles > 0 and cycle >= max_cycles:
             break
+        current = getattr(orchestrator, "decision_timeframe", timeframe)
+        if current != timeframe:
+            timeframe = current
+            next_close = next_candle_close(datetime.now(timezone.utc), timeframe)
         now = datetime.now(timezone.utc)
         delay = decision_delay_seconds(timeframe)
         wait = (next_close - now).total_seconds() + delay
@@ -102,6 +107,15 @@ async def _serve(orchestrator: Orchestrator, timeframe: str, *, max_cycles: int 
                 interval = min(30.0, remaining, max(0, next_notice - loop.time()))
                 await asyncio.sleep(interval)
                 await keep_database_ready()
+                reload = getattr(orchestrator, "reload_configuration", None)
+                if reload:
+                    await reload()
+                    current = getattr(orchestrator, "decision_timeframe", timeframe)
+                    if current != timeframe:
+                        timeframe = current
+                        next_close = next_candle_close(datetime.now(timezone.utc), timeframe)
+                        evaluation_at = next_close + timedelta(seconds=decision_delay_seconds(timeframe))
+                        deadline = loop.time() + max(0, (evaluation_at - datetime.now(timezone.utc)).total_seconds())
                 if loop.time() >= next_notice and loop.time() < deadline:
                     print(f"veille active · prochaine évaluation à {evaluation_at:%Y-%m-%d %H:%M} UTC", flush=True)
                     next_notice = loop.time() + 300.0

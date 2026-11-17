@@ -129,7 +129,7 @@ def test_snapshot_with_d1_exposes_the_structural_swing_low():
 
     state = build_snapshot(
         exchange, "BTC/EUR", decision_timeframe="1d", entry_timeframe="4h",
-        info=Info(), with_order_book=False, with_d1=True,
+        info=Info(), with_order_book=False, with_d1=True, macro_timeframe="1d",
     )
     assert state.context.d1 is not None
     assert state.snapshot.swing_low_10d == state.context.d1.swing_low_10
@@ -208,3 +208,85 @@ def test_snapshot_macro_indicators_use_only_closed_candles():
         value, slope = state.snapshot.macro_ema(period)
         assert value == ema(closes, period)
         assert slope == (value - ema(closes[:-60], period)) / state.snapshot.atr_14_h4
+
+@pytest.mark.parametrize('macro_tf,eval_tf,period', [('4h','4h',200),('1h','4h',200),('4h','4h',50),('1d','1d',200),('1h','1h',75)])
+def test_independent_macro_and_evaluation_series_are_deduplicated(macro_tf, eval_tf, period):
+    from app.market.feed import TIMEFRAME_MS
+    from types import SimpleNamespace
+    now = 1_800_057_600_000  # frontière D1 UTC
+    now -= now % TIMEFRAME_MS['1d']
+    calls=[]
+    class Exchange:
+        def milliseconds(self): return now
+        def fetch_ohlcv(self, symbol, tf, limit=None):
+            calls.append((tf,limit))
+            step=TIMEFRAME_MS[tf]
+            offset={'1h':10,'4h':20,'1d':30}[tf]
+            return [[now-(limit-i)*step, offset+i, offset+i+2, offset+i-1, offset+i+1, 1] for i in range(limit)]
+    state=build_snapshot(Exchange(),'BTC/EUR',info=SimpleNamespace(), with_order_book=False,
+                         decision_timeframe=eval_tf,macro_timeframe=macro_tf,macro_ema_period=period,
+                         trend_buffer_pct=Decimal('.01'))
+    assert len(calls)==len({tf for tf,_ in calls})
+    assert {tf for tf,_ in calls}=={macro_tf,eval_tf,'1h'}
+    assert state.snapshot.macro_timeframe==macro_tf and state.snapshot.eval_timeframe==eval_tf
+    assert state.snapshot.macro_ema_period==period
+    assert state.snapshot.macro_ema_value==state.snapshot.macro_ema(period)[0]
+    assert state.snapshot.macro_ema_threshold_with_margin==state.snapshot.macro_ema_value*Decimal('1.01')
+    assert int(state.last_close_at.timestamp()*1000)==now
+
+
+def test_ohlcv_retries_two_network_failures_then_succeeds():
+    import ccxt
+    from types import SimpleNamespace
+    calls=[]; sleeps=[]
+    def fetch(*args, **kwargs):
+        calls.append(1)
+        if len(calls)<3: raise ccxt.NetworkError('reset')
+        return [[0,1,2,1,2,1]]
+    rows=closed_candles(SimpleNamespace(fetch_ohlcv=fetch),'BTC/EUR','1h',1,
+                        now_ms=3_600_000,sleep=sleeps.append)
+    assert len(rows)==1 and len(calls)==3 and sleeps==[1.0,2.0]
+
+
+@pytest.mark.parametrize('bad', ['stale','future','gap','nan','negative'])
+def test_sql_fallback_never_makes_bad_or_old_candles_fresh(bad):
+    import ccxt
+    from types import SimpleNamespace
+    now=36_000_000; step=3_600_000
+    rows=[[now-(3-i)*step,1,2,1,2,1] for i in range(3)]
+    if bad=='stale': rows=rows[:-1]
+    if bad=='future': rows[-1][0]+=step
+    if bad=='gap': rows.pop(1)
+    if bad=='nan': rows[-1][4]='NaN'
+    if bad=='negative': rows[-1][3]=-1
+    def fail(*a,**kw): raise ccxt.RequestTimeout('timeout')
+    with pytest.raises(FeedError,match='cache SQL refusé'):
+        closed_candles(SimpleNamespace(fetch_ohlcv=fail),'BTC/EUR','1h',3,now_ms=now,
+                        cache_loader=lambda *args:rows,sleep=lambda _:None)
+
+
+def test_fresh_sql_fallback_preserves_source_close_and_warns(caplog):
+    import httpx
+    from types import SimpleNamespace
+    step=3_600_000; now=10*step+5000
+    rows=[[7*step,1,2,1,2,1],[8*step,1,2,1,2,1],[9*step,1,2,1,2,1]]
+    def fail(*a,**kw): raise httpx.ConnectError('offline')
+    result=closed_candles(SimpleNamespace(fetch_ohlcv=fail),'BTC/EUR','1h',3,now_ms=now,
+                          cache_loader=lambda *args: rows,sleep=lambda _:None)
+    assert result==rows and result[-1][0]+step==10*step
+    record=next(r for r in caplog.records if r.message=='market_candles_sql_fallback')
+    assert record.symbol=='BTC/EUR' and record.timeframe=='1h' and record.age_ms==5000
+
+
+def test_recorded_httpx_transport_error_replays_with_the_same_retry_contract():
+    import httpx
+    from app.insights.replay import ReplayCursor, encode
+    packet={'trace':[{'target':'exchange','method':'fetch_ohlcv',
+        'args':{'value':encode(('BTC/EUR','4h'))},'kwargs':{'value':encode({'limit':10})},
+        'error':{'type':'ConnectError','message':'offline'}}]}
+    class Exchange:
+        def fetch_ohlcv(self,*args,**kwargs): return ReplayCursor(packet).call('exchange','fetch_ohlcv',args,kwargs)
+    pauses=[]
+    with pytest.raises(FeedError) as error:
+        closed_candles(Exchange(),'BTC/EUR','4h',10,sleep=pauses.append)
+    assert isinstance(error.value.__cause__,httpx.ConnectError) and pauses==[1,2]

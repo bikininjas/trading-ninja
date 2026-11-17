@@ -30,7 +30,7 @@ from decimal import Decimal
 from typing import Any, Sequence
 
 from app.backtest.engine import _max_drawdown
-from app.backtest.swing import _ema_series
+from app.market.feed import _ema_series
 
 __all__ = [
     "ABS_FILTERS",

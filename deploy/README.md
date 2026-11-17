@@ -5,6 +5,12 @@ sur l'hôte actuel et ne permet pas d'activer LIVE. Les services utilisent le m�
 checkout figé ; le moteur refuse de reprendre un état bloqué ou des intentions
 inconnues. La sonde doit aussi être contrôlée depuis une autre machine/service.
 
+Les scripts `enable-*-wsl.sh` décrivent des livraisons datées et vérifient leur
+manifeste figé `multiple-positions.sha256`. Le code du dépôt a évolué depuis :
+leur contrôle d'empreinte échoue sur ce checkout. Préparer et qualifier une
+nouvelle release pour installer les changements courants ; ne pas modifier le
+manifeste historique pour forcer ces scripts à passer.
+
 ## Installation sur la machine retenue
 
 Sur WSL2, vérifier d'abord `ps -p 1 -o comm=`. Si systemd n'est pas actif,
@@ -61,6 +67,54 @@ privé doivent être configurés séparément avec le fichier livré avant la re
 Le lanceur `backend/scripts/paper_component.py` impose PAPER, désarme LIVE et vide
 toutes les clés exchange, même si le fichier ou l'environnement demande le réel.
 Il n'accepte pas de webhook dans argv. Les ports 8080/8081 restent sur loopback.
+
+### Redémarrage complet sans mot de passe
+
+Depuis le compte `seb` dans le dépôt WSL, installer une seule fois la règle sudo
+avec authentification :
+
+```bash
+sudo bash deploy/install-manage-sudoers.sh
+```
+
+Elle autorise uniquement `seb` à démarrer et arrêter les services systemd
+`trading-ninja@engine` et `trading-ninja-market-intel.service`, sans mot de passe.
+Elle n'accorde pas une permission générale sur systemctl. Le fichier installé est
+`/etc/sudoers.d/trading-ninja-manage`, vérifié par `visudo`. Pour le retirer :
+`sudo rm /etc/sudoers.d/trading-ninja-manage`.
+
+Ensuite, depuis la racine du dépôt :
+
+```bash
+bash scripts/manage.sh restart all
+bash scripts/manage.sh status
+bash scripts/manage.sh logs engine
+```
+
+`all` arrête le moteur, la veille installée, le dashboard et l'API, puis les
+relance dans l'ordre inverse. Ollama et les services externes ne sont pas inclus.
+Avant toute modification, le lanceur vérifie les autorisations système ; s'il
+en manque une, il s'arrête sans interrompre les composants. La reprise du moteur
+reste explicite et son initialisation ainsi que son premier cycle doivent être
+vérifiés dans les journaux. La commande PowerShell correspondante est décrite
+dans [Windows et WSL](../docs/WINDOWS.md).
+
+### Journaux des processus lancés par `manage.sh`
+
+`scripts/rotate-logs.sh` fait tourner `api.log`, `dashboard.log` et `engine.log`
+dans `scripts/.run/`, produit des archives `.tgz` dans `.log-archives/` (répertoire
+privé) et supprime les archives de plus de 72 heures. Installer la planification
+de l'utilisateur courant avec `bash scripts/install-log-rotation.sh` : cron lance
+la rotation à 00:05 et au démarrage de WSL ; si WSL est arrêté, elle attend sa
+reprise. La purge étant quotidienne, une archive peut subsister jusqu'au passage
+suivant après ses 72 heures. Le premier appel initialise la date de rotation. Pour forcer une rotation
+ponctuelle : `bash scripts/rotate-logs.sh --force` (au plus une fois par date).
+`logrotate` doit être installé et cron actif ; les erreurs sont envoyées au journal
+système sous `trading-ninja-log-rotation`. Les fichiers bruts d'une compression
+échouée sont conservés et repris au prochain passage. `copytruncate` permet aux
+processus en cours de continuer à écrire ; quelques lignes peuvent être perdues
+entre la copie et la troncature. Les journaux systemd sont distincts et ne sont
+pas purgés par cette rotation de fichiers.
 
 ### Connexions SQL privées distinctes
 
@@ -234,3 +288,54 @@ ne pas supprimer la nouvelle release pour forcer une nouvelle tentative. Après
 un démarrage, vérifier le premier cycle et la révision appliquée dans les journaux
 et le dashboard. Un service « active » pendant le préchauffage ne prouve pas encore
 un cycle réussi. L'exécution sudo et cette recette restent à faire.
+
+### Déploiement multi-bougies et MarketIntel (D-097/D-098)
+
+**0016 est appliquée sur trninja**, seize empreintes et droits vérifiés le
+16 novembre. Seb a demandé de conserver **qwen3.5:9b pour trading et veille**,
+sans téléchargement. La release `paper-market-intel9b-ac2171a16feb` est installée ;
+le worker systemd est actif et activé au boot, premier digest OK. Le premier
+cycle moteur est COMPLETE et rejoué IDENTICAL, sans achat.
+
+L’installateur dédié conserve les paramètres financiers, l’univers, les places
+et la politique de reprise existante. Contrairement à l’installateur de
+préparation des positions multiples ci-dessus, il n’ajoute aucune paire/place :
+
+```bash
+bash deploy/enable-market-intel-wsl.sh --check
+sudo bash deploy/enable-market-intel-wsl.sh
+```
+
+Il exige le fichier privé 0600 `/home/seb/.config/trading-ninja/market-intel.env`,
+avec LOGIN membre uniquement de `tn_market_intel_writer`. Il n’applique aucune
+migration et ne crée aucun LOGIN. Les prévols valident les empreintes sur la
+cible avant arrêt, puis à nouveau avant bascule. Une copie des anciennes
+configurations est conservée dans `/etc/trading-ninja/`, sans affichage des secrets.
+Le modèle 9B existant est préchauffé, aucun modèle téléchargé. Le moteur reste
+`Restart=no` ; son activation au boot n’est pas modifiée.
+
+Si un prévol après arrêt échoue, laisser le moteur arrêté et examiner l’état.
+Le passage du worker à `active` ne prouve pas un digest OK : vérifier
+`journalctl -u trading-ninja-market-intel.service`, puis le résultat stocké.
+La veille longue, la contention du modèle et la latence restent ouvertes :
+43,5 s sur le premier cycle, au-delà du budget de surveillance 30 s, conservé.
+Guide : [multi-bougies et veille](../docs/MULTI_BOUGIES_ET_MARKET_INTEL.md).
+
+### News et réponses du modèle dans le dashboard (D-099)
+
+0017 est appliquée sur trninja. La release courante
+`paper-news9b-27dc68524124` inclut le worker conservant titres/extraits/liens et
+réponse finale par digest. L’API et le dashboard servent `/#intel`, sous session.
+Le moteur en cours n’a pas été redémarré : il conserve son code D-098 compatible
+avec ces colonnes additives. Le prochain démarrage pointera sur la release 0017.
+
+```bash
+bash deploy/enable-market-intel-news-wsl.sh --check
+sudo bash deploy/enable-market-intel-news-wsl.sh
+```
+
+Ce script vérifie les sources/dépendances et les migrations sur la cible, prouve
+une collecte avec le LOGIN isolé, bascule la release puis relance worker/API/
+dashboard. Il ne modifie aucun fichier privé de configuration, risque, capital,
+univers ou modèle et vérifie le PID moteur inchangé. La migration n’est pas
+appliquée par cet installateur. Une reconnexion au dashboard est nécessaire.

@@ -46,7 +46,11 @@ const ASSETS = {
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
   '/favicon.svg': ['favicon.svg', 'image/svg+xml'],
   '/insights.js': ['insights.js', 'text/javascript; charset=utf-8'],
+  '/market-intel.js': ['market-intel.js', 'text/javascript; charset=utf-8'],
   '/learning.js': ['learning.js', 'text/javascript; charset=utf-8'],
+  '/supervision.js': ['supervision.js', 'text/javascript; charset=utf-8'],
+  '/fonts/plex-sans-regular.woff2': ['fonts/plex-sans-regular.woff2', 'font/woff2'],
+  '/fonts/plex-sans-medium.woff2': ['fonts/plex-sans-medium.woff2', 'font/woff2'],
 };
 
 const SECURITY_HEADERS = {
@@ -317,7 +321,7 @@ export function createDashboardServer(options = {}) {
     const idPart = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
     const insightGet = new Set(['/api/system/health', '/api/insights/overview', '/api/insights/cycles',
       '/api/insights/experiments', '/api/insights/confidence', '/api/insights/protection',
-      '/api/insights/policy', '/api/insights/learning', '/api/diagnostics/opportunities']);
+      '/api/insights/policy', '/api/insights/learning', '/api/insights/market-intel', '/api/diagnostics/opportunities']);
     const insightPost = new Set(['/api/control/entries', '/api/settings/preview',
       '/api/insights/replay', '/api/insights/experiments']);
     const insightRead = method === 'GET' && (insightGet.has(pathname)
@@ -409,6 +413,7 @@ export function createDashboardServer(options = {}) {
       res.write('retry: 3000\n\n');
 
       let closed = false;
+      let polling = false;
       let timer = null;
       const stop = () => {
         closed = true;
@@ -417,8 +422,14 @@ export function createDashboardServer(options = {}) {
       req.on('close', stop);
 
       const tick = async () => {
-        if (closed) return;
-        const result = await callApi('/api/status', { token: session.token });
+        if (closed || polling) return;
+        polling = true;
+        let result;
+        try {
+          result = await callApi('/api/status', { token: session.token });
+        } finally {
+          polling = false;
+        }
         if (closed) return;
         if (result.status === 401) {
           sessions.delete(session.sid);

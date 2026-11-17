@@ -1,0 +1,41 @@
+{
+  "verified_at": "2026-11-16T14:36:41.476403+00:00",
+  "source_head": "8749368",
+  "source_dirty": true,
+  "code_fingerprint": "6ec4537293e650891813044c017e02d06365bd849e734cb0867aaa4baecbc369",
+  "candidate_migration": "0016_market_intel.sql",
+  "target_migration": "0015",
+  "local_migrations_applied": 16,
+  "target_migration_applied": false,
+  "trading_mode": "PAPER",
+  "python_qualified": "3.13.17",
+  "postgres_qualified": "17.12",
+  "python_passed": 1036,
+  "postgres_contracts_passed": 73,
+  "node_passed": 33,
+  "global_check": "TOUT EST VERT (base locale jetable)",
+  "golden_identical": true,
+  "golden_net_pnl_eur": "-34.8828",
+  "golden_blessed": false,
+  "browser_widths": [
+    320,
+    390,
+    768,
+    1440
+  ],
+  "browser_views": 5,
+  "macro_settings_browser_tested": [
+    "1h",
+    75,
+    "1h"
+  ],
+  "historical_sweep_scenarios": 12,
+  "historical_sweep_trades": 0,
+  "intel_articles_collected": 25,
+  "intel_model_installed": false,
+  "intel_worker_activated": false,
+  "engine_restarted": false,
+  "api_restarted": false,
+  "private_configuration_changed": false,
+  "applied_cadence_observer_and_api_tested": true
+}

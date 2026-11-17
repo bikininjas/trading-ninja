@@ -15,7 +15,7 @@ from app.insights.replay import replay_cycle, Unreplayable, ReplayDivergence
 from app.insights.experiments import run_experiment, validate_experiment
 from app.insights.calibration import confidence_report
 from app.insights.policy import position_policy, settings_impact
-from app.insights.health import classify, cycle_deadline
+from app.insights.health import classify, cycle_deadline, applied_timeframe
 from app.runtime.heartbeat import MAX_AGE_SECONDS
 
 
@@ -38,6 +38,18 @@ class SettingsPreview(BaseModel):
 
 def router(config, loader, session, get_repo, totp):
     api = APIRouter(dependencies=[Depends(session)])
+
+    @api.get("/api/insights/market-intel")
+    async def market_intel(digest_id: UUID | None = None, repo=Depends(get_repo)):
+        method = getattr(repo, "market_intel_dashboard", None)
+        if method is None:
+            raise HTTPException(503, "Veille indisponible : migration 0017 et API à jour requises")
+        try:
+            return public(await method(datetime.now(timezone.utc), digest_id))
+        except LookupError as exc:
+            raise HTTPException(404, "Analyse introuvable") from exc
+        except Exception as exc:
+            raise HTTPException(503, "Veille indisponible : vérifier la connexion et la migration 0017") from exc
 
     @api.get('/api/insights/learning')
     async def learning(repo=Depends(get_repo)):
@@ -98,7 +110,9 @@ def router(config, loader, session, get_repo, totp):
         events = await require(repo, "opportunities")(config.execution_mode, since, now)
         from app.market.feed import TIMEFRAME_MS
 
-        duration = TIMEFRAME_MS[config.exchange.daily_timeframe_decision]
+        application = await repo.settings_state(config.execution_mode)
+        timeframe = applied_timeframe(application, config.exchange.daily_timeframe_decision)
+        duration = TIMEFRAME_MS[timeframe]
         expected = (
             int(now.timestamp() * 1000) // duration
             - int(since.timestamp() * 1000) // duration
@@ -113,6 +127,7 @@ def router(config, loader, session, get_repo, totp):
                 "opportunities": {
                     **opportunity_summary(events),
                     "expected_windows_current_config": expected,
+                    "eval_timeframe": timeframe,
                     "cycles": coverage,
                     "expected_basis": "THEORETICAL_CURRENT_UNIVERSE_NOT_UPTIME_PROOF",
                 },
@@ -122,7 +137,7 @@ def router(config, loader, session, get_repo, totp):
                 "protection": protection_freshness(
                     await repo.protection_health(config.execution_mode)
                 ),
-                "settings": await repo.settings_state(config.execution_mode),
+                "settings": application,
             }
         )
 

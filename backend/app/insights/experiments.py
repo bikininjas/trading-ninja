@@ -53,6 +53,7 @@ class MemoryLedger:
         try:
             yield
         except BaseException:
+            self.__dict__.clear()
             self.__dict__.update(state)
             raise
 
@@ -158,6 +159,8 @@ class MemoryLedger:
         return uuid.uuid4()
 
     async def create_position(self, mode, **kw):
+        if self.position is not None:
+            raise ValueError("registre d'expérience limité à une position ouverte")
         self.position = PositionRow(
             uuid.uuid4(),
             kw["symbol"],
@@ -311,9 +314,11 @@ class HistoricalExchange:
     def fetch_order_book(self, symbol, limit=20):
         # No invented historical depth. A recorded book may be supplied explicitly.
         books = self.dataset[symbol].get("books", [])
-        available = [b for b in books if b["timestamp"] <= self.milliseconds()]
-        return (
-            available[-1] if available else {"bids": [], "asks": [], "timestamp": None}
+        now = self.milliseconds()
+        return max(
+            (b for b in reversed(books) if b["timestamp"] <= now),
+            key=lambda b: b["timestamp"],
+            default={"bids": [], "asks": [], "timestamp": None},
         )
 
 
@@ -495,6 +500,10 @@ async def run_experiment(spec, settings=None):
         )
     if settings.mode != "paper":
         raise ValueError("expériences exclusivement papier")
+    if settings.risk.max_open_positions != 1:
+        raise ValueError(
+            "expérience limitée à une position ouverte : configurer MAX_OPEN_POSITIONS=1"
+        )
     if any(s.split("/")[-1] != settings.exchange.quote_currency for s in spec["data"]):
         raise ValueError("une seule devise de cotation par expérience")
     symbols = tuple(sorted(spec["data"]))

@@ -19,6 +19,26 @@
   let refreshing = false;
   let lastProtection = null;
   let protectionExpiry = null;
+  let cyclesSignature = null;
+  const record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+  const count = (value) => Number.isSafeInteger(value) && value >= 0;
+  function validOverview(data) {
+    if (!record(data) || !record(data.entries) || typeof data.entries.enabled !== 'boolean'
+      || !count(data.entries.revision) || !record(data.opportunities)
+      || !['unique_opportunities', 'terminal_attempts'].every((key) => count(data.opportunities[key]))
+      || typeof data.opportunities.truncated !== 'boolean'
+      || !record(data.opportunities.terminal_reasons)
+      || !Object.values(data.opportunities.terminal_reasons).every(count)
+      || Object.values(data.opportunities.terminal_reasons).reduce((sum, n) => sum + n, 0) !== data.opportunities.terminal_attempts
+      || !Array.isArray(data.cycles) || !data.cycles.every((cycle) => record(cycle)
+        && typeof cycle.id === 'string' && typeof cycle.status === 'string' && Number.isFinite(Date.parse(cycle.started_at)))
+      || !Array.isArray(data.experiments) || !record(data.settings) || !count(data.settings.revision)
+      || !(data.settings.applied_revision === null || count(data.settings.applied_revision))
+      || !record(data.protection) || !['OK', 'ALERT', 'UNKNOWN'].includes(data.protection.status)
+      || !Array.isArray(data.protection.incidents)) return false;
+    return data.opportunities.rejection_codes === undefined || (record(data.opportunities.rejection_codes)
+      && Object.values(data.opportunities.rejection_codes).every(count));
+  }
   function status(message) { if ($('insights-status')) $('insights-status').textContent = message; }
   async function api(path, body) {
     const response = await fetch(path, body === undefined ? { signal: AbortSignal.timeout(10_000) } : {
@@ -51,6 +71,8 @@
     if ($('insights-refresh')) $('insights-refresh').disabled = true;
     try {
       const data = await api('/api/insights/overview');
+      if (!validOverview(data)) throw new Error('Observations incomplètes ou incohérentes');
+      document.dispatchEvent(new CustomEvent('tn:observations', { detail: data }));
       control = data.entries;
       $('entries-toggle').disabled = false;
       $('entries-toggle').textContent = control.enabled ? 'Suspendre les nouveaux achats' : 'Réautoriser les nouveaux achats';
@@ -63,33 +85,38 @@
       if (summary.cycles) line(box, `${summary.cycles.complete} cycles complets, ${summary.cycles.failed} en échec et ${summary.cycles.unfinished} sans fin confirmée.`);
       if (summary.expected_windows_current_config !== undefined) line(box, `${summary.expected_windows_current_config} fenêtres théoriques avec l’univers actuel ; présence du moteur non garantie.`);
       if (summary.truncated) line(box, 'Période tronquée : réduire la fenêtre pour une lecture complète.');
-      const cycles = clear('insights-cycles');
-      if (!data.cycles.length) line(cycles, 'Aucun cycle enregistré depuis la mise en place des observations.');
-      for (const cycle of data.cycles) {
-        const row = document.createElement('article'); row.className = 'card';
-        line(row, `${localDateTime(cycle.started_at)} · ${cycle.status}`);
-        action(row, 'Voir le parcours', async () => {
-          const data = await api(`/api/insights/cycles/${cycle.id}/events`);
-          for (const event of data.events) {
-            line(row, `${event.symbol || 'Cycle'} : ${labels[event.stage] || event.stage}`);
-            if (event.body?.code) line(row, rejectionLabels[event.body.code] || event.body.code);
-            if (event.body?.reason) line(row, event.body.reason);
-            if (event.stage === 'RANKING') detail(row, 'Comparaison des paires et coûts observés', event.body);
-          }
-        });
-        action(row, 'Exporter le cycle', async () => download(`cycle-${cycle.id}.json`, await api(`/api/insights/cycles/${cycle.id}`)));
-        if (cycle.status === 'COMPLETE') action(row, 'Vérifier le rejeu', async () => {
-          const result = await api(`/api/insights/cycles/${cycle.id}/replay`, {});
-          line(row, result.status === 'IDENTICAL' ? 'Décisions et rapport reproduits à l’identique.' : result.status);
-        });
-        cycles.append(row);
+      const signature = JSON.stringify(data.cycles);
+      if (signature !== cyclesSignature) {
+        cyclesSignature = signature;
+        const cycles = clear('insights-cycles');
+        if (!data.cycles.length) line(cycles, 'Aucun cycle enregistré depuis la mise en place des observations.');
+        for (const cycle of data.cycles) {
+          const row = document.createElement('article'); row.className = 'card';
+          line(row, `${localDateTime(cycle.started_at)} · ${cycle.status}`);
+          action(row, 'Voir le parcours', async () => {
+            const data = await api(`/api/insights/cycles/${cycle.id}/events`);
+            for (const event of data.events) {
+              line(row, `${event.symbol || 'Cycle'} : ${labels[event.stage] || event.stage}`);
+              if (event.body?.code) line(row, rejectionLabels[event.body.code] || event.body.code);
+              if (event.body?.reason) line(row, event.body.reason);
+              if (event.stage === 'RANKING') detail(row, 'Comparaison des paires et coûts observés', event.body);
+            }
+          });
+          action(row, 'Exporter le cycle', async () => download(`cycle-${cycle.id}.json`, await api(`/api/insights/cycles/${cycle.id}`)));
+          if (cycle.status === 'COMPLETE') action(row, 'Vérifier le rejeu', async () => {
+            const result = await api(`/api/insights/cycles/${cycle.id}/replay`, {});
+            line(row, result.status === 'IDENTICAL' ? 'Décisions et rapport reproduits à l’identique.' : result.status);
+          });
+          cycles.append(row);
+        }
       }
       renderProtection(data.protection);
       renderExperiments(data.experiments);
       const applied = data.settings;
       status(`Observations à jour. Réglages demandés : ${applied.revision} ; appliqués : ${applied.applied_revision ?? 'aucune preuve'}${applied.apply_error ? ` · ${applied.apply_error}` : ''}.`);
-      await policies();
+      try { await policies(); } catch (error) { status(`Observations reçues ; politiques indisponibles : ${error.message}`); }
     } catch (error) {
+      document.dispatchEvent(new CustomEvent('tn:observations-unavailable'));
       if (lastProtection) renderProtection({ ...lastProtection, status: 'UNKNOWN', reason: 'OBSERVATION_UNAVAILABLE' });
       status(`Observations indisponibles : ${error.message}`);
     } finally {
@@ -116,6 +143,7 @@
     const remaining = Math.min(30000, Date.parse(data.valid_until) - Date.now());
     if (data.status === 'OK' && !(remaining > 0)) data = { ...data, status: 'UNKNOWN', reason: 'PROOF_EXPIRED' };
     lastProtection = data;
+    document.dispatchEvent(new CustomEvent('tn:protection', { detail: data }));
     const box = clear('protection-results');
     const health = data.status === 'OK' ? 'Surveillance à jour' : data.status === 'ALERT' ? 'Surveillance en alerte' : 'Surveillance inconnue';
     const reasons = { RUNTIME_HEARTBEAT_STALE: 'moteur sans signe de vie récent', RUNTIME_HEARTBEAT_MISSING: 'aucune preuve de vie du moteur',
@@ -146,6 +174,7 @@
     }
   }
   $('insights-refresh')?.addEventListener('click', refresh);
+  $('refresh-all')?.addEventListener('click', refresh);
   $('entries-toggle')?.addEventListener('click', async () => {
     if (!control || busy) return;
     busy = true;
@@ -193,4 +222,5 @@
     } catch (error) { status(error.message); }
   });
   refresh();
+  setInterval(refresh, 30_000);
 })();

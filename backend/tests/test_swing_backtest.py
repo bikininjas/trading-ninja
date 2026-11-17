@@ -7,6 +7,7 @@ du rejeu (pas de lookahead, stop prioritaire, frais), pas la rentabilité.
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace
@@ -16,6 +17,7 @@ from app.engine.risk_gate import (
     EntryMode, ExchangeConstraints, RiskConfig, StopMode, SwingExitMode,
 )
 from app.exchange.kraken import KrakenMarketInfo
+from app.execution.paper import PaperBroker
 
 START = datetime(2020, 1, 1, tzinfo=timezone.utc)
 D1_MS = 86_400_000
@@ -106,6 +108,17 @@ def test_swing_stop_wins_over_take_profit_in_the_same_candle():
     assert len(result.trades) == 1
     assert result.trades[0].reason == "STOP_LOSS"
     assert result.trades[0].pnl_quote < 0
+
+
+def test_swing_cost_aware_sizing_uses_the_broker_fee():
+    config = settings()
+    config.risk = replace(config.risk, cost_aware=True, min_net_reward_to_risk=Decimal("0.01"))
+    results = [run_swing_backtest(
+        symbol="BTC/EUR", info=market_info(), d1=d1_series(), settings=config,
+        broker=PaperBroker(fee, 5), start_index=ENTRY_INDEX,
+    ) for fee in (Decimal("0"), Decimal("0.008"))]
+    assert all(len(result.trades) == 1 for result in results)
+    assert results[1].trades[0].amount < results[0].trades[0].amount
 
 
 def test_swing_breakeven_moves_the_stop_after_one_r():

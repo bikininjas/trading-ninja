@@ -251,7 +251,7 @@ class SignalClient:
                  has_position: bool, trend_buffer_pct: Decimal,
                  lessons: list[str] | None = None,
                  decision_timeframe: str = "4h") -> tuple[dict, dict]:
-        if decision_timeframe == "1d":
+        if decision_timeframe == "1d" and (context.d1 is not None or snapshot.eval_timeframe != "1d"):
             d1 = context.d1
             if d1 is None:
                 raise LLMError("contexte D1 absent : le prompt Daily ne peut pas être construit")
@@ -309,7 +309,7 @@ class SignalClient:
             distance_ema50_atr = (snapshot.price - context.ema_50_h4) / snapshot.atr_14_h4
             market = {
                 "symbol": symbol,
-                "decision_timeframe": "4h",
+                "decision_timeframe": decision_timeframe,
                 "last_close": str(snapshot.price),
                 "ema_50_h4": str(context.ema_50_h4),
                 "ema_200_h4": str(snapshot.ema_200_h4),
@@ -328,6 +328,36 @@ class SignalClient:
                 "prompt_version": PROMPT_VERSION,
             }
             system_prompt = SYSTEM_PROMPT
+        if getattr(snapshot, "macro_ema_value", None) is not None and (
+            snapshot.macro_timeframe != "4h" or snapshot.macro_ema_period != 200 or decision_timeframe != "4h"
+        ):
+            macro = snapshot.macro_ema_value
+            market["macro"] = {"timeframe": snapshot.macro_timeframe, "ema_period": snapshot.macro_ema_period,
+                               "ema_value": str(macro), "threshold_with_margin": str(macro * (1 + trend_buffer_pct))}
+            market["above_ema200_with_buffer"] = snapshot.price > macro * (1 + trend_buffer_pct)
+            market["distance_to_ema200_pct"] = str((snapshot.price - macro) / macro)
+            market["prompt_version"] = "v4-mtf"
+            source_tf = "D1" if context.d1 is not None and decision_timeframe == "1d" else "H4"
+            system_prompt = system_prompt.replace(f"EMA200 {source_tf}",
+                f"EMA{snapshot.macro_ema_period} {snapshot.macro_timeframe}")
+            if context.d1 is None:
+                system_prompt = system_prompt.replace("EMA50 H4", f"EMA50 {decision_timeframe}")
+                for old, new in (("ema_50_h4", "ema_50_eval"), ("ema_200_h4", "ema_200_eval"),
+                                 ("atr_14_h4", "atr_14_eval")):
+                    market[new] = market.pop(old)
+                if snapshot.macro_ema_period == 50 and snapshot.macro_timeframe == decision_timeframe:
+                    system_prompt = system_prompt.replace(
+                        f"que l'EMA50 {decision_timeframe} est au-dessus de l'EMA50 {decision_timeframe}, ", "")
+            market["ema50_eval_above_macro"] = context.ema_50_h4 > macro
+            market.pop("ema50_above_ema200", None)
+            market["above_macro_with_buffer"] = market.pop("above_ema200_with_buffer")
+            market["distance_to_macro_pct"] = market.pop("distance_to_ema200_pct")
+            system_prompt += " La boussole macro du contexte est prioritaire pour le filtre de tendance."
+            from app.insights.codec import digest as template_digest
+            market["prompt_template_digest"] = template_digest({"system": system_prompt,
+                                                               "temperature": self._settings.temperature})
+        if getattr(context, "intel", None) is not None:
+            market["market_intel"] = context.intel
         if lessons:
             joined = "\n".join(lessons)
             market["lessons_count"] = len(lessons)
@@ -427,7 +457,7 @@ class SignalClient:
         decision_timeframe = decision_timeframe.lower()
         if decision_timeframe not in {"4h", "1d"}:
             raise ValueError(f"decision_timeframe non géré : {decision_timeframe!r}")
-        if decision_timeframe == "1d" and context.d1 is None:
+        if decision_timeframe == "1d" and context.d1 is None and snapshot.eval_timeframe != "1d":
             return self._fallback(snapshot, "contexte D1 absent")
         # La veille H4 peut dépasser la durée de résidence du modèle. Un appel
         # de chargement borné précède chaque décision, sans relancer Ollama ni
@@ -537,9 +567,10 @@ class SignalClient:
         if signal.action != "BUY":
             return signal
         reasons = []
-        floor = snapshot.ema_200_h4 * (Decimal(1) + trend_buffer_pct)
+        macro = snapshot.macro_ema_value if getattr(snapshot, "macro_ema_value", None) is not None else snapshot.ema_200_h4
+        floor = macro * (Decimal(1) + trend_buffer_pct)
         if snapshot.price <= floor:
-            reasons.append(f"prix {snapshot.price} sous EMA200+marge ({floor:.2f})")
+            reasons.append(f"prix {snapshot.price} sous EMA{snapshot.macro_ema_period} {snapshot.macro_timeframe}+marge ({floor:.2f})")
         context_rsi = None
         try:
             context_rsi = Decimal(str(signal.prompt_payload.get("rsi_14")))

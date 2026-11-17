@@ -8,7 +8,7 @@ import httpx
 
 from app.execution.live import LiveBroker
 from app.insights.codec import public
-from app.insights.health import heartbeat_health, cycle_health
+from app.insights.health import heartbeat_health, cycle_health, applied_timeframe
 
 
 def verify_observer_key(exchange):
@@ -137,6 +137,7 @@ async def observe_protection(
     cycles = await repo.recent_cycles(mode, 1)
     runtime = None
     if expect_runtime:
+        timeframe = applied_timeframe(await repo.settings_state(mode), timeframe)
         heartbeat = await repo.runtime_heartbeat(mode)
         runtime = heartbeat_health(heartbeat, now=now)
         runtime["heartbeat_at"] = heartbeat

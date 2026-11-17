@@ -40,7 +40,7 @@ def main() -> int:
         print("2. Installer `qrcode` pour afficher un QR, ou saisir la clé manuellement.")
 
     print("\n3. Ou saisir la clé manuellement dans Authy :")
-    print(f"   Compte : Trading Ninja (admin@trading-ninja)")
+    print("   Compte : Trading Ninja (admin@trading-ninja)")
     print(f"   Clé    : {secret}   (6 chiffres, 30 s)")
     print(f"\nURI complète : {uri}")
     print(f"\nCode courant (à usage unique) : {totp.now()}")

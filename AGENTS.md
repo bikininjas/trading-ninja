@@ -16,13 +16,33 @@ prix et stop sont toujours calculés par le code.
 
 ## 2. État de reprise — 16 novembre 2026
 
+- D-099 : vue `/#intel` livrée et installée, news datées liées à l’analyse,
+  réponse finale du 9B et contexte des signaux de trading. 0017 appliquée sur
+  Supabase, droits publics toujours fermés. Release courante worker/API/
+  dashboard : `paper-news9b-27dc68524124`, 122 fichiers vérifiés ; moteur
+  **non redémarré**, PID 1556355, code de sa release D-098 conservé. Son prochain
+  démarrage utilisera la release courante compatible. Premier digest du nouveau
+  worker : OK, 27 titres et liens, réponse conservée. Preuve :
+  `docs/audits/2026-11-16/market-intel-dashboard-verification.json`.
+
+- D-097/D-098 : multi-bougies H1/H4/D1, défaut EMA200 4h et évaluation 4h,
+  retry/cache SQL causal et MarketIntel séparé. Seb a autorisé le déploiement et
+  demandé **qwen3.5:9b pour trading et veille**, aucun modèle 14B installé.
+  0016 puis 0017 sont appliquées sur Supabase, dix-sept empreintes vérifiées. La release
+  `paper-market-intel9b-ac2171a16feb` est installée et le worker systemd activé ;
+  son premier digest est OK sur 25 articles. Premier cycle moteur COMPLETE,
+  sans erreur ni achat, rejeu IDENTICAL (181 appels). Durée 43,5 s > budget
+  de surveillance 30 s : latence et veille longue restent à qualifier.
+  Le worker utilise le LOGIN isolé `tn_market_intel_wsl`, sans droit d’ordre.
+  Guide `docs/MULTI_BOUGIES_ET_MARKET_INTEL.md` ; preuves dans le journal.
+
 - Le bot reste en **simulation spot long uniquement** ; aucun capital réel engagé.
   Le chemin live exige les trois verrous de configuration et une réconciliation
   propre. Ne pas confondre une sonde de validation et une exécution réelle.
 - D-096 : positions multiples PAPER implémentées, 1 à 5 places, surveillance et
   comptabilité de toutes les lignes. Risque et exposition partagés ; une nouvelle
-  entrée au maximum par cycle. Installation de la nouvelle release en attente de
-  sudo ; ne pas confondre le code testé avec le service installé. Voir
+  entrée au maximum par cycle. La release multi-bougies incluant ce code est installée ;
+  le premier cycle est complet, sans entrée admissible. Voir
   `docs/DIVERSIFICATION_PAPER.md` et `deploy/enable-multiple-positions-wsl.sh`.
 - Les résultats récents ne démontrent pas de rentabilité robuste. La disponibilité
   d'un exécuteur ne constitue pas une autorisation d'activation. Les historiques
@@ -32,17 +52,20 @@ prix et stop sont toujours calculés par le code.
   cagnotte. Seul le capital actif dimensionne ; les pertes ne sont pas rechargées
   depuis la réserve ou la cagnotte. Voir le capital progressif dans
   `docs/OBSERVATION_ET_RECHERCHE.md`, D-069 et D-070.
-- Quinze migrations sont versionnées, dont `0010_capital_ledger.sql` et
-  `0015_paper_learning.sql`. Les quinze sont appliquées sur Supabase trninja,
-  empreintes et droits vérifiés le 11 novembre 2026. Preuve :
+- Dix-sept migrations sont versionnées, dont `0010_capital_ledger.sql`,
+  `0015_paper_learning.sql`, `0016_market_intel.sql` et
+  `0017_market_intel_sources.sql`. Les dix-sept sont
+  appliquées sur Supabase trninja et leurs empreintes vérifiées le 16 novembre.
+  Preuve de 0016 : `docs/audits/2026-11-16/market-intel-target-verification.json`.
+  Les quinze premières avaient leurs droits vérifiés le 11 novembre. Preuve :
   `docs/audits/2026-11-11/learning-migration-verification.json` ; journal et limites
   de sauvegarde : `docs/JOURNAL.md`.
-- 981 tests Python sont collectés, dont 65 contrats PostgreSQL locaux opt-in ;
-  32 tests Node et un contrôle navigateur complètent les preuves.
+- 1061 tests Python sont collectés, dont 77 contrats PostgreSQL locaux opt-in ;
+  34 tests Node et un contrôle navigateur complètent les preuves.
 - Le statut reste **NO-GO** pour le réel. Les corrections intégrées et leurs
   preuves sont dans `docs/JOURNAL.md` ; le plan de passage est
   `docs/ROADMAP.md` (R0–R7). L’audit historique de 39db447 reste référencé dans
-  `docs/audits/2026-11-09/README.md`. La cible est désormais en 0015, droits
+  `docs/audits/2026-11-09/README.md`. La cible est désormais en 0017, droits
   privilégiés fermés ; l’exploitation et l’économie restent à qualifier.
 - D-093 : la mémoire PAPER automatique est livrée dans `app/learning/`. Worker
   distinct `scripts/learning.py --serve`, 20 résultats puis 5 nouveaux et 24 h,
@@ -220,8 +243,9 @@ La CI exécute les contrats complets sur un PostgreSQL jetable, jamais sur Supab
 ## 8. Prochaine action
 
 La cible retenue par Seb est son WSL domestique, accessible dans cette session.
-Le moteur installé reste sur son ancienne release ; la candidate à positions
-multiples exige une installation sudo et la vérification de son premier cycle.
+Le moteur utilise la release multi-bougies/positions multiples installée le
+16 novembre ; premier cycle complet et rejoué, sans achat. Reste à qualifier
+la latence (43,5 s > 30 s), la veille longue et la contention du 9B partagé.
 `deploy/` fournit le lanceur, les unités et l'installation PAPER. Seb a retiré
 le 10 novembre le dump complet initial des prérequis bloquants
 puisque positions, ordres, intentions et ledger financier sont vides. L'outillage

@@ -332,7 +332,17 @@ def test_missing_macro_indicator_is_refused():
     assert not evaluate_entry(snapshot(), context(), replace(CONFIG, macro_ema_period=50)).triggered
 
 
-@pytest.mark.parametrize("period", [0, 49, 51, 300, True, 50.0])
+@pytest.mark.parametrize("period", [0, 1, 501, -1, True, 50.0])
 def test_invalid_macro_period_is_refused(period):
     with pytest.raises(ValueError, match="macro_ema_period"):
         RiskConfig(macro_ema_period=period)
+
+@pytest.mark.parametrize('tf,period,macro,expected', [('4h',200,'110',False),('1h',200,'90',True),('4h',50,'99.5',True)])
+def test_macro_switch_uses_selected_candle_compass(tf,period,macro,expected):
+    from dataclasses import replace
+    snap=replace(snapshot(ema200='110'),macro_timeframe=tf,macro_ema_period=period,
+                 macro_ema_value=Decimal(macro),macro_ema_slope_atr=Decimal(3))
+    cfg=replace(CONFIG,macro_timeframe=tf,macro_ema_period=period)
+    verdict=evaluate_entry(snap,context(),cfg)
+    assert verdict.triggered is expected
+    if not expected: assert f'EMA{period} {tf} + marge' in verdict.reason

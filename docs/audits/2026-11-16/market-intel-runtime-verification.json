@@ -1,0 +1,34 @@
+{
+  "state": "IDLE",
+  "heartbeat": "2026-11-16T14:55:45.545251+00:00",
+  "apply_error": null,
+  "verified_at": "2026-11-16T14:55:50.168812+00:00",
+  "eval_timeframe": "4h",
+  "applied_revision": 7,
+  "heartbeat_current": true,
+  "requested_revision": 7,
+  "universe_unchanged": true,
+  "open_paper_positions": 0,
+  "capital_policy_unchanged": true,
+  "paper_start_equity_unchanged": true,
+  "security_advisors": {
+    "before": [
+      {
+        "name": "rls_enabled_no_policy",
+        "level": "INFO",
+        "count": 17
+      }
+    ],
+    "after": [
+      {
+        "name": "rls_enabled_no_policy",
+        "level": "INFO",
+        "count": 17
+      }
+    ]
+  },
+  "startup_manifest_risk_equal_to_prior_cycle": false,
+  "effective_risk_equal_to_prior_cycle": true,
+  "effective_profile": "micro_budget",
+  "risk_comparison_basis": "Previous cycle effective risk vs newly acknowledged SQL revision 7; decimal representations normalized. Startup manifest precedes the first SQL reload."
+}

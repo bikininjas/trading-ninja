@@ -24,11 +24,11 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Sequence, cast
 
-from app.backtest.engine import BacktestResult, TradeRecord
+from app.backtest.engine import BacktestResult, TradeRecord, _drawdowns, _max_drawdown, _pnl
 from app.engine.entry_rule import evaluate_entry
 from app.engine.exit_rule import should_exit_chandelier, update_chandelier_stop
 from app.engine.risk_gate import (
@@ -50,6 +50,7 @@ from app.market.feed import (
     D1_WARMUP,
     D1Context,
     MarketContext,
+    _ema_series,
 )
 
 __all__ = ["SwingSeries", "build_series", "run_swing_backtest", "snapshot_at"]
@@ -62,14 +63,6 @@ DIVERGENCE_LOOKBACK = 10
 
 def _d(value: Any) -> Decimal:
     return value if isinstance(value, Decimal) else Decimal(str(value))
-
-
-def _ema_series(values: Sequence[Decimal], period: int) -> list[Decimal]:
-    alpha = Decimal(2) / Decimal(period + 1)
-    out = [values[0]]
-    for value in values[1:]:
-        out.append(value * alpha + out[-1] * (1 - alpha))
-    return out
 
 
 def _rsi_series(closes: Sequence[Decimal], period: int = RSI_PERIOD) -> list[Decimal | None]:
@@ -206,7 +199,7 @@ class SwingSeries:
         mid = cast(Decimal, self.boll_mid[index])
         low10 = cast(Decimal, self.swing_low[index])
         chandelier_high = cast(Decimal, highest_high)
-        last, previous = self.candles[index], self.candles[index - 1]
+        last = self.candles[index]
         return D1Context(
             ema_20=ema20,
             ema_50=ema50,
@@ -281,37 +274,6 @@ def _close_time(candle: list) -> datetime:
     return datetime.fromtimestamp((int(candle[0]) + D1_MS) / 1000, tz=timezone.utc)
 
 
-def _drawdowns(curve: list[tuple[datetime, Decimal]], at: datetime) -> tuple[Decimal, Decimal, Decimal]:
-    equity = curve[-1][1]
-    day_peak = max((e for t, e in curve if t >= at - timedelta(hours=24)), default=equity)
-    week_peak = max((e for t, e in curve if t >= at - timedelta(days=7)), default=equity)
-    hwm = max((e for _, e in curve), default=equity)
-    return (
-        max(Decimal(0), (day_peak - equity) / day_peak) if day_peak else Decimal(0),
-        max(Decimal(0), (week_peak - equity) / week_peak) if week_peak else Decimal(0),
-        max(Decimal(0), (hwm - equity) / hwm) if hwm else Decimal(0),
-    )
-
-
-def _max_drawdown(curve: list[tuple[datetime, Decimal]]) -> Decimal:
-    peak = curve[0][1]
-    worst = Decimal(0)
-    for _, equity in curve:
-        peak = max(peak, equity)
-        if peak > 0:
-            worst = max(worst, (peak - equity) / peak)
-    return worst
-
-
-def _pnl(entry: Any, exit_fill: Any) -> Decimal:
-    return (
-        exit_fill.notional_quote
-        - entry.notional_quote
-        - entry.fee_quote
-        - exit_fill.fee_quote
-    )
-
-
 def run_swing_backtest(
     *,
     symbol: str,
@@ -323,9 +285,9 @@ def run_swing_backtest(
     end_index: int | None = None,
 ) -> BacktestResult:
     """Rejoue la politique SWING_MACRO_D1 sur des bougies Daily clôturées."""
-    config: RiskConfig = settings.risk
     series = SwingSeries(d1)
     paper = broker or PaperBroker(info.taker_fee, settings.paper_slippage_bps)
+    config: RiskConfig = replace(settings.risk, execution_fee_pct=paper.execution_fee_pct)
     fee_rate = paper.fee(Decimal(1))
 
     first = max(start_index or 0, D1_WARMUP)

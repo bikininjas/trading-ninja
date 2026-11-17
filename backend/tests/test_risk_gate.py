@@ -183,6 +183,8 @@ def test_circuit_breakers(field, value, code):
     d = run(a=account(**{field: value}))
     assert not d.approved
     assert d.rejection_code is code
+    if field == "daily_drawdown_pct":
+        assert "drawdown journalier" in d.rejection_details
 
 
 def test_circuit_breakers_below_threshold_pass():

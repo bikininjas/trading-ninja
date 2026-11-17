@@ -270,6 +270,7 @@ class ReplayCursor:
             )
         if "error" in call:
             import ccxt
+            import httpx
             from app.market.feed import FeedError
             from app.db.repository import StateTransitionError
             from app.execution.live import LiveExecutionError
@@ -291,6 +292,10 @@ class ReplayCursor:
                     ccxt.RateLimitExceeded,
                 )
             }
+            for name in ("TransportError", "ConnectError", "ConnectTimeout", "ReadTimeout",
+                         "WriteTimeout", "PoolTimeout", "ReadError", "WriteError", "CloseError",
+                         "RemoteProtocolError", "LocalProtocolError", "ProxyError", "UnsupportedProtocol"):
+                classes[name] = getattr(httpx, name)
             raise classes.get(call["error"]["type"], RuntimeError)(
                 call["error"]["message"]
             )
@@ -352,6 +357,9 @@ async def replay_cycle(packet):
         decode(state["base_settings"]) if state.get("base_settings") else settings
     )
     instance._settings_updated_at = decode(state.get("settings_updated_at"))
+    instance._file_settings = decode(state.get("file_settings"))
+    instance._file_settings_initialized = state.get("file_settings_initialized", False)
+    instance._dynamic_loader = state.get("dynamic_loader", True)
     instance._model_digest = packet["manifest"].get("model_digest")
     try:
         result = await instance.run_once()

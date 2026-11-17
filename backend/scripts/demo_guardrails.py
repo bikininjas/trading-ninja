@@ -10,7 +10,7 @@ from decimal import Decimal
 
 from app.engine.risk_gate import (
     AccountState, Action, ExchangeConstraints, MarketRegime, MarketSnapshot,
-    RejectionCode, RiskConfig, TradeIntent, evaluate,
+    RiskConfig, TradeIntent, evaluate,
 )
 
 NOW = datetime(2026, 11, 4, 12, 0, tzinfo=timezone.utc)
@@ -42,7 +42,7 @@ def show(label, *, market=None, account=None, intent=None):
               f"({d.notional_quote / EQUITY:.1%} de l'équité)")
         print(f"       stop {d.stop_loss_price}  ({d.stop_distance_quote:.2f} USDT de distance)")
         print(f"       TP   {d.take_profit_price}")
-        print(f"       risque réel {d.effective_risk_quote:.2f} USDT "
+        print(f"       risque théorique au stop, hors frais {d.effective_risk_quote:.2f} USDT "
               f"= {d.effective_risk_pct:.2%} (budget {d.intended_risk_quote:.2f})")
     else:
         print(f"  REFUS {label}")
@@ -69,7 +69,7 @@ show("le modèle dit SELL", intent=TradeIntent(Action.SELL, 0.99, MarketRegime.T
 
 print("\nLe compte est en mauvaise posture")
 show("position déjà ouverte", account=AccountState(EQUITY, EQUITY, ("BTC/USDT",)))
-show("-2.4 % sur 24 h", account=AccountState(EQUITY, EQUITY, daily_drawdown_pct=Decimal("0.024")))
+show("drawdown journalier de 2.4 %", account=AccountState(EQUITY, EQUITY, daily_drawdown_pct=Decimal("0.024")))
 show("-11 % depuis le plus haut", account=AccountState(EQUITY, EQUITY, drawdown_from_hwm_pct=Decimal("0.11")))
 show("2 pertes d'affilée -> risque divisé",
      account=AccountState(EQUITY, EQUITY, consecutive_losses=2))

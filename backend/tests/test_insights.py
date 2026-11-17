@@ -397,6 +397,42 @@ async def test_suspending_entries_keeps_the_position_stop_managed():
 
 
 @pytest.mark.asyncio
+async def test_experiment_ledger_rolls_back_new_attributes_and_nested_mutations():
+    ledger = MemoryLedger(D(1000), NOW)
+    ledger.orders.append({"purpose": "ENTRY", "details": {"amount": D(1)}})
+
+    with pytest.raises(RuntimeError, match="rollback"):
+        async with ledger.transaction():
+            ledger.orders[0]["details"]["amount"] = D(2)
+            await ledger.force_halt("PAPER", "incident")
+            raise RuntimeError("rollback")
+
+    assert ledger.current == "IDLE"
+    assert ledger.orders[0]["details"]["amount"] == D(1)
+    assert not hasattr(ledger, "halt_reason")
+    assert await ledger.halt_details("PAPER") == "EXPERIMENT_HALT"
+    position = object()
+    ledger.position = position
+    with pytest.raises(ValueError, match="une position ouverte"):
+        await ledger.create_position("PAPER")
+    assert ledger.position is position
+
+
+def test_historical_order_book_uses_most_recent_available_timestamp():
+    data = historical_data(1)
+    now_ms = int(NOW.timestamp() * 1000)
+    newer = {"timestamp": now_ms - 1, "bids": [[100, 1]], "asks": [[101, 1]]}
+    older = {"timestamp": now_ms - 10, "bids": [[90, 1]], "asks": [[91, 1]]}
+    future = {"timestamp": now_ms + 1, "bids": [[110, 1]], "asks": [[111, 1]]}
+    data["BTC/EUR"]["books"] = [newer, future, older]
+    exchange = HistoricalExchange(data, NOW)
+
+    assert exchange.fetch_order_book("BTC/EUR") == newer
+    exchange.now = NOW - timedelta(seconds=1)
+    assert exchange.fetch_order_book("BTC/EUR")["timestamp"] is None
+
+
+@pytest.mark.asyncio
 async def test_experiments_keep_portfolios_and_capital_independent():
     data = historical_data(264)
     rows = data["BTC/EUR"]["candles"]["4h"]
@@ -425,6 +461,8 @@ async def test_experiments_keep_portfolios_and_capital_independent():
     )
     assert one["curve"] == two["curve"] and result["promotion_allowed"] is False
     assert result["comparisons"][0]["final_equity_difference"] == 0
+    with pytest.raises(ValueError, match="limitée à une position"):
+        await run_experiment(spec, config(MAX_OPEN_POSITIONS="2"))
     spec["data"]["BTC/EUR"]["candles"]["1h"].pop(10)
     with pytest.raises(ValueError, match="trou"):
         await run_experiment(spec, config())
